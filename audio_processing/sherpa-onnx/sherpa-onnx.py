@@ -30,11 +30,7 @@ REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sherpa-onnx/"
 parser = get_base_parser("sherpa-onnx", WAV_PATH, SAVE_TEXT_PATH, input_ftype="audio")
 parser.add_argument("--memory_mode", default=-1, type=int, help="memory mode")
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
-parser.add_argument(
-    "-V",
-    action="store_true",
-    help="use microphone input",
-)
+parser.add_argument("-V", action="store_true", help="use microphone input",)
 parser.add_argument(
     "-m",
     "--model_type",
@@ -130,7 +126,10 @@ def recognize_from_audio(enc_net, dec_net, joi_net, samples, sr=16000, segment_l
     
     # 最初の文脈ベクトルを生成
     decoder_input = np.array([hyp], dtype=np.int64)
-    decoder_out = dec_net.run(None, { _get_input_infos(dec_net)[0]["name"]: decoder_input})[0]
+    if not args.onnx:
+        decoder_out = dec_net.run(decoder_input)[0]
+    else:
+        decoder_out = dec_net.run(None, { _get_input_infos(dec_net)[0]["name"]: decoder_input})[0]
 
     num_processed_frames = 0
     final_hyp = []
@@ -141,7 +140,10 @@ def recognize_from_audio(enc_net, dec_net, joi_net, samples, sr=16000, segment_l
         
         # A. Encoder 実行
         enc_inputs = build_enc_inputs(enc_net, x_chunk, states)
-        outputs = enc_net.run(None, enc_inputs)
+        if not args.onnx:
+            outputs = enc_net.run(enc_inputs)
+        else:
+            outputs = enc_net.run(None, enc_inputs)
         
         encoder_out = outputs[0]  # (1, T', 512)
         states = outputs[1:]     # 記憶を更新して次のループへ
@@ -152,10 +154,13 @@ def recognize_from_audio(enc_net, dec_net, joi_net, samples, sr=16000, segment_l
             cur_enc = encoder_out[t:t+1] # 今の瞬間の音ベクトル
             
             # Joiner で確率計算
-            logits = joi_net.run(None, {
-                _get_input_infos(joi_net)[0]["name"]: cur_enc,
-                _get_input_infos(joi_net)[1]["name"]: decoder_out
-            })[0]
+            if not args.onnx:
+                logits = joi_net.run(cur_enc, decoder_out)[0]
+            else:
+                logits = joi_net.run(None, {
+                    _get_input_infos(joi_net)[0]["name"]: cur_enc,
+                    _get_input_infos(joi_net)[1]["name"]: decoder_out
+                })[0]
             
             y = np.argmax(logits) # 最も可能性の高い文字ID
             
@@ -166,7 +171,10 @@ def recognize_from_audio(enc_net, dec_net, joi_net, samples, sr=16000, segment_l
                 
                 # 直近 context_size文字の履歴で新しい文脈ベクトルを作成
                 decoder_input = np.array([hyp[-context_size:]], dtype=np.int64)
-                decoder_out = dec_net.run(None, { _get_input_infos(dec_net)[0]["name"]: decoder_input})[0]
+                if not args.onnx:
+                    decoder_out = dec_net.run(decoder_input)[0]
+                else:
+                    decoder_out = dec_net.run(None, { _get_input_infos(dec_net)[0]["name"]: decoder_input})[0]
 
         # C. offsetフレーム進める
         num_processed_frames += offset
@@ -195,7 +203,10 @@ class RealtimeEstimator:
     def _init_decoder(self):
         """初期文脈ベクトルの生成"""
         decoder_input = np.array([self.hyp], dtype=np.int64)
-        return self.dec_net.run(None, {self.dec_net.get_inputs()[0].name: decoder_input})[0]
+        if not args.onnx:
+            return self.dec_net.run(decoder_input)[0]
+        else:
+            return self.dec_net.run(None, {self.dec_net.get_inputs()[0].name: decoder_input})[0]
 
     def decode_chunk(self):
         """バッファ内の音声を特徴量に変換し、推論を実行"""
@@ -206,7 +217,10 @@ class RealtimeEstimator:
         
         # 2. Encoder 実行
         enc_inputs = build_enc_inputs(self.enc_net, x_input, self.states)
-        outputs = self.enc_net.run(None, enc_inputs)
+        if not args.onnx:
+            outputs = self.enc_net.run(enc_inputs)
+        else:
+            outputs = self.enc_net.run(None, enc_inputs)
         
         encoder_out = outputs[0][0] 
         self.states = outputs[1:]
@@ -215,10 +229,13 @@ class RealtimeEstimator:
         new_text = ""
         for t in range(encoder_out.shape[0]):
             cur_enc = encoder_out[t:t+1]
-            logits = self.joi_net.run(None, {
-                self.joi_net.get_inputs()[0].name: cur_enc,
-                self.joi_net.get_inputs()[1].name: self.decoder_out
-            })[0]
+            if not args.onnx:
+                logits = self.joi_net.run(cur_enc, self.decoder_out)[0]
+            else:
+                logits = self.joi_net.run(None, {
+                    self.joi_net.get_inputs()[0].name: cur_enc,
+                    self.joi_net.get_inputs()[1].name: self.decoder_out
+                })[0]
             
             y = np.argmax(logits)
             if y != 0: # blank_id 以外
@@ -228,7 +245,10 @@ class RealtimeEstimator:
                 # デコーダ更新
                 self.hyp.append(y)
                 decoder_input = np.array([self.hyp[-2:]], dtype=np.int64)
-                self.decoder_out = self.dec_net.run(None, {self.dec_net.get_inputs()[0].name: decoder_input})[0]
+                if not args.onnx:
+                    self.decoder_out = self.dec_net.run(decoder_input)[0]
+                else:
+                    self.decoder_out = self.dec_net.run(None, {self.dec_net.get_inputs()[0].name: decoder_input})[0]
         
         return new_text
     
