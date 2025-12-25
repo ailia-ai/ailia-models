@@ -18,19 +18,32 @@ logger = getLogger(__name__)
 WAV_PATH = "ja.wav"
 SAVE_TEXT_PATH = "output.txt"
 
-WEIGHT_ENC_PATH = "encoder-epoch-75-avg-11-chunk-16-left-128.int8.onnx"
-WEIGHT_DEC_PATH = "decoder-epoch-75-avg-11-chunk-16-left-128.onnx"
-WEIGHT_JOI_PATH = "joiner-epoch-75-avg-11-chunk-16-left-128.int8.onnx"
-TOKEN_PATH = "tokens.txt"
+WEIGHT_ENC_ONLINE_ZIPFORMER_PATH = "encoder-epoch-75-avg-11-chunk-16-left-128.int8.onnx"
+WEIGHT_DEC_ONLINE_ZIPFORMER_PATH = "decoder-epoch-75-avg-11-chunk-16-left-128.onnx"
+WEIGHT_JOI_ONLINE_ZIPFORMER_PATH = "joiner-epoch-75-avg-11-chunk-16-left-128.int8.onnx"
+TOKEN_ONLINE_ZIPFORMER_PATH = "tokens.txt"
+REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sherpa-onnx/"
 
 # ======================
 # Arguemnt Parser Config
 # ======================
 parser = get_base_parser("sherpa-onnx", WAV_PATH, SAVE_TEXT_PATH, input_ftype="audio")
 parser.add_argument("--memory_mode", default=-1, type=int, help="memory mode")
-parser.add_argument("--ailia_audio", action="store_true", help="use ailia audio.")
-parser.add_argument("--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer.")
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
+parser.add_argument(
+    "-V",
+    action="store_true",
+    help="use microphone input",
+)
+parser.add_argument(
+    "-m",
+    "--model_type",
+    default="online-zipformer",
+    choices=(
+        "online-zipformer",
+    ),
+    help="model type",
+)
 
 args = update_parser(parser)
 
@@ -287,14 +300,29 @@ def tokens_to_text(token_ids, token_table):
 
 
 def main():
+    global WEIGHT_DEC_PATH, MODEL_DEC_PATH, WEIGHT_ENC_PATH, MODEL_ENC_PATH, WEIGHT_JOI_PATH, MODEL_JOI_PATH, TOKEN_PATH
+    model_dic = {
+        "online-zipformer": {"enc": (WEIGHT_ENC_ONLINE_ZIPFORMER_PATH, None), 
+                             "dec": (WEIGHT_DEC_ONLINE_ZIPFORMER_PATH, None),
+                             "joi": (WEIGHT_JOI_ONLINE_ZIPFORMER_PATH, None),
+                             "token": TOKEN_ONLINE_ZIPFORMER_PATH
+                             },
+    }
+    model_info = model_dic[args.model_type]
+
+    WEIGHT_ENC_PATH, MODEL_ENC_PATH = model_info["enc"]
+    WEIGHT_DEC_PATH, MODEL_DEC_PATH = model_info["dec"]
+    WEIGHT_JOI_PATH, MODEL_JOI_PATH = model_info["joi"]
+    TOKEN_PATH = model_info["token"]
+
     samples, sr = read_wave(WAV_PATH)
     tail_paddings = np.zeros(int(0.66 * sr), dtype=np.float32) # 0.66s相当のゼロパディングを末尾に追加
     samples = np.concatenate([samples, tail_paddings])
 
     if not args.onnx:
-        enc_net = ailia.Net(None, WEIGHT_ENC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
-        dec_net = ailia.Net(None, WEIGHT_DEC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
-        joi_net = ailia.Net(None, WEIGHT_JOI_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+        enc_net = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+        dec_net = ailia.Net(MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+        joi_net = ailia.Net(MODEL_JOI_PATH, WEIGHT_JOI_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         providers = ["CPUExecutionProvider"]
@@ -311,8 +339,8 @@ def main():
         n_mels = shape[2]
     elif len(shape) == 2:
         expected_frames = shape[0] 
-        n_mels = shape[1]
-            
+        n_mels = shape[1] 
+
     token_list = recognize_from_audio(enc_net, dec_net, joi_net, samples=samples, sr=sr, segment_length=expected_frames, offset=32, n_mels=n_mels)
 
     token_table = load_tokens(TOKEN_PATH)
