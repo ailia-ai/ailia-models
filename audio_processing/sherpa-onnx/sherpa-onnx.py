@@ -112,7 +112,7 @@ def get_features(samples, n_mels, sr=16000):
     )
     
     # 2. 対数（Log）に変換
-    log_S = librosa.power_to_db(S, ref=np.max).astype(np.float32)
+    log_S = np.log(S + 1e-10).astype(np.float32)
     
     # 3. 転置して [時間, 80次元] の形にする
     return log_S.T
@@ -174,7 +174,7 @@ def process_full_audio(enc_net, dec_net, joi_net, samples, sr=16000, segment_len
     return final_hyp # 確定したトークンIDのリスト
 
 def load_tokens(tokens_path):
-    """tokens.txt を読み込んで ID から文字を引く辞書を返す"""
+    """トークンファイル を読み込んで ID から文字を引く辞書を返す"""
     token_table = {}
     with open(tokens_path, 'r', encoding='utf-8') as f:
         for line in f:
