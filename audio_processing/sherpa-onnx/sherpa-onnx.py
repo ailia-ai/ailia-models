@@ -8,7 +8,6 @@ import librosa
 import sys
 sys.path.append('../../util')
 from arg_utils import get_base_parser, update_parser  # noqa: E402
-from model_utils import check_and_download_models  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -34,34 +33,6 @@ parser.add_argument("--disable_ailia_tokenizer", action="store_true", help="disa
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 
 args = update_parser(parser)
-
-if args.ailia_audio:
-    from ailia_audio_utils import (
-        CHUNK_LENGTH,
-        HOP_LENGTH,
-        N_FRAMES,
-        N_SAMPLES,
-        SAMPLE_RATE,
-        load_audio,
-        log_mel_spectrogram,
-        pad_or_trim,
-    )
-else:
-    from audio_utils import (
-        CHUNK_LENGTH,
-        HOP_LENGTH,
-        N_FRAMES,
-        N_SAMPLES,
-        SAMPLE_RATE,
-        load_audio,
-        log_mel_spectrogram,
-        pad_or_trim,
-    )
-
-if not args.disable_ailia_tokenizer:
-    from ailia_tokenizer import get_tokenizer
-else:
-    from tokenizer import get_tokenizer
 
 def read_wave(wave_filename: str) -> Tuple[np.ndarray, int]:
     with wave.open(wave_filename) as f:
@@ -164,11 +135,11 @@ def process_full_audio(enc_net, dec_net, joi_net, samples, sr=16000, segment_len
                 final_hyp.append(y)
                 hyp.append(y)
                 
-                # 直近 2文字の履歴で新しい文脈ベクトルを作成
+                # 直近 context_size文字の履歴で新しい文脈ベクトルを作成
                 decoder_input = np.array([hyp[-context_size:]], dtype=np.int64)
                 decoder_out = dec_net.run(None, {dec_net.get_inputs()[0].name: decoder_input})[0]
 
-        # C. 32フレーム進める
+        # C. offsetフレーム進める
         num_processed_frames += offset
 
     return final_hyp # 確定したトークンIDのリスト
