@@ -6,7 +6,7 @@
 import onnx
 from onnxconverter_common.float16 import convert_float_to_float16
 
-ONNXRUNTIME_SUPPORT = False
+ONNXRUNTIME_SUPPORT = True
 
 if ONNXRUNTIME_SUPPORT:
 	op_block_list = [
@@ -43,7 +43,7 @@ if ONNXRUNTIME_SUPPORT:
 else:
 	op_block_list = None
 
-model = onnx.load("../sensevoice_small.onnx")
+model = onnx.load("./sensevoice_small_opset19.onnx")
 model_fp16 = convert_float_to_float16(model, disable_shape_infer=False, keep_io_types=False, op_block_list = op_block_list)
 onnx.save(model_fp16, "../sensevoice_small_fp16.onnx.tmp")
 
@@ -57,6 +57,7 @@ import numpy as np
 
 def modify_onnx(model_path: str, output_path: str):
 	model = onnx.load(model_path)
+
 	graph = model.graph
 	modified = False
 
@@ -86,68 +87,115 @@ def modify_onnx(model_path: str, output_path: str):
 				attr.i = 10  # float16
 				modified = True
 
-	# SubのInitilaizerをFloat16に置き換え
-	initializer_dict = {init.name: init for init in graph.initializer}
+		# SubのInitilaizerをFloat16に置き換え
+		initializer_dict = {init.name: init for init in graph.initializer}
 
-	for node in graph.node:
-		if node.op_type != "Sub" and (ONNXRUNTIME_SUPPORT or node.op_type != "Equal"):
-			continue
-
-		for inp_name in node.input:
-			if inp_name not in initializer_dict:
-				continue
-
-			init_tensor = initializer_dict[inp_name]
-
-			if init_tensor.data_type == 1:  # float32
-				np_data = numpy_helper.to_array(init_tensor).astype(np.float16)
-				new_init = numpy_helper.from_array(np_data, name=init_tensor.name)
-
-				# 古いinitializerを置き換え
-				index = list(graph.initializer).index(init_tensor)
-				graph.initializer.remove(init_tensor)
-				graph.initializer.insert(index, new_init)
-
-				print(f"Converted initializer '{inp_name}' ({node.op_type} input) from float32 to float16")
-				modified = True
-
-	# RangeのInitializerをFloat32に置き換え
-	initializer_dict = {init.name: init for init in graph.initializer}
-
-	if ONNXRUNTIME_SUPPORT:
 		for node in graph.node:
-			if node.op_type != "Range":
+			if node.op_type != "Sub" and (ONNXRUNTIME_SUPPORT or node.op_type != "Equal"):
 				continue
 
-			for i, inp_name in enumerate(node.input):
+			for inp_name in node.input:
 				if inp_name not in initializer_dict:
 					continue
 
 				init_tensor = initializer_dict[inp_name]
 
-				if init_tensor.data_type == 10:  # float16
-					np_data = numpy_helper.to_array(init_tensor).astype(np.float32)
-					new_name = init_tensor.name+"_fp32"
-					new_init = numpy_helper.from_array(np_data, name=new_name)
+				if init_tensor.data_type == 1:  # float32
+					np_data = numpy_helper.to_array(init_tensor).astype(np.float16)
+					new_init = numpy_helper.from_array(np_data, name=init_tensor.name)
 
-					# 新しいinitializerを追加
-					# 1つのinitializerが複数参照されているので削除はしない
-					graph.initializer.append(new_init)
-					node.input[i] = new_name
+					# 古いinitializerを置き換え
+					index = list(graph.initializer).index(init_tensor)
+					graph.initializer.remove(init_tensor)
+					graph.initializer.insert(index, new_init)
 
-					print(f"Converted initializer '{inp_name}' (Range input) from float16 to float32")
+					print(f"Converted initializer '{inp_name}' ({node.op_type} input) from float32 to float16")
+					modified = True
+
+		# RangeのInitializerをFloat32に置き換え
+		initializer_dict = {init.name: init for init in graph.initializer}
+
+		if ONNXRUNTIME_SUPPORT:
+			for node in graph.node:
+				if node.op_type != "Range":
+					continue
+
+				for i, inp_name in enumerate(node.input):
+					if inp_name not in initializer_dict:
+						continue
+
+					init_tensor = initializer_dict[inp_name]
+
+					if init_tensor.data_type == 10:  # float16
+						np_data = numpy_helper.to_array(init_tensor).astype(np.float32)
+						new_name = init_tensor.name+"_fp32"
+						new_init = numpy_helper.from_array(np_data, name=new_name)
+
+						# 新しいinitializerを追加
+						# 1つのinitializerが複数参照されているので削除はしない
+						graph.initializer.append(new_init)
+						node.input[i] = new_name
+
+						print(f"Converted initializer '{inp_name}' (Range input) from float16 to float32")
+						modified = True
+
+		# Rangeの出力にCast(FP16) が無ければ追加
+		if ONNXRUNTIME_SUPPORT:
+			existing_inputs = {inp for n in graph.node for inp in n.input}
+			for node in list(graph.node):
+				if node.op_type != "Range":
+					continue
+
+				range_output = node.output[0] if len(node.output) > 0 else None
+				if not range_output:
+					continue
+				connected_to_mul = False
+				for other in graph.node:
+					if other.op_type == "Mul":
+						if range_output in other.input:
+							connected_to_mul = True
+							break
+				if not connected_to_mul:
+					continue
+
+				range_output = node.output[0]
+				# Range出力を入力に持つ Castノードがすでにあるか確認
+				has_cast = any(
+					n.op_type == "Cast" and range_output in n.input[0]
+					for n in graph.node
+				)
+
+				if not has_cast:
+					cast_name = node.name + "_CastToFp16"
+					cast_output = range_output + "_fp16"
+
+					cast_node = helper.make_node(
+						"Cast",
+						name=cast_name,
+						inputs=[range_output],
+						outputs=[cast_output],
+						to=10  # FP16
+					)
+
+					# Range出力を受け取るノードを修正
+					for other in graph.node:
+						for i, inp in enumerate(other.input):
+							if inp == range_output:
+								other.input[i] = cast_output
+
+					graph.node.append(cast_node)
+					print(f"Added FP16 Cast after Range node '{node.name}'")
 					modified = True
 
 	onnx.save(model, output_path)
 	print(f"Saved modified model to: {output_path}")
-
-	if modified:
-		print("Modifications were applied.")
-	else:
-		print("No modifications were applied.")
 
 modify_onnx("../sensevoice_small_fp16.onnx.tmp", "../sensevoice_small_fp16.onnx")
 
 import subprocess
 subprocess.call("python3 onnx2prototxt.py " + "../sensevoice_small_fp16.onnx", shell=True)
 subprocess.call("python3 onnx2prototxt.py " + "../speech_fsmn_vad_zh-cn-16k-common_fp16.onnx", shell=True)
+
+from onnxruntime import InferenceSession
+
+ort_infer = InferenceSession("../sensevoice_small_fp16.onnx")
