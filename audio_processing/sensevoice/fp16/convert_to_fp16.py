@@ -43,7 +43,7 @@ if ONNXRUNTIME_SUPPORT:
 else:
 	op_block_list = None
 
-model = onnx.load("./sensevoice_small_opset19.onnx")
+model = onnx.load("../sensevoice_small_opset19.onnx")
 model_fp16 = convert_float_to_float16(model, disable_shape_infer=False, keep_io_types=False, op_block_list = op_block_list)
 onnx.save(model_fp16, "../sensevoice_small_fp16.onnx.tmp")
 
