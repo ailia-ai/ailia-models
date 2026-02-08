@@ -1,6 +1,6 @@
 import sys
 import time
-from collections import namedtuple
+from dataclasses import dataclass
 from logging import getLogger
 
 import ailia
@@ -21,6 +21,26 @@ from microphone_utils import start_microphone_input
 from model_utils import check_and_download_models
 
 logger = getLogger(__name__)
+
+
+@dataclass
+class BatchedHyps:
+    batch_size: int
+    current_lengths: np.ndarray
+    transcript: np.ndarray
+    timestamps: np.ndarray
+    scores: np.ndarray
+    last_timestamp: np.ndarray
+    last_timestamp_lasts: np.ndarray
+
+
+@dataclass
+class Hypothesis:
+    y_sequence: list
+    score: float
+    timestep: list
+    text: str = ""
+
 
 # ======================
 # Parameters
@@ -216,7 +236,6 @@ def collate_audio(cuts, tokenizer, pad_value=0.0):
 def data_sampler(audio_files, max_duration=None, max_cuts=None, drop_last=False):
     batch = []
     batch_duration = 0.0
-    longest_seen = 0.0
     for path in audio_files:
         audio_info = soundfile_info(path)
         cut = dict(
@@ -232,7 +251,6 @@ def data_sampler(audio_files, max_duration=None, max_cuts=None, drop_last=False)
         # Add cut to batch
         batch.append(cut)
         batch_duration += cut_duration
-        longest_seen = max(longest_seen, cut_duration)
 
         # Check if adding this cut would exceed constraints
         would_exceed_duration = (
@@ -312,15 +330,15 @@ def predict(models, input_signal, input_signal_length):
     return encoded, encoded_len
 
 
-def decode_full(models, encoder_output, encoder_output_length):
+def decode_full(models, encoder_output, encoder_output_length, max_symbols=None):
     encoder_output_length = encoder_output_length.astype(np.int64)
 
     # Load models and metadata
     encoder_projection = models["encoder_projection"]
     predictor = models["predictor"]
     joint_net = models["joint"]
-    _blank_index = models["blank_index"]
-    model_durations = models["durations"]
+    _blank_index = 1024
+    model_durations = np.arange(5, dtype=np.int64)
     num_durations = len(model_durations)
 
     # Step 1: Project encoder output
@@ -347,31 +365,19 @@ def decode_full(models, encoder_output, encoder_output_length):
     state_0 = output[1]
     state_1 = output[2]
 
-    # Step 3: Get initial joint output
-    batch_indices = np.arange(batch_size, dtype=np.int64)
-    last_timesteps = np.maximum(encoder_output_length - 1, 0)
-    time_indices = np.zeros(batch_size, dtype=np.int64)
-    safe_time_indices = np.minimum(time_indices, last_timesteps)
-
-    encoder_output_frame = np.expand_dims(
-        encoder_output_projected[batch_indices, safe_time_indices], axis=1
-    )
-    if not args.onnx:
-        output = joint_net.predict([encoder_output_frame, decoder_output])
-    else:
-        output = joint_net.run(
-            None,
-            {
-                "encoder_output": encoder_output_frame,
-                "decoder_output": decoder_output,
-            },
-        )
-    logits = output[0]
-
-    token_logits = logits[:, :-num_durations]
-    duration_logits = logits[:, -num_durations:]
-
     batch_size, max_time, _ = encoder_output.shape
+
+    # Initialize batched hypotheses storage
+    init_length = max_time * max_symbols if max_symbols is not None else max_time
+    batched_hyps = BatchedHyps(
+        batch_size=batch_size,
+        current_lengths=np.zeros(batch_size, dtype=np.int64),
+        transcript=np.zeros((batch_size, init_length), dtype=np.int64),
+        timestamps=np.zeros((batch_size, init_length), dtype=np.int64),
+        scores=np.zeros(batch_size, dtype=np.float32),
+        last_timestamp=np.full((batch_size,), -1, dtype=np.int64),
+        last_timestamp_lasts=np.zeros(batch_size, dtype=np.int64),
+    )
 
     # Initialize batch indices and time indices
     batch_indices = np.arange(batch_size, dtype=np.int64)
@@ -393,6 +399,24 @@ def decode_full(models, encoder_output, encoder_output_length):
         active_mask_prev = active_mask.copy()
 
         # stage 1.1: get first joint output
+        encoder_output_frame = np.expand_dims(
+            encoder_output_projected[batch_indices, safe_time_indices], axis=1
+        )
+        if not args.onnx:
+            output = joint_net.predict([encoder_output_frame, decoder_output])
+        else:
+            output = joint_net.run(
+                None,
+                {
+                    "encoder_output": encoder_output_frame,
+                    "decoder_output": decoder_output,
+                },
+            )
+        logits = output[0]
+
+        token_logits = logits[:, :-num_durations]
+        duration_logits = logits[:, -num_durations:]
+
         labels = np.argmax(token_logits, axis=-1)
         scores = np.max(token_logits, axis=-1)
 
@@ -449,7 +473,7 @@ def decode_full(models, encoder_output, encoder_output_length):
             jump_durations_indices = np.argmax(logits[:, -num_durations:], axis=-1)
             durations = model_durations[jump_durations_indices]
 
-            blank_mask = labels == self._blank_index
+            blank_mask = labels == _blank_index
             # for blank labels force duration >= 1
             mask_fill = np.logical_and(durations == 0, blank_mask)
             durations[mask_fill] = 1
@@ -465,12 +489,38 @@ def decode_full(models, encoder_output, encoder_output_length):
         # For RNN-T, if we found a non-blank label, the utterance is active (need to find blank to stop decoding)
         # For TDT, we could find a non-blank label, add duration, and the utterance may become inactive
         found_labels_mask = np.logical_and(active_mask_prev, labels != _blank_index)
-
-        # Store found labels (simplified - just collect them)
-        decoded_labels = []
-        for i in range(batch_size):
-            if found_labels_mask[i]:
-                decoded_labels.append(int(labels[i]))
+        # Store found labels using add_results_masked_no_checks_ logic
+        # Accumulate scores
+        batched_hyps.scores = np.where(
+            found_labels_mask, batched_hyps.scores + scores, batched_hyps.scores
+        )
+        # Store transcript and timestamps
+        batched_hyps.transcript[batch_indices, batched_hyps.current_lengths] = labels
+        batched_hyps.timestamps[batch_indices, batched_hyps.current_lengths] = (
+            time_indices_current_labels
+        )
+        # Update last timestamp tracking
+        batched_hyps.last_timestamp_lasts = np.where(
+            np.logical_and(
+                found_labels_mask,
+                batched_hyps.last_timestamp == time_indices_current_labels,
+            ),
+            batched_hyps.last_timestamp_lasts + 1,
+            batched_hyps.last_timestamp_lasts,
+        )
+        batched_hyps.last_timestamp_lasts = np.where(
+            np.logical_and(
+                found_labels_mask,
+                batched_hyps.last_timestamp != time_indices_current_labels,
+            ),
+            1,
+            batched_hyps.last_timestamp_lasts,
+        )
+        batched_hyps.last_timestamp = np.where(
+            found_labels_mask, time_indices_current_labels, batched_hyps.last_timestamp
+        )
+        # Increase lengths
+        batched_hyps.current_lengths += found_labels_mask.astype(np.int64)
 
         # stage 3: get decoder (prediction network) output with found labels
         # preserve state/decoder_output for inactive elements
@@ -496,30 +546,103 @@ def decode_full(models, encoder_output, encoder_output_length):
                 state_1[:, i, :] = prev_state_1[:, i, :]
                 decoder_output[i] = prev_decoder_output[i]
 
-    # Return decoded labels
-    return decoded_labels
+        # stage 4: to avoid infinite looping, go to the next frame after max_symbols emission
+        if max_symbols is not None:
+            # if labels are non-blank (not end-of-utterance), check that last observed timestep with label:
+            # if it is equal to the current time index, and number of observations is >= max_symbols, force blank
+            force_blank_mask = np.logical_and(
+                active_mask,
+                np.logical_and(
+                    np.logical_and(
+                        labels != _blank_index,
+                        batched_hyps.last_timestamp_lasts >= max_symbols,
+                    ),
+                    batched_hyps.last_timestamp == time_indices,
+                ),
+            )
+            time_indices += force_blank_mask.astype(
+                np.int64
+            )  # emit blank => advance time indices
+            # update safe_time_indices, non-blocking
+            safe_time_indices[:] = np.minimum(time_indices, last_timesteps)
+            # same as: active_mask = time_indices < encoder_output_length
+            active_mask[:] = time_indices < encoder_output_length
+
+    return batched_hyps
 
 
 def transcribe_post_processing(models, encoder_output, encoded_lengths):
     # Apply optional preprocessing
     encoder_output = encoder_output.transpose(0, 2, 1)  # (B, T, D)
 
-    decoded_tokens = decode_full(models, encoder_output, encoded_lengths)
+    max_symbols = 10
+    batched_hyps = decode_full(
+        models, encoder_output, encoded_lengths, max_symbols=max_symbols
+    )
 
-    return decoded_tokens
+    # Convert to list of Hypothesis objects
+    hypotheses = []
+    for i in range(batched_hyps.batch_size):
+        length = int(batched_hyps.current_lengths[i])
+        y_sequence = batched_hyps.transcript[i, :length].tolist()
+        timestep = batched_hyps.timestamps[i, :length].tolist()
+        score = float(batched_hyps.scores[i])
+
+        hyp = Hypothesis(
+            y_sequence=y_sequence,
+            score=score,
+            timestep=timestep,
+        )
+        hypotheses.append(hyp)
+
+    # Pack hypotheses: clean up timesteps and sequences
+    # Remove any timesteps with value -1 and keep y_sequence/timestep aligned
+    for hyp in hypotheses:
+        if hyp.timestep:
+            # Filter out -1 from timestep and corresponding y_sequence elements
+            valid_indices = [i for i, t in enumerate(hyp.timestep) if t != -1]
+            if valid_indices:
+                hyp.y_sequence = [hyp.y_sequence[i] for i in valid_indices]
+                hyp.timestep = [hyp.timestep[i] for i in valid_indices]
+
+    # Decode hypotheses: remove blank tokens and convert to text
+    tokenizer = models["tokenizer"]
+    blank_id = 0
+    for hyp in hypotheses:
+        # Extract the integer encoded hypothesis
+        prediction = hyp.y_sequence
+
+        if not isinstance(prediction, list):
+            prediction = prediction.tolist()
+
+        # Remove blank tokens (TDT decoding already preprocessed)
+        # Simply filter out blank tokens
+        prediction = [p for p in prediction if p != blank_id]
+
+        # Decode tokens to string
+        hyp.text = tokenizer.ids_to_text(prediction)
+
+    return hypotheses
 
 
 def recognize_from_audio(models, audio_files):
     tokenizer = models["tokenizer"]
 
     audio_files = ["2086-149220-0033.wav"]
+    results = []
+
     dloader = data_loader(tokenizer, audio_files, max_cuts=2)
     for batch in tqdm(dloader, desc="Transcribing"):
         encoded, encoded_len = predict(
             models, input_signal=batch[0], input_signal_length=batch[1]
         )
 
-        transcribe_post_processing(models, encoded, encoded_len)
+        processed_outputs = transcribe_post_processing(models, encoded, encoded_len)
+        results.extend(processed_outputs)
+
+    for hyp in results:
+        print(f"Transcription: {hyp.text}")
+        print(f"Score: {hyp.score}")
 
     logger.info("Script finished successfully.")
 
@@ -566,9 +689,6 @@ def main():
         "encoder_projection": encoder_projection,
         "predictor": predictor,
         "joint": joint,
-        "blank_index": 1024,
-        # "durations": durations,
-        "durations": np.arange(5, dtype=np.int64),
     }
 
     # Support both manifest.json and direct audio file list
