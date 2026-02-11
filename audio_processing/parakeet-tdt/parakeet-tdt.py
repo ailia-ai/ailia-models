@@ -1,24 +1,20 @@
+import copy
+import re
 import sys
-import time
 from dataclasses import dataclass
 from logging import getLogger
 
 import ailia
+import librosa
 import numpy as np
 import soundfile as sf
 from nemo.collections.common import tokenizers
 from tqdm import tqdm
 
 # import original modules
-# isort : on
 sys.path.append("../../util")
-from arg_utils import get_base_parser, get_savepath, update_parser  # noqa
-from audio_utils import load_audio  # noqa
-from math_utils import softmax
-
-# isort : on
-from microphone_utils import start_microphone_input
-from model_utils import check_and_download_models
+from arg_utils import get_base_parser, update_parser
+from model_utils import check_and_download_file, check_and_download_models
 
 logger = getLogger(__name__)
 
@@ -29,6 +25,7 @@ class BatchedHyps:
     current_lengths: np.ndarray
     transcript: np.ndarray
     timestamps: np.ndarray
+    token_durations: np.ndarray
     scores: np.ndarray
     last_timestamp: np.ndarray
     last_timestamp_lasts: np.ndarray
@@ -38,7 +35,8 @@ class BatchedHyps:
 class Hypothesis:
     y_sequence: list
     score: float
-    timestep: list
+    timestamp: list
+    token_duration: list
     text: str = ""
 
 
@@ -47,53 +45,33 @@ class Hypothesis:
 # ======================
 
 WEIGHT_PATH = "parakeet-tdt-0.6b-v2.onnx"
-MODEL_PATH = "parakeet-tdt-0.6b-v2.onnx.prototxt"
-WEIGHT_ENCODER_PROJECTION_PATH = "parakeet-tdt-0.6b-v2_encoder_projection.onnx"
+WEIGHT_ENCODER_PATH = "parakeet-tdt-0.6b-v2_encoder_projection.onnx"
 WEIGHT_PREDICTOR_PATH = "parakeet-tdt-0.6b-v2_predictor.onnx"
 WEIGHT_JOINT_PATH = "parakeet-tdt-0.6b-v2_joint.onnx"
-DURATIONS_PATH = "parakeet-tdt-0.6b-v2_durations.npy"
+MODEL_PATH = "parakeet-tdt-0.6b-v2.onnx.prototxt"
+MODEL_ENCODER_PATH = "parakeet-tdt-0.6b-v2_encoder_projection.onnx.prototxt"
+MODEL_PREDICTOR_PATH = "parakeet-tdt-0.6b-v2_predictor.onnx.prototxt"
+MODEL_JOINT_PATH = "parakeet-tdt-0.6b-v2_joint.onnx.prototxt"
+WEIGTH_PB_PATH = "parakeet-tdt-0.6b-v2_weights.pb"
 
-WAV_PATH = "demo.wav"
-SAVE_TEXT_PATH = "output.txt"
+WAV_PATH = "2086-149220-0033.wav"
+
+SAMPLE_RATE = 16000
+HOP_LENGTH = 160
+
 
 # ======================
 # Argument Parser Config
 # ======================
 
-parser = get_base_parser("Parakeet TDT", WAV_PATH, SAVE_TEXT_PATH, input_ftype="audio")
-parser.add_argument(
-    "--temperature", type=float, default=0, help="temperature to use for sampling"
-)
+parser = get_base_parser("Parakeet TDT", WAV_PATH, None, input_ftype="audio")
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
+parser.add_argument(
+    "--timestamp",
+    action="store_true",
+    help="print segment timestamps instead of plain transcription",
+)
 args = update_parser(parser)
-
-# if args.ailia_audio:
-#     from ailia_audio_utils import (
-#         CHUNK_LENGTH,
-#         HOP_LENGTH,
-#         N_FRAMES,
-#         N_SAMPLES,
-#         SAMPLE_RATE,
-#         load_audio,
-#         log_mel_spectrogram,
-#         pad_or_trim,
-#     )
-# else:
-#     from audio_utils import (
-#         CHUNK_LENGTH,
-#         HOP_LENGTH,
-#         N_FRAMES,
-#         N_SAMPLES,
-#         SAMPLE_RATE,
-#         load_audio,
-#         log_mel_spectrogram,
-#         pad_or_trim,
-#     )
-
-
-# ======================
-# Workaround
-# ======================
 
 
 # ======================
@@ -105,7 +83,7 @@ REMOTE_PATH = "https://storage.googleapis.com/ailia-models/parakeet-tdt/"
 
 
 # ======================
-# Secondaty Functions
+# Secondary Functions
 # ======================
 
 
@@ -118,6 +96,16 @@ def soundfile_info(path):
         samplerate=info_.samplerate,
         duration=info_.duration,
     )
+
+
+def load_audio(file: str, sr: int = SAMPLE_RATE):
+    # prepare input data
+    wav, source_sr = librosa.load(file, sr=None)
+    # Resample the wav if needed
+    if source_sr is not None and source_sr != sr:
+        wav = librosa.resample(wav, orig_sr=source_sr, target_sr=sr)
+
+    return wav
 
 
 def load_audio_from_cut(cut, tokenizer):
@@ -305,6 +293,123 @@ def data_loader(
         yield (audio_padded, audio_lens_arr, tokens_padded, token_lens)
 
 
+def compute_rnnt_timestamps(hypothesis, tokenizer, blank_id):
+    from nemo.collections.asr.parts.utils.timestamp_utils import (
+        get_segment_offsets,
+        get_words_offsets,
+    )
+
+    # Retrieve offsets (TDT style)
+    char_offsets = [
+        {"char": [t], "start_offset": s, "end_offset": s + d}
+        for t, s, d in zip(
+            hypothesis.y_sequence, hypothesis.timestamp, hypothesis.token_duration
+        )
+        if t != blank_id
+    ]
+    y_sequence_blank_removed = [t for t in hypothesis.y_sequence if t != blank_id]
+
+    if len(char_offsets) != len(y_sequence_blank_removed):
+        raise ValueError(
+            f"`char_offsets`: {char_offsets} and `processed_tokens`: {y_sequence_blank_removed}"
+            " have to be of the same length, but are: "
+            f"`len(offsets)`: {len(char_offsets)} and `len(processed_tokens)`:"
+            f" {len(y_sequence_blank_removed)}"
+        )
+
+    encoded_char_offsets = copy.deepcopy(char_offsets)
+
+    # Correctly process the token ids to chars/subwords.
+    for i, offsets in enumerate(char_offsets):
+        chars_text = []
+        chars_tokens = []
+        for char in offsets["char"]:
+            assert char != blank_id, "Offsets should not contain blank tokens"
+            token_id = int(char)
+            if hasattr(tokenizer, "ids_to_tokens"):
+                chars_tokens.append(tokenizer.ids_to_tokens([token_id])[0])
+            else:
+                chars_tokens.append(str(token_id))
+            chars_text.append(tokenizer.ids_to_text([token_id]))
+        char_offsets[i]["char"] = chars_text
+        encoded_char_offsets[i]["char"] = chars_tokens
+
+    supported_punctuation = {"¿", "-", ",", "'", "!", "¡", ".", "/", "?", "%", ":"}
+
+    for i, offset in enumerate(char_offsets):
+        if offset["char"][0] in supported_punctuation and i > 0:
+            encoded_char_offsets[i]["start_offset"] = offset["start_offset"] = (
+                char_offsets[i - 1]["end_offset"]
+            )
+            encoded_char_offsets[i]["end_offset"] = offset["end_offset"] = offset[
+                "start_offset"
+            ]
+
+    word_separator = " "
+    tokenizer_type = "bpe"
+    word_offsets = get_words_offsets(
+        char_offsets=char_offsets,
+        encoded_char_offsets=encoded_char_offsets,
+        word_delimiter_char=word_separator,
+        supported_punctuation=supported_punctuation,
+        tokenizer_type=tokenizer_type,
+        decode_tokens_to_str=lambda tokens: tokenizer.ids_to_text(tokens),
+    )
+    segment_separators = [".", "?", "!"]
+    segment_gap_threshold = None
+    segment_offsets = get_segment_offsets(
+        word_offsets,
+        segment_delimiter_tokens=segment_separators,
+        supported_punctuation=supported_punctuation,
+        segment_gap_threshold=segment_gap_threshold,
+    )
+
+    timestep_info = hypothesis.timestamp
+    hypothesis.timestamp = {"timestep": timestep_info}
+    hypothesis.timestamp["char"] = char_offsets
+    hypothesis.timestamp["word"] = word_offsets
+    hypothesis.timestamp["segment"] = segment_offsets
+
+    return hypothesis
+
+
+def process_timestamp_outputs(outputs, subsampling_factor=1, window_stride=0.01):
+    if isinstance(outputs, Hypothesis):
+        outputs = [outputs]
+
+    if not isinstance(outputs[0], Hypothesis):
+        raise ValueError(f"Expected Hypothesis object, got {type(outputs[0])}")
+
+    def process_timestamp(timestamp, subsampling_factor, window_stride):
+        for val in timestamp:
+            start_offset = val["start_offset"]
+            end_offset = val["end_offset"]
+            val["start"] = start_offset * window_stride * subsampling_factor
+            val["end"] = end_offset * window_stride * subsampling_factor
+        return timestamp
+
+    for idx, hyp in enumerate(outputs):
+        if not hasattr(hyp, "timestamp"):
+            raise ValueError(
+                "Expected Hypothesis object to have 'timestamp' attribute, when compute_timestamps is "
+                f"enabled but got {hyp}"
+            )
+        timestamp = hyp.timestamp
+        if "word" in timestamp:
+            outputs[idx].timestamp["word"] = process_timestamp(
+                timestamp["word"], subsampling_factor, window_stride
+            )
+        if "char" in timestamp:
+            outputs[idx].timestamp["char"] = process_timestamp(
+                timestamp["char"], subsampling_factor, window_stride
+            )
+        if "segment" in timestamp:
+            outputs[idx].timestamp["segment"] = process_timestamp(
+                timestamp["segment"], subsampling_factor, window_stride
+            )
+    return outputs
+
+
 # ======================
 # Main functions
 # ======================
@@ -374,6 +479,7 @@ def decode_full(models, encoder_output, encoder_output_length, max_symbols=None)
         current_lengths=np.zeros(batch_size, dtype=np.int64),
         transcript=np.zeros((batch_size, init_length), dtype=np.int64),
         timestamps=np.zeros((batch_size, init_length), dtype=np.int64),
+        token_durations=np.zeros((batch_size, init_length), dtype=np.int64),
         scores=np.zeros(batch_size, dtype=np.float32),
         last_timestamp=np.full((batch_size,), -1, dtype=np.int64),
         last_timestamp_lasts=np.zeros(batch_size, dtype=np.int64),
@@ -499,6 +605,9 @@ def decode_full(models, encoder_output, encoder_output_length, max_symbols=None)
         batched_hyps.timestamps[batch_indices, batched_hyps.current_lengths] = (
             time_indices_current_labels
         )
+        batched_hyps.token_durations[batch_indices, batched_hyps.current_lengths] = (
+            durations
+        )
         # Update last timestamp tracking
         batched_hyps.last_timestamp_lasts = np.where(
             np.logical_and(
@@ -571,7 +680,9 @@ def decode_full(models, encoder_output, encoder_output_length, max_symbols=None)
     return batched_hyps
 
 
-def transcribe_post_processing(models, encoder_output, encoded_lengths):
+def transcribe_post_processing(
+    models, encoder_output, encoded_lengths, compute_timestamps=False
+):
     # Apply optional preprocessing
     encoder_output = encoder_output.transpose(0, 2, 1)  # (B, T, D)
 
@@ -585,28 +696,32 @@ def transcribe_post_processing(models, encoder_output, encoded_lengths):
     for i in range(batched_hyps.batch_size):
         length = int(batched_hyps.current_lengths[i])
         y_sequence = batched_hyps.transcript[i, :length].tolist()
-        timestep = batched_hyps.timestamps[i, :length].tolist()
+        timestamp = batched_hyps.timestamps[i, :length].tolist()
+        token_duration = batched_hyps.token_durations[i, :length].tolist()
         score = float(batched_hyps.scores[i])
 
         hyp = Hypothesis(
             y_sequence=y_sequence,
             score=score,
-            timestep=timestep,
+            timestamp=timestamp,
+            token_duration=token_duration,
         )
         hypotheses.append(hyp)
 
-    # Pack hypotheses: clean up timesteps and sequences
-    # Remove any timesteps with value -1 and keep y_sequence/timestep aligned
+    # Pack hypotheses: clean up timestamps and sequences
+    # Remove any timestamps with value -1 and keep y_sequence/timestamp aligned
     for hyp in hypotheses:
-        if hyp.timestep:
-            # Filter out -1 from timestep and corresponding y_sequence elements
-            valid_indices = [i for i, t in enumerate(hyp.timestep) if t != -1]
+        if hyp.timestamp:
+            # Filter out -1 from timestamp and corresponding y_sequence elements
+            valid_indices = [i for i, t in enumerate(hyp.timestamp) if t != -1]
             if valid_indices:
                 hyp.y_sequence = [hyp.y_sequence[i] for i in valid_indices]
-                hyp.timestep = [hyp.timestep[i] for i in valid_indices]
+                hyp.timestamp = [hyp.timestamp[i] for i in valid_indices]
+                hyp.token_duration = [hyp.token_duration[i] for i in valid_indices]
 
     # Decode hypotheses: remove blank tokens and convert to text
     tokenizer = models["tokenizer"]
+    space_before_punct_pattern = re.compile("(\\s)('|\\?|\\.|:|,|¡|\\-|¿|/|!|%)")
     blank_id = 0
     for hyp in hypotheses:
         # Extract the integer encoded hypothesis
@@ -621,36 +736,66 @@ def transcribe_post_processing(models, encoder_output, encoded_lengths):
 
         # Decode tokens to string
         hyp.text = tokenizer.ids_to_text(prediction)
+        hyp.text = space_before_punct_pattern.sub(r"\2", hyp.text)
+
+    if compute_timestamps:
+        for hyp_idx in range(len(hypotheses)):
+            hypotheses[hyp_idx] = compute_rnnt_timestamps(
+                hypotheses[hyp_idx],
+                tokenizer=tokenizer,
+                blank_id=blank_id,
+            )
+        hypotheses = process_timestamp_outputs(
+            hypotheses,
+            subsampling_factor=8,
+            window_stride=float(HOP_LENGTH) / float(SAMPLE_RATE),
+        )
 
     return hypotheses
 
 
 def recognize_from_audio(models, audio_files):
+    audio_files = args.input
+    timestamp = args.timestamp
+
     tokenizer = models["tokenizer"]
 
-    audio_files = ["2086-149220-0033.wav"]
     results = []
-
     dloader = data_loader(tokenizer, audio_files, max_cuts=2)
     for batch in tqdm(dloader, desc="Transcribing"):
         encoded, encoded_len = predict(
             models, input_signal=batch[0], input_signal_length=batch[1]
         )
 
-        processed_outputs = transcribe_post_processing(models, encoded, encoded_len)
+        processed_outputs = transcribe_post_processing(
+            models, encoded, encoded_len, compute_timestamps=timestamp
+        )
         results.extend(processed_outputs)
 
     for hyp in results:
-        print(f"Transcription: {hyp.text}")
-        print(f"Score: {hyp.score}")
+        if timestamp:
+            word_timestamps = hyp.timestamp[
+                "word"
+            ]  # word level timestamps for first sample
+            segment_timestamps = hyp.timestamp["segment"]  # segment level timestamps
+            char_timestamps = hyp.timestamp["char"]  # char level timestamps
+
+            for stamp in segment_timestamps:
+                print(f"{stamp['start']}s - {stamp['end']}s : {stamp['segment']}")
+
+        else:
+            print(f"Transcription: {hyp.text}")
+            print(f"Score: {hyp.score}")
 
     logger.info("Script finished successfully.")
 
 
 def main():
-    # check_and_download_models(WEIGHT_ENC_PATH, MODEL_ENC_PATH, REMOTE_PATH)
-    # check_and_download_models(WEIGHT_DEC_PATH, MODEL_DEC_PATH, REMOTE_PATH)
-    # check_and_download_file(WEIGTH_ENC_LARGE_PB_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_ENCODER_PATH, MODEL_ENCODER_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_PREDICTOR_PATH, MODEL_PREDICTOR_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_JOINT_PATH, MODEL_JOINT_PATH, REMOTE_PATH)
+    check_and_download_file(WEIGTH_PB_PATH, REMOTE_PATH)
 
     env_id = args.env_id
 
@@ -658,10 +803,12 @@ def main():
     if not args.onnx:
         net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
         encoder_projection = ailia.Net(
-            None, WEIGHT_ENCODER_PROJECTION_PATH, env_id=env_id
+            MODEL_ENCODER_PATH, WEIGHT_ENCODER_PATH, env_id=env_id
         )
-        predictor = ailia.Net(None, WEIGHT_PREDICTOR_PATH, env_id=env_id)
-        joint = ailia.Net(None, WEIGHT_JOINT_PATH, env_id=env_id)
+        predictor = ailia.Net(
+            MODEL_PREDICTOR_PATH, WEIGHT_PREDICTOR_PATH, env_id=env_id
+        )
+        joint = ailia.Net(MODEL_JOINT_PATH, WEIGHT_JOINT_PATH, env_id=env_id)
     else:
         import onnxruntime
 
@@ -673,7 +820,7 @@ def main():
         )
         net = onnxruntime.InferenceSession(WEIGHT_PATH, providers=providers)
         encoder_projection = onnxruntime.InferenceSession(
-            WEIGHT_ENCODER_PROJECTION_PATH, providers=providers
+            WEIGHT_ENCODER_PATH, providers=providers
         )
         predictor = onnxruntime.InferenceSession(
             WEIGHT_PREDICTOR_PATH, providers=providers
