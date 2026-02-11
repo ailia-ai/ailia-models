@@ -8,6 +8,10 @@ import ailia
 import librosa
 import numpy as np
 import soundfile as sf
+from nemo.collections.asr.parts.utils.timestamp_utils import (
+    get_segment_offsets,
+    get_words_offsets,
+)
 from nemo.collections.common import tokenizers
 from tqdm import tqdm
 
@@ -294,11 +298,6 @@ def data_loader(
 
 
 def compute_rnnt_timestamps(hypothesis, tokenizer, blank_id):
-    from nemo.collections.asr.parts.utils.timestamp_utils import (
-        get_segment_offsets,
-        get_words_offsets,
-    )
-
     # Retrieve offsets (TDT style)
     char_offsets = [
         {"char": [t], "start_offset": s, "end_offset": s + d}
