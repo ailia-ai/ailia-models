@@ -6,8 +6,10 @@ from typing import Tuple
 import wave
 import librosa
 import sys
+import queue
 sys.path.append('../../util')
-from arg_utils import get_base_parser, update_parser  # noqa: E402
+from arg_utils import get_base_parser, update_parser 
+from microphone_utils import start_microphone_input
 
 logger = getLogger(__name__)
 
@@ -21,6 +23,7 @@ SAVE_TEXT_PATH = "output.txt"
 WEIGHT_ENC_ONLINE_ZIPFORMER_PATH = "encoder-epoch-75-avg-11-chunk-16-left-128.int8.onnx"
 WEIGHT_DEC_ONLINE_ZIPFORMER_PATH = "decoder-epoch-75-avg-11-chunk-16-left-128.onnx"
 WEIGHT_JOI_ONLINE_ZIPFORMER_PATH = "joiner-epoch-75-avg-11-chunk-16-left-128.int8.onnx"
+MODEL_OFFSET_ONLINE_ZIPFORMER = 32
 TOKEN_ONLINE_ZIPFORMER_PATH = "tokens.txt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sherpa-onnx/"
 
@@ -187,6 +190,9 @@ class RealtimeEstimator:
         self.dec_net = dec_net
         self.joi_net = joi_net
         self.token_table = token_table
+
+        self.n_mels = n_mels
+        self.sr = sr
         
         # 内部状態の初期化
         self.states = init_states(enc_net) 
@@ -197,8 +203,10 @@ class RealtimeEstimator:
         self.sample_buffer = np.array([], dtype=np.float32)
         
         # 定数 (16kHz想定)
-        self.OFFSET_SAMPLES = int(offset * sr *0.01) # 10ms歩進
-        self.SEGMENT_SAMPLES = int(segment_length * sr *0.01) # segment_lengthフレーム分
+        win_length = 400
+        hop_length = 160
+        self.SEGMENT_SAMPLES = int(win_length + segment_length * hop_length)
+        self.OFFSET_SAMPLES = int(offset * hop_length)
 
     def _init_decoder(self):
         """初期文脈ベクトルの生成"""
@@ -212,7 +220,7 @@ class RealtimeEstimator:
         """バッファ内の音声を特徴量に変換し、推論を実行"""
         # 1. 特徴量抽出 (45フレーム分)
         chunk_samples = self.sample_buffer[:self.SEGMENT_SAMPLES]
-        features = get_features(chunk_samples)
+        features = get_features(chunk_samples, n_mels=self.n_mels, sr=self.sr)
         x_input = features[np.newaxis, :, :] 
         
         # 2. Encoder 実行
@@ -278,8 +286,8 @@ def main_inference_loop(mic_info, estimator):
                         print(recognized_text, end="", flush=True)
                     estimator.sample_buffer = estimator.sample_buffer[estimator.OFFSET_SAMPLES:]
 
-            except que.Empty:
-                # キューが空のときは次の入力を待つ
+            except queue.Empty:
+                # キューが空のときはの入力を待つ
                 continue
     except KeyboardInterrupt:
         print("\n認識を終了します...")
@@ -320,26 +328,36 @@ def tokens_to_text(token_ids, token_table):
 
 
 def main():
-    global WEIGHT_DEC_PATH, MODEL_DEC_PATH, WEIGHT_ENC_PATH, MODEL_ENC_PATH, WEIGHT_JOI_PATH, MODEL_JOI_PATH, TOKEN_PATH
+    global WEIGHT_DEC_PATH, MODEL_DEC_PATH, WEIGHT_ENC_PATH, MODEL_ENC_PATH, WEIGHT_JOI_PATH, MODEL_JOI_PATH, MODEL_OFFSET, TOKEN_PATH
     model_dic = {
         "online-zipformer": {"enc": (WEIGHT_ENC_ONLINE_ZIPFORMER_PATH, None), 
                              "dec": (WEIGHT_DEC_ONLINE_ZIPFORMER_PATH, None),
                              "joi": (WEIGHT_JOI_ONLINE_ZIPFORMER_PATH, None),
-                             "token": TOKEN_ONLINE_ZIPFORMER_PATH
+                             "token": TOKEN_ONLINE_ZIPFORMER_PATH,
+                             "offset": MODEL_OFFSET_ONLINE_ZIPFORMER
                              },
     }
+
     model_info = model_dic[args.model_type]
 
     WEIGHT_ENC_PATH, MODEL_ENC_PATH = model_info["enc"]
     WEIGHT_DEC_PATH, MODEL_DEC_PATH = model_info["dec"]
     WEIGHT_JOI_PATH, MODEL_JOI_PATH = model_info["joi"]
+    MODEL_OFFSET = model_info["offset"]
     TOKEN_PATH = model_info["token"]
 
-    samples, sr = read_wave(WAV_PATH)
-    tail_paddings = np.zeros(int(0.66 * sr), dtype=np.float32) # 0.66s相当のゼロパディングを末尾に追加
-    samples = np.concatenate([samples, tail_paddings])
+    token_table = load_tokens(TOKEN_PATH)
 
     if not args.onnx:
+        if args.memory_mode == -1:
+            args.memory_mode = ailia.get_memory_mode(
+                reduce_constant=True,
+                ignore_input_with_initializer=True,
+                reduce_interstage=False,
+                reuse_interstage=True,
+            )
+        if (args.memory_mode & 16) != 0:
+            ailia.set_temporary_cache_path("./")
         enc_net = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         dec_net = ailia.Net(MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         joi_net = ailia.Net(MODEL_JOI_PATH, WEIGHT_JOI_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
@@ -360,13 +378,33 @@ def main():
     elif len(shape) == 2:
         expected_frames = shape[0] 
         n_mels = shape[1] 
+    
+    if args.V:
+        # A. マイク入力モード
+        mic_info = start_microphone_input(sample_rate=16000, sc=False)
+        # 推論エンジンの初期化
+        estimator = RealtimeEstimator(
+            enc_net, dec_net, joi_net, token_table, 
+            sr=16000, segment_length=expected_frames, offset=MODEL_OFFSET, n_mels=n_mels
+        )
+        
+        # マイク入力を開始（ここでは既存の mic ユーティリティ等を使う想定）
+        # start_microphone_thread(mic_info) 
+        
+        main_inference_loop(mic_info, estimator)
+    else:
+        # B. ファイル入力モード
+        samples, sr = read_wave(WAV_PATH)
+        tail_paddings = np.zeros(int(0.66 * sr), dtype=np.float32) # 0.66s相当のゼロパディングを末尾に追加
+        samples = np.concatenate([samples, tail_paddings])
 
-    token_list = recognize_from_audio(enc_net, dec_net, joi_net, samples=samples, sr=sr, segment_length=expected_frames, offset=32, n_mels=n_mels)
-
-    token_table = load_tokens(TOKEN_PATH)
-    result_text = tokens_to_text(token_list, token_table)
-    print(f"認識結果: {result_text}")
-
+        token_list = recognize_from_audio(
+            enc_net, dec_net, joi_net, samples=samples, sr=sr, 
+            segment_length=expected_frames, offset=MODEL_OFFSET, n_mels=n_mels
+        )
+        
+        result_text = tokens_to_text(token_list, token_table)
+        print(f"認識結果: {result_text}")
 
 if __name__ == "__main__":
     main()
