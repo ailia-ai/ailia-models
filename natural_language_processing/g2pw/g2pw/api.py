@@ -7,10 +7,9 @@ import shutil
 
 from transformers import BertTokenizer
 from tqdm import tqdm
-import onnxruntime
 import numpy as np
 
-from g2pw.dataset import TextDataset, get_phoneme_labels, get_char_phoneme_labels
+from g2pw.dataset import TextDataset, get_phoneme_labels
 from g2pw.utils import load_config
 
 MODEL_URL = 'https://storage.googleapis.com/esun-ai/g2pW/G2PWModel-v2-onnx.zip'
@@ -18,7 +17,6 @@ MODEL_URL = 'https://storage.googleapis.com/esun-ai/g2pW/G2PWModel-v2-onnx.zip'
 
 def predict(onnx_session, dataloader_or_generator, labels, turnoff_tqdm=False):
     all_preds = []
-    all_confidences = []
 
     generator = dataloader_or_generator if turnoff_tqdm else tqdm(dataloader_or_generator, desc='predict')
     for data in generator:
@@ -39,12 +37,8 @@ def predict(onnx_session, dataloader_or_generator, labels, turnoff_tqdm=False):
         )[0]
 
         preds = np.argmax(probs, axis=-1)
-        max_probs = probs[np.arange(probs.shape[0]), preds]
-
         all_preds += [labels[pred] for pred in preds.tolist()]
-        all_confidences += max_probs.tolist()
-
-    return all_preds, all_confidences
+    return all_preds
 
 
 def download_model(model_dir):
@@ -58,25 +52,17 @@ def download_model(model_dir):
 
 
 class G2PWConverter:
-    def __init__(self, model_dir='G2PWModel/', style='bopomofo', model_source=None, num_workers=None, batch_size=None,
-                 turnoff_tqdm=True, enable_non_tradional_chinese=False, use_cuda=False):
+    def __init__(self, model_dir='G2PWModel/', style='bopomofo', model_source=None, batch_size=None,
+                 turnoff_tqdm=True, enable_non_tradional_chinese=False, onnx_session=None):
         if not os.path.exists(os.path.join(model_dir, 'version')):
             download_model(model_dir)
 
-        sess_options = onnxruntime.SessionOptions()
-        sess_options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-        sess_options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
-        sess_options.intra_op_num_threads = 2
-        
-        onnx_path = os.path.join(model_dir, 'g2pw.onnx')
-        if use_cuda:
-            self.session_g2pw =  onnxruntime.InferenceSession(onnx_path, sess_options=sess_options, providers=['CUDAExecutionProvider'])
-        else:
-            self.session_g2pw =  onnxruntime.InferenceSession(onnx_path, sess_options=sess_options)
+        if onnx_session is None:
+            raise ValueError("onnx_session is required. This implementation does not use onnxruntime.")
+        self.session_g2pw = onnx_session
 
         self.config = load_config(os.path.join(model_dir, 'config.py'), use_default=True)
 
-        self.num_workers = num_workers if num_workers else self.config.num_workers
         self.batch_size = batch_size if batch_size else self.config.batch_size
         self.model_source = model_source if model_source else self.config.model_source
         self.turnoff_tqdm = turnoff_tqdm
@@ -87,10 +73,8 @@ class G2PWConverter:
         monophonic_chars_path = os.path.join(model_dir, 'MONOPHONIC_CHARS.txt')
         self.polyphonic_chars = [line.split('\t') for line in open(polyphonic_chars_path, 'r', encoding='utf-8').read().strip().split('\n')]
         self.monophonic_chars = [line.split('\t') for line in open(monophonic_chars_path, 'r', encoding='utf-8').read().strip().split('\n')]
-        self.labels, self.char2phonemes = get_char_phoneme_labels(self.polyphonic_chars) if self.config.use_char_phoneme else get_phoneme_labels(self.polyphonic_chars)
-
+        self.labels, self.char2phonemes = get_phoneme_labels(self.polyphonic_chars)
         self.chars = sorted(list(self.char2phonemes.keys()))
-        self.pos_tags = TextDataset.POS_TAGS
 
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                'bopomofo_to_pinyin_wo_tune_dict.json'), 'r', encoding='utf-8') as fr:
@@ -143,8 +127,7 @@ class G2PWConverter:
             return partial_results
 
         dataset = TextDataset(self.tokenizer, self.labels, self.char2phonemes, self.chars, texts, query_ids,
-                              use_mask=self.config.use_mask, use_char_phoneme=self.config.use_char_phoneme,
-                              window_size=self.config.window_size, for_train=False)
+                              use_mask=self.config.use_mask, window_size=self.config.window_size)
 
         # DataLoaderの代わりにジェネレータ関数を定義
         def batch_generator():
@@ -153,10 +136,7 @@ class G2PWConverter:
                 batch_samples = [dataset[j] for j in range(i, min(i + self.batch_size, n_samples))]
                 yield dataset.create_mini_batch(batch_samples)
 
-        preds, confidences = predict(self.session_g2pw, batch_generator(), self.labels, turnoff_tqdm=self.turnoff_tqdm)
-
-        if self.config.use_char_phoneme:
-            preds = [pred.split(' ')[1] for pred in preds]
+        preds = predict(self.session_g2pw, batch_generator(), self.labels, turnoff_tqdm=self.turnoff_tqdm)
 
         results = partial_results
         for sent_id, query_id, pred in zip(sent_ids, query_ids, preds):

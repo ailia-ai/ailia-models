@@ -1,19 +1,6 @@
 import numpy as np
 from g2pw.utils import tokenize_and_map
 
-ANCHOR_CHAR = '▁'
-
-
-def prepare_data(sent_path, lb_path=None):
-    raw_texts = open(sent_path).read().rstrip().split('\n')
-    query_ids = [raw.index(ANCHOR_CHAR) for raw in raw_texts]
-    texts = [raw.replace(ANCHOR_CHAR, '') for raw in raw_texts]
-    if lb_path is None:
-        return texts, query_ids
-    else:
-        phonemes = open(lb_path).read().rstrip().split('\n')
-        return texts, query_ids, phonemes
-
 
 def get_phoneme_labels(polyphonic_chars):
     labels = sorted(list(set([phoneme for char, phoneme in polyphonic_chars])))
@@ -25,41 +12,20 @@ def get_phoneme_labels(polyphonic_chars):
     return labels, char2phonemes
 
 
-def get_char_phoneme_labels(polyphonic_chars):
-    labels = sorted(list(set([f'{char} {phoneme}' for char, phoneme in polyphonic_chars])))
-    char2phonemes = {}
-    for char, phoneme in polyphonic_chars:
-        if char not in char2phonemes:
-            char2phonemes[char] = []
-        char2phonemes[char].append(labels.index(f'{char} {phoneme}'))
-    return labels, char2phonemes
-
-
-def prepare_pos(pos_path):
-     return open(pos_path).read().rstrip().split('\n')
-
-
 class TextDataset:
-    POS_TAGS = ['UNK', 'A', 'C', 'D', 'I', 'N', 'P', 'T', 'V', 'DE', 'SHI']
-
-    def __init__(self, tokenizer, labels, char2phonemes, chars, texts, query_ids, phonemes=None, pos_tags=None,
-                 use_mask=False, use_char_phoneme=False, use_pos=False, window_size=None, max_len=512, for_train=True):
+    def __init__(self, tokenizer, labels, char2phonemes, chars, texts, query_ids,
+                 use_mask=False, window_size=None, max_len=512):
         self.tokenizer = tokenizer
         self.max_len = max_len
         self.window_size = window_size
-        self.for_train = for_train
 
         self.labels = labels
         self.char2phonemes = char2phonemes
         self.chars = chars
         self.texts = texts
         self.query_ids = query_ids
-        self.phonemes = phonemes
-        self.pos_tags = pos_tags
 
         self.use_mask = use_mask
-        self.use_char_phoneme = use_char_phoneme
-        self.use_pos = use_pos
 
         if window_size is not None:
             self.truncated_texts, self.truncated_query_ids = self._truncate_texts(self.window_size, texts, query_ids)
@@ -138,23 +104,6 @@ class TextDataset:
             'char_id': char_id,
             'position_id': position_id,
         }
-
-        if self.use_pos and self.pos_tags is not None:
-            pos_id = self.POS_TAGS.index(self.pos_tags[idx])
-            outputs['pos_id'] = pos_id
-
-        if self.for_train:
-            phoneme = self.phonemes[idx]
-            label_id = self.labels.index(f'{query_char} {phoneme}' if self.use_char_phoneme else phoneme)
-            outputs['label_id'] = label_id
-
-        info = {
-            'text': text,
-            'tokens': tokens,
-            'text2token': text2token,
-            'token2text': token2text
-        }
-        outputs['info'] = info
         return outputs
 
     def __len__(self):
@@ -189,16 +138,5 @@ class TextDataset:
             'char_ids': char_ids,
             'position_ids': position_ids
         }
-
-        if self.use_pos and self.pos_tags is not None:
-            pos_ids = np.array(_agg('pos_id'), dtype=np.int64)
-            batch_output['pos_ids'] = pos_ids
-
-        if self.for_train:
-            label_ids = np.array(_agg('label_id'), dtype=np.int64)
-            batch_output['label_ids'] = label_ids
-        else:
-            infos = _agg('info')
-            batch_output['infos'] = infos
 
         return batch_output

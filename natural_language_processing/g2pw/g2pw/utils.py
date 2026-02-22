@@ -1,25 +1,4 @@
 import re
-import logging
-import sys
-
-
-class RunningAverage:
-    def __init__(self):
-        self.values = []
-
-    def add(self, val):
-        self.values.append(val)
-
-    def add_all(self, vals):
-        self.values += vals
-
-    def get(self):
-        if len(self.values) == 0:
-            return None
-        return sum(self.values) / len(self.values)
-
-    def flush(self):
-        self.values = []
 
 
 def wordize_and_map(text):
@@ -147,15 +126,3 @@ def load_config(config_path, use_default=False):
                     if dict_k not in d:
                         d[dict_k] = dict_v
     return config
-
-
-def get_logger(file_path):
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-
-    output_file_handler = logging.FileHandler(file_path)
-    stdout_handler = logging.StreamHandler(sys.stdout)
-
-    logger.addHandler(output_file_handler)
-    logger.addHandler(stdout_handler)
-    return logger
