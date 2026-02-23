@@ -6,7 +6,8 @@ Text (Supports English and Chinese)
 
 ## Output
 
-Audio file (`output.wav`).
+Audio file (`onnx/result/<dataset>/<text>.wav`).  
+Mel spectrogram plot (`onnx/result/<dataset>/<text>.png`).
 
 ## Usage
 
@@ -18,19 +19,26 @@ It is necessary to be connected to the Internet while downloading.
 For the sample text (default):
 
 ```bash
-$ python3 fastspeech2.py
+$ python3 fastspeech2.py \
+  --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
+  --onnx_hifi onnx/hifigan/hifigan.onnx
 ```
 
 Specify your own text:
 
 ```bash
-$ python3 fastspeech2.py --text "Hello, this is a test."
+$ python3 fastspeech2.py \
+  --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
+  --onnx_hifi onnx/hifigan/hifigan.onnx \
+  --text "Hello, this is a test."
 ```
 
 Specify speaker ID for multi-speaker models:
 
 ```bash
 $ python3 fastspeech2.py \
+  --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
+  --onnx_hifi onnx/hifigan/hifigan.onnx \
   --text "Hello world" \
   --speaker_id 0
 ```
@@ -39,9 +47,10 @@ Control pitch, energy, and speaking rate:
 
 ```bash
 $ python3 fastspeech2.py \
+  --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
+  --onnx_hifi onnx/hifigan/hifigan.onnx \
   --text "Hello world" \
   --pitch_control 1.2 \
-  --energy_control 1.1 \
   --duration_control 0.8
 ```
 
@@ -53,7 +62,8 @@ For LibriTTS (English, Multi-Speaker)
 $ python3 fastspeech2.py \
   --text "Hello, I am speaking from a multi-speaker model." \
   --preprocess_config config/LibriTTS/preprocess.yaml \
-  --onnx_fs2 libritts.onnx \
+  --onnx_fs2 onnx/fastspeech2/libritts.onnx \
+  --onnx_hifi onnx/hifigan/hifigan.onnx \
   --speaker_id 0
 ```
 
@@ -63,28 +73,26 @@ For AISHELL-3 (Mandarin, Multi-Speaker):
 $ python3 fastspeech2.py \
   --text "你好" \
   --preprocess_config config/AISHELL3/preprocess.yaml \
-  --onnx_fs2 aishell3.onnx \
+  --onnx_fs2 onnx/fastspeech2/aishell3.onnx \
+  --onnx_hifi onnx/hifigan/hifigan.onnx \
   --speaker_id 16
 ```
 
 ## Options
 
-### Core Arguments (same as original FastSpeech2 repo)
+### Core Arguments
 
-- `--restore_step`: Step for checkpoint to restore (default: 900000)
-- `--text`: Raw text to synthesize (for single-sentence mode only)
+- `-t`, `--text`: Raw text to synthesize (for single-sentence mode only, default: "Ailia SDK makes it easy to deploy deep learning models.")
 - `--speaker_id`: Speaker ID for multi-speaker synthesis (for single-sentence mode only, default: 0)
-- `-p`, `--pitch_control`: Control the pitch of the whole utterance, larger value for higher pitch (default: 1.0)
-- `-e`, `--energy_control`: Control the energy of the whole utterance, larger value for larger volume (default: 1.0)
-- `-d`, `--duration_control`: Control the speed of the whole utterance, larger value for slower speaking rate (default: 1.0)
+- `--pitch_control`: Control the pitch of the whole utterance, larger value for higher pitch (default: 1.0)
+- `--duration_control`: Control the speed of the whole utterance, larger value for slower speaking rate (default: 1.0)
 
 ### Additional Arguments (ailia-specific)
 
 - `--preprocess_config`: Path to preprocess.yaml (default: config/LJSpeech/preprocess.yaml)
-- `--model_config`: Path to model.yaml (default: config/LJSpeech/model.yaml)
-- `--onnx_fs2`: Path to FastSpeech2 ONNX file
-- `--onnx_hifi`: Path to HiFi-GAN ONNX file
-- `-s`, `--savepath`: Save path for the output audio file (default: output.wav)
+- `--onnx_fs2`: Path to FastSpeech2 ONNX file (default: ljspeech.onnx)
+- `--onnx_hifi`: Path to HiFi-GAN ONNX file (default: hifigan.onnx)
+- `--output_dir`: Output directory for generated audio files (default: onnx/result/ailia)
 - `-b`, `--benchmark`: Running the inference on the same input 5 times to measure execution performance
 - `--env_id`: The backend environment id
 

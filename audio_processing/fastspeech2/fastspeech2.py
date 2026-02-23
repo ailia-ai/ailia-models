@@ -25,10 +25,11 @@ from text import text_to_sequence
 logger = getLogger(__name__)
 
 # モデル設定
-WEIGHT_PATH_FS2 = 'ljspeech.onnx'
-MODEL_PATH_FS2 = 'ljspeech.onnx.prototxt'
-WEIGHT_PATH_HIFI = 'hifigan.onnx'
-MODEL_PATH_HIFI = 'hifigan.onnx.prototxt'
+# onnxファイルの箇所を変更しています。こちらが正しいパスになります。
+WEIGHT_PATH_FS2 = 'onnx/fastspeech2/ljspeech.onnx'
+# hifiganは単一話者用と多話者用で別のモデルを使用します。
+WEIGHT_PATH_HIFI = None
+# 以下のパスは変更していません。
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/fastspeech2"
 
 PREPROCESS_CONFIG = "config/LJSpeech/preprocess.yaml"
@@ -242,7 +243,20 @@ def preprocess_text(text, preprocess_config, preprocess_config_path):
 # ===========================
 # 3. メイン関数
 # ===========================
+def select_hifigan(preprocess_config_path):
+    """preprocess_configのパスからデータセット名を判定し、適切なHiFi-GANを選択"""
+    dataset = os.path.basename(os.path.dirname(preprocess_config_path))
+    if dataset == "LJSpeech":
+        return "onnx/hifigan/hifigan_ljspeech.onnx"
+    else:
+        return "onnx/hifigan/hifigan.onnx"
+
+
 def infer():
+    if args.onnx_hifi is None:
+        args.onnx_hifi = select_hifigan(args.preprocess_config)
+        logger.info(f"Auto-selected HiFi-GAN: {args.onnx_hifi}")
+
     # モデルのダウンロード
     try:
         check_and_download_models(args.onnx_fs2, args.onnx_fs2 + ".prototxt", REMOTE_PATH)
@@ -383,7 +397,11 @@ def infer():
     MAX_WAV_VALUE = preprocess_config["preprocessing"]["audio"]["max_wav_value"]
     wav = (wav * MAX_WAV_VALUE).astype("int16")
 
-    output_dir = args.output_dir if args.output_dir is not None else "onnx/result/ailia"
+    if args.output_dir is not None:
+        output_dir = args.output_dir
+    else:
+        dataset_name = os.path.basename(os.path.dirname(args.preprocess_config))
+        output_dir = os.path.join("onnx", "result", dataset_name)
     os.makedirs(output_dir, exist_ok=True)
 
     # ファイル名は元リポジトリと同じくテキスト冒頭100文字
