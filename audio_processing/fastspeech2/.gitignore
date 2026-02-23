@@ -1,8 +1,6 @@
-hofe.txt
 venv310
 onnx
-output_mel.png
-output.wave
+*.prototxt
 *.onnx
 *.wav
 *.png
