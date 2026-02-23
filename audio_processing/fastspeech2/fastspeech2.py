@@ -2,6 +2,9 @@ import ailia
 import numpy as np
 import yaml
 import sys
+import json
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import os
 import scipy.io.wavfile as wavfile
@@ -91,6 +94,66 @@ parser.add_argument(
     help='output directory for generated audio files'
 )
 args = update_parser(parser)
+
+
+def expand_phoneme(values, durations):
+    out = []
+    for v, d in zip(values, durations):
+        out += [float(v)] * max(0, int(d))
+    return np.array(out)
+
+
+def plot_mel(data, stats, titles):
+    fig, axes = plt.subplots(len(data), 1, squeeze=False)
+    if titles is None:
+        titles = [None for _ in range(len(data))]
+    pitch_min, pitch_max, pitch_mean, pitch_std, energy_min, energy_max = stats
+    pitch_min = pitch_min * pitch_std + pitch_mean
+    pitch_max = pitch_max * pitch_std + pitch_mean
+
+    def add_axis(fig, old_ax):
+        ax = fig.add_axes(old_ax.get_position(), anchor="W")
+        ax.set_facecolor("None")
+        return ax
+
+    for i in range(len(data)):
+        mel, pitch, energy = data[i]
+        pitch = pitch * pitch_std + pitch_mean
+        axes[i][0].imshow(mel, origin="lower")
+        axes[i][0].set_aspect(2.5, adjustable="box")
+        axes[i][0].set_ylim(0, mel.shape[0])
+        axes[i][0].set_title(titles[i], fontsize="medium")
+        axes[i][0].tick_params(labelsize="x-small", left=False, labelleft=False)
+        axes[i][0].set_anchor("W")
+
+        ax1 = add_axis(fig, axes[i][0])
+        ax1.plot(pitch, color="tomato")
+        ax1.set_xlim(0, mel.shape[1])
+        ax1.set_ylim(0, pitch_max)
+        ax1.set_ylabel("F0", color="tomato")
+        ax1.tick_params(
+            labelsize="x-small", colors="tomato", bottom=False, labelbottom=False
+        )
+
+        ax2 = add_axis(fig, axes[i][0])
+        ax2.plot(energy, color="darkviolet")
+        ax2.set_xlim(0, mel.shape[1])
+        ax2.set_ylim(energy_min, energy_max)
+        ax2.set_ylabel("Energy", color="darkviolet")
+        ax2.yaxis.set_label_position("right")
+        ax2.tick_params(
+            labelsize="x-small",
+            colors="darkviolet",
+            bottom=False,
+            labelbottom=False,
+            left=False,
+            labelleft=False,
+            right=True,
+            labelright=True,
+        )
+
+    return fig
+
 
 # ===========================
 # 1. 前処理
@@ -318,32 +381,47 @@ def infer():
 
 
     MAX_WAV_VALUE = preprocess_config["preprocessing"]["audio"]["max_wav_value"]
-    wav = wav * MAX_WAV_VALUE
-    wav = wav.astype('int16')
+    wav = (wav * MAX_WAV_VALUE).astype("int16")
 
-    if args.output_dir is not None:
-        output_dir = args.output_dir
-    else:
-        output_dir = "onnx/result/ailia"
+    output_dir = args.output_dir if args.output_dir is not None else "onnx/result/ailia"
+    os.makedirs(output_dir, exist_ok=True)
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    wav_path = os.path.join(output_dir, "output_ailia.wav")
-    plot_path = os.path.join(output_dir, "output_mel_ailia.png")
+    # ファイル名は元リポジトリと同じくテキスト冒頭100文字
+    basename = args.text[:100]
+    wav_path = os.path.join(output_dir, "{}.wav".format(basename))
+    plot_path = os.path.join(output_dir, "{}.png".format(basename))
 
     sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
     wavfile.write(wav_path, sampling_rate, wav)
-    logger.info(f"Saved Audio: {wav_path}")
+    logger.info("Saved Audio: {}".format(wav_path))
 
-    plt.figure(figsize=(10, 4))
-    plt.imshow(mel_output[0].T, aspect="auto", origin="lower")
-    plt.title(f"Generated Mel (Len: {mel_output.shape[1]})")
-    plt.colorbar()
-    plt.tight_layout()
+    # PNG: plot_mel（メル + ピッチ + エネルギー重ね描き）
+    try:
+        p_pred_index = fs2_output_names.index("p_predictions")
+        e_pred_index = fs2_output_names.index("e_predictions")
+    except ValueError:
+        p_pred_index, e_pred_index = 2, 3
+
+    pitch_pred = fs2_res[p_pred_index][0, :real_len]
+    energy_pred = fs2_res[e_pred_index][0, :real_len]
+    duration_arr = d_rounded[0, :real_len]
+
+    pitch_feature = preprocess_config["preprocessing"]["pitch"]["feature"]
+    energy_feature = preprocess_config["preprocessing"]["energy"]["feature"]
+
+    pitch_plot = expand_phoneme(pitch_pred, duration_arr) if pitch_feature == "phoneme_level" else pitch_pred[:mel_len]
+    energy_plot = expand_phoneme(energy_pred, duration_arr) if energy_feature == "phoneme_level" else energy_pred[:mel_len]
+
+    stats_path = os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
+    with open(stats_path) as f:
+        stats = json.load(f)
+    stats_values = stats["pitch"] + stats["energy"][:2]
+
+    mel_plot = mel_output[0, :mel_len].T  # (80, mel_len)
+    fig = plot_mel([(mel_plot, pitch_plot, energy_plot)], stats_values, ["Synthetized Spectrogram"])
     plt.savefig(plot_path)
     plt.close()
-    logger.info(f"Saved Plot: {plot_path}")
+    logger.info("Saved Plot:  {}".format(plot_path))
 
 if __name__ == "__main__":
     infer()
