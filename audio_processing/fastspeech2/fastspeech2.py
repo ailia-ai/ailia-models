@@ -10,11 +10,6 @@ from string import punctuation
 from logging import getLogger
 import onnx
 
-# ===========================
-# Settings
-# ===========================
-
-# リポジトリのルートにあるutilsを参照できるようにする
 sys.path.append('../../util')
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa
 from model_utils import check_and_download_models  # noqa
@@ -39,14 +34,14 @@ PREPROCESS_CONFIG = "config/LJSpeech/preprocess.yaml"
 # Arguments
 # ===========================
 parser = get_base_parser(
-    'FastSpeech2 (Ailia Inference)',
+    'FastSpeech2',
     None,
     'output.wav'
 )
 parser.add_argument(
     '-t', '--text',
     type=str,
-    default="Ailia SDK makes it easy to deploy deep learning models.",
+    default="Hello World",
     help='raw text to synthesize, for single-sentence mode only'
 )
 parser.add_argument(
@@ -98,7 +93,7 @@ parser.add_argument(
 args = update_parser(parser)
 
 # ===========================
-# 1. 前処理（元リポジトリ synthesize.py と同一）
+# 1. 前処理
 # ===========================
 def preprocess_english(text, preprocess_config):
     text = text.rstrip(punctuation)
@@ -222,9 +217,7 @@ def infer():
     onnx_model = onnx.load(args.onnx_fs2)
     fs2_output_names = [output.name for output in onnx_model.graph.output]
 
-    # -------------------------------------------
-    # 入力準備（元リポジトリ synthesize.py と同じ: actual length で渡す）
-    # -------------------------------------------
+    # 入力
     logger.info(f"Input Text: {args.text}")
     sequence = preprocess_text(args.text, preprocess_config, args.preprocess_config)
 
@@ -238,10 +231,10 @@ def infer():
     fs2_input_names = [inp.name for inp in onnx_model.graph.input
                        if inp.name not in [n.name for n in onnx_model.graph.initializer]]
 
-    # max_src_len: 元リポジトリと同じく actual length を渡す
+
     max_src_len = np.array(real_len, dtype=np.int64)
 
-    # speakersの形状を確認して適切に設定
+
     if "speakers" in fs2_input_names:
         for inp in onnx_model.graph.input:
             if inp.name == "speakers":
@@ -259,9 +252,7 @@ def infer():
     e_control = np.array(args.energy_control, dtype=np.float32)
     d_control = np.array(args.duration_control, dtype=np.float32)
 
-    # -------------------------------------------
-    # FastSpeech2 推論
-    # -------------------------------------------
+    # 推論
     logger.info("Running FastSpeech2...")
 
     inputs = {
@@ -287,9 +278,7 @@ def infer():
         logger.error(f"FastSpeech2 inference failed: {e}")
         return
 
-    # -------------------------------------------
-    # 結果の切り出し
-    # -------------------------------------------
+
     try:
         d_rounded_index = fs2_output_names.index("d_rounded")
         postnet_index = fs2_output_names.index("postnet_output")
@@ -300,22 +289,16 @@ def infer():
     mel_output_whole = fs2_res[postnet_index]  # [1, MaxLen, 80]
     d_rounded = fs2_res[d_rounded_index]       # [1, MaxLen]
 
-    # 元のリポジトリと同じ処理：mel_lenを計算（synth_samplesと同様）
+
     valid_durations = d_rounded[0, :real_len]
     mel_len = int(np.sum(valid_durations))
 
     logger.info(f"Generated Mel Length: {mel_len}")
 
-    # 元のリポジトリと同じ処理：mel_lenで切り出す（バッファなし）
     mel_output = mel_output_whole[:, :mel_len, :]
 
-    # -------------------------------------------
-    # HiFi-GAN 推論（元のリポジトリと同じ処理）
-    # -------------------------------------------
-    logger.info("Running HiFi-GAN...")
 
-    # 元のリポジトリと同じ処理：[1, MelLen, 80] -> [1, 80, MelLen]
-    # synth_samplesでは predictions[1].transpose(1, 2) を使用
+    logger.info("Running HiFi-GAN...")
     mel_input = mel_output.transpose(0, 2, 1).astype(np.float32)
 
     hop_length = preprocess_config["preprocessing"]["stft"]["hop_length"]
@@ -333,11 +316,7 @@ def infer():
         wav = wav[:audio_len]
         logger.info(f"Trimmed audio to {audio_len} samples (mel_len={mel_len} * hop_length={hop_length})")
 
-    # -------------------------------------------
-    # 保存（元のリポジトリと同じ処理）
-    # -------------------------------------------
-    # 元のリポジトリのvocoder_inferと同じ処理：
-    # wavs = wavs.cpu().numpy() * max_wav_value
+
     MAX_WAV_VALUE = preprocess_config["preprocessing"]["audio"]["max_wav_value"]
     wav = wav * MAX_WAV_VALUE
     wav = wav.astype('int16')
