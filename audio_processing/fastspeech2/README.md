@@ -21,7 +21,7 @@ For the sample text (default):
 ```bash
 $ python3 fastspeech2.py \
   --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
-  --onnx_hifi onnx/hifigan/hifigan.onnx
+  --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx
 ```
 
 Specify your own text:
@@ -29,7 +29,7 @@ Specify your own text:
 ```bash
 $ python3 fastspeech2.py \
   --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
-  --onnx_hifi onnx/hifigan/hifigan.onnx \
+  --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
   --text "Hello, this is a test."
 ```
 
@@ -38,7 +38,7 @@ Specify speaker ID for multi-speaker models:
 ```bash
 $ python3 fastspeech2.py \
   --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
-  --onnx_hifi onnx/hifigan/hifigan.onnx \
+  --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
   --text "Hello world" \
   --speaker_id 0
 ```
@@ -48,7 +48,7 @@ Control pitch, energy, and speaking rate:
 ```bash
 $ python3 fastspeech2.py \
   --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
-  --onnx_hifi onnx/hifigan/hifigan.onnx \
+  --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
   --text "Hello world" \
   --pitch_control 1.2 \
   --duration_control 0.8

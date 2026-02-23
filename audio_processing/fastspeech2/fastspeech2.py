@@ -28,6 +28,7 @@ logger = getLogger(__name__)
 # onnxファイルの箇所を変更しています。こちらが正しいパスになります。
 WEIGHT_PATH_FS2 = 'onnx/fastspeech2/ljspeech.onnx'
 # hifiganは単一話者用と多話者用で別のモデルを使用します。
+# モデルを見て動的に選択します。
 WEIGHT_PATH_HIFI = None
 # 以下のパスは変更していません。
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/fastspeech2"
@@ -43,7 +44,7 @@ parser = get_base_parser(
     'output.wav'
 )
 parser.add_argument(
-    '-t', '--text',
+    '--text',
     type=str,
     default="Hello World",
     help='raw text to synthesize, for single-sentence mode only'
@@ -60,12 +61,15 @@ parser.add_argument(
     default=1.0,
     help='control the pitch of the whole utterance, larger value for higher pitch'
 )
+# こちらの引数について、元のリポジトリでも、推論の際に変更しても効果がありませんでした。
+# 形式上残してありますが、推論結果には全く影響しません。
 parser.add_argument(
     '--energy_control',
     type=float,
     default=1.0,
     help='control the energy of the whole utterance, larger value for larger volume'
 )
+# 以下２つの引数は推論時に適用されることが確認できています。
 parser.add_argument(
     '--duration_control',
     type=float,
@@ -156,9 +160,7 @@ def plot_mel(data, stats, titles):
     return fig
 
 
-# ===========================
-# 1. 前処理
-# ===========================
+# 前処理
 def preprocess_english(text, preprocess_config):
     text = text.rstrip(punctuation)
     lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
@@ -240,9 +242,7 @@ def preprocess_text(text, preprocess_config, preprocess_config_path):
         print("Detected language: English")
         return preprocess_english(text, preprocess_config)
 
-# ===========================
-# 3. メイン関数
-# ===========================
+# ここで、HIFIGANのモデルを自動的に選択します。
 def select_hifigan(preprocess_config_path):
     """preprocess_configのパスからデータセット名を判定し、適切なHiFi-GANを選択"""
     dataset = os.path.basename(os.path.dirname(preprocess_config_path))
@@ -290,7 +290,7 @@ def infer():
         logger.error(f"Error initializing ailia: {e}")
         return
 
-    # ONNXモデルの出力名を取得（ailiaSDKでは直接取得できないため、ONNXファイルから読み込む）
+    # ONNXモデルの出力名を取得
     onnx_model = onnx.load(args.onnx_fs2)
     fs2_output_names = [output.name for output in onnx_model.graph.output]
 
@@ -301,7 +301,7 @@ def infer():
     real_len = len(sequence)
     logger.info(f"Sequence Length: {real_len}")
 
-    texts = np.array([sequence], dtype=np.int64)  # (1, actual_len) パディングなし
+    texts = np.array([sequence], dtype=np.int64) 
     src_lens = np.array([real_len], dtype=np.int64)
 
     # ONNXモデルの入力名を取得
@@ -404,7 +404,8 @@ def infer():
         output_dir = os.path.join("onnx", "result", dataset_name)
     os.makedirs(output_dir, exist_ok=True)
 
-    # ファイル名は元リポジトリと同じくテキスト冒頭100文字
+    # データの保存方法も元のリポジトリに合わせました。
+    #音声データとメルスペクトログラムが保存されます
     basename = args.text[:100]
     wav_path = os.path.join(output_dir, "{}.wav".format(basename))
     plot_path = os.path.join(output_dir, "{}.png".format(basename))
@@ -413,7 +414,6 @@ def infer():
     wavfile.write(wav_path, sampling_rate, wav)
     logger.info("Saved Audio: {}".format(wav_path))
 
-    # PNG: plot_mel（メル + ピッチ + エネルギー重ね描き）
     try:
         p_pred_index = fs2_output_names.index("p_predictions")
         e_pred_index = fs2_output_names.index("e_predictions")
