@@ -10,6 +10,8 @@ import queue
 sys.path.append('../../util')
 from arg_utils import get_base_parser, update_parser 
 from microphone_utils import start_microphone_input
+from model_utils import check_and_download_models
+
 
 logger = getLogger(__name__)
 
@@ -343,6 +345,9 @@ def main():
     WEIGHT_ENC_PATH, MODEL_ENC_PATH = model_info["enc"]
     WEIGHT_DEC_PATH, MODEL_DEC_PATH = model_info["dec"]
     WEIGHT_JOI_PATH, MODEL_JOI_PATH = model_info["joi"]
+    check_and_download_models(WEIGHT_ENC_PATH, MODEL_ENC_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_DEC_PATH, MODEL_DEC_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_JOI_PATH, MODEL_JOI_PATH, REMOTE_PATH)
     MODEL_OFFSET = model_info["offset"]
     TOKEN_PATH = model_info["token"]
 
