@@ -1,24 +1,16 @@
 import sys
 import os
-from logging import getLogger
-
 import ailia
-
 from g2pw.api import G2PWConverter
 
 sys.path.append("../../util")
-from arg_utils import get_base_parser, update_parser  # noqa
+from arg_utils import get_base_parser, update_parser  # noqa: E402
 
+from logging import getLogger  # noqa: E402
 logger = getLogger(__name__)
 
-# ======================
-# Parameters
-# ======================
 WEIGHT_PATH = "G2PWModel/g2pw.onnx"
 
-# ======================
-# Argument Parser Config
-# ======================
 parser = get_base_parser(
     "G2PW",
     None,
@@ -44,7 +36,6 @@ args = update_parser(parser, check_input_type=False)
 class AiliaG2P(G2PWConverter):
 
     def __init__(self, weight_path, env_id, style='bopomofo', **kwargs):
-        # G2PWConverterはmodel_dirを要求するため、weight_pathからディレクトリを取得
         model_dir = os.path.dirname(weight_path) or '.'
         self.net = ailia.Net(None, weight_path, env_id=env_id)
 
@@ -55,15 +46,13 @@ class AiliaG2P(G2PWConverter):
             def run(self, _outputs, inputs):
                 return self.net.predict(inputs)
 
-        # 親クラスの初期化時に ailia セッションを注入し、onnxruntime 初期化を回避する
+        # 親クラスの初期化時に ailia セッションを渡す
         super().__init__(
             model_dir=model_dir,
             style=style,
             onnx_session=AiliaSession(self.net),
             **kwargs
         )
-
-
 def main():
     converter = AiliaG2P(
         weight_path=WEIGHT_PATH,

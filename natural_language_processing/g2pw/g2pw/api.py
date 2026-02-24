@@ -1,29 +1,19 @@
 import os
 import json
-import requests
-import zipfile
-from io import BytesIO
-import shutil
 
 from transformers import BertTokenizer
-from tqdm import tqdm
 import numpy as np
 
 from g2pw.dataset import TextDataset, get_phoneme_labels
 from g2pw.utils import load_config
 
-MODEL_URL = 'https://storage.googleapis.com/esun-ai/g2pW/G2PWModel-v2-onnx.zip'
 
-
-def predict(onnx_session, dataloader_or_generator, labels, turnoff_tqdm=False):
+def predict(onnx_session, dataloader_or_generator, labels):
     all_preds = []
-
-    generator = dataloader_or_generator if turnoff_tqdm else tqdm(dataloader_or_generator, desc='predict')
-    for data in generator:
+    for data in dataloader_or_generator:
         input_ids, token_type_ids, attention_mask, phoneme_mask, char_ids, position_ids = \
             [data[name] for name in ('input_ids', 'token_type_ids', 'attention_mask', 'phoneme_mask', 'char_ids', 'position_ids')]
 
-        # データは既にnumpy配列になっているため、.numpy()呼び出しは不要
         probs = onnx_session.run(
             [],
             {
@@ -41,21 +31,20 @@ def predict(onnx_session, dataloader_or_generator, labels, turnoff_tqdm=False):
     return all_preds
 
 
-def download_model(model_dir):
-    root = os.path.dirname(os.path.abspath(model_dir))
-
-    r = requests.get(MODEL_URL, allow_redirects=True)
-    zip_file = zipfile.ZipFile(BytesIO(r.content))
-    zip_file.extractall(root)
-    source_dir = os.path.join(root, zip_file.namelist()[0].split('/')[0])
-    shutil.move(source_dir, model_dir)
-
-
 class G2PWConverter:
     def __init__(self, model_dir='G2PWModel/', style='bopomofo', model_source=None, batch_size=None,
-                 turnoff_tqdm=True, enable_non_tradional_chinese=False, onnx_session=None):
-        if not os.path.exists(os.path.join(model_dir, 'version')):
-            download_model(model_dir)
+                 enable_non_tradional_chinese=False, onnx_session=None):
+        required_files = (
+            'config.py',
+            'POLYPHONIC_CHARS.txt',
+            'MONOPHONIC_CHARS.txt',
+            'version',
+        )
+        missing_files = [f for f in required_files if not os.path.exists(os.path.join(model_dir, f))]
+        if missing_files:
+            raise FileNotFoundError(
+                f"Offline mode: required model files are missing in '{model_dir}': {', '.join(missing_files)}"
+            )
 
         if onnx_session is None:
             raise ValueError("onnx_session is required. This implementation does not use onnxruntime.")
@@ -65,8 +54,6 @@ class G2PWConverter:
 
         self.batch_size = batch_size if batch_size else self.config.batch_size
         self.model_source = model_source if model_source else self.config.model_source
-        self.turnoff_tqdm = turnoff_tqdm
-
         self.tokenizer = BertTokenizer.from_pretrained(self.model_source)
 
         polyphonic_chars_path = os.path.join(model_dir, 'POLYPHONIC_CHARS.txt')
@@ -136,7 +123,7 @@ class G2PWConverter:
                 batch_samples = [dataset[j] for j in range(i, min(i + self.batch_size, n_samples))]
                 yield dataset.create_mini_batch(batch_samples)
 
-        preds = predict(self.session_g2pw, batch_generator(), self.labels, turnoff_tqdm=self.turnoff_tqdm)
+        preds = predict(self.session_g2pw, batch_generator(), self.labels)
 
         results = partial_results
         for sent_id, query_id, pred in zip(sent_ids, query_ids, preds):
