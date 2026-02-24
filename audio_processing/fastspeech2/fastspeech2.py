@@ -27,17 +27,15 @@ logger = getLogger(__name__)
 # モデル設定
 # onnxファイルの箇所を変更しています。こちらが正しいパスになります。
 WEIGHT_PATH_FS2 = 'onnx/fastspeech2/ljspeech.onnx'
-# hifiganは単一話者用と多話者用で別のモデルを使用します。
-# モデルを見て動的に選択します。
+# hifiganは単一話者用(LJSpeech)と多話者用(Other)で別のモデルを使用します。
+# 前者がhifigan_ljspeech.onnx、後者がhifigan.onnxになります。
 WEIGHT_PATH_HIFI = None
-# 以下のパスは変更していません。
+# 以下のパスは前回から変更していません。
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/fastspeech2"
 
 PREPROCESS_CONFIG = "config/LJSpeech/preprocess.yaml"
 
-# ===========================
-# Arguments
-# ===========================
+
 parser = get_base_parser(
     'FastSpeech2',
     None,
@@ -76,6 +74,7 @@ parser.add_argument(
     default=1.0,
     help='control the speed of the whole utterance, larger value for slower speaking rate'
 )
+# 以下引数の指定。デフォルトはLJSpeech.
 parser.add_argument(
     '--preprocess_config',
     type=str,
@@ -242,7 +241,7 @@ def preprocess_text(text, preprocess_config, preprocess_config_path):
         print("Detected language: English")
         return preprocess_english(text, preprocess_config)
 
-# ここで、HIFIGANのモデルを自動的に選択します。
+# 前処理の際に、preprocess_configのパスからデータセット名を判定
 def select_hifigan(preprocess_config_path):
     """preprocess_configのパスからデータセット名を判定し、適切なHiFi-GANを選択"""
     dataset = os.path.basename(os.path.dirname(preprocess_config_path))

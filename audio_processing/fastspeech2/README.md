@@ -27,7 +27,7 @@ $ python3 fastspeech2.py \
 Specify your own text:
 
 ```bash
-$ python3 fastspeech2.py \
+python3 fastspeech2.py \
   --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
   --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
   --text "Hello, this is a test."
@@ -36,7 +36,7 @@ $ python3 fastspeech2.py \
 Specify speaker ID for multi-speaker models:
 
 ```bash
-$ python3 fastspeech2.py \
+python3 fastspeech2.py \
   --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
   --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
   --text "Hello world" \
@@ -46,7 +46,7 @@ $ python3 fastspeech2.py \
 Control pitch, energy, and speaking rate:
 
 ```bash
-$ python3 fastspeech2.py \
+python3 fastspeech2.py \
   --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
   --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
   --text "Hello world" \
@@ -59,7 +59,7 @@ $ python3 fastspeech2.py \
 For LibriTTS (English, Multi-Speaker)
 
 ```bash
-$ python3 fastspeech2.py \
+python3 fastspeech2.py \
   --text "Hello, I am speaking from a multi-speaker model." \
   --preprocess_config config/LibriTTS/preprocess.yaml \
   --onnx_fs2 onnx/fastspeech2/libritts.onnx \
@@ -70,7 +70,7 @@ $ python3 fastspeech2.py \
 For AISHELL-3 (Mandarin, Multi-Speaker):
 
 ```bash
-$ python3 fastspeech2.py \
+python3 fastspeech2.py \
   --text "你好" \
   --preprocess_config config/AISHELL3/preprocess.yaml \
   --onnx_fs2 onnx/fastspeech2/aishell3.onnx \
