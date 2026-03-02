@@ -1,0 +1,4 @@
+*.onnx
+development_memo.md
+sherpa-onnx.code-workspace
+test.py
