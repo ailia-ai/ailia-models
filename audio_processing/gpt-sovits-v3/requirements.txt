@@ -1,7 +1,7 @@
 SoundFile
 librosa
 nltk
-pyopenjtalk>=0.3.4
+pyopenjtalk-plus
 g2p_en
 wordsegment
 jieba
