@@ -233,7 +233,7 @@ class ONNXWeSpeakerPretrainedSpeakerEmbedding(BaseInference):
         imasks = interpolate_numpy(masks,size=num_frames)
         imasks = imasks > 0.5
         
-        embeddings = np.NAN * np.zeros((batch_size, self.dimension))
+        embeddings = np.nan * np.zeros((batch_size, self.dimension))
 
         for f, (feature, imask) in enumerate(zip(features, imasks)):
             masked_feature = feature[imask]
