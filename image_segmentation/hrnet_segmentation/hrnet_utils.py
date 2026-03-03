@@ -23,8 +23,9 @@ def get_palette(n):
 
 
 def convert_label(label, inverse=False):
-    ignore_label = -1
-    label_mapping = {-1: ignore_label, 0: ignore_label, 
+    ignore_label = 255 # -1 as uint8
+    label_mapping = {255: ignore_label, # -1 as uint8
+                     0: ignore_label,
                      1: ignore_label, 2: ignore_label, 
                      3: ignore_label, 4: ignore_label, 
                      5: ignore_label, 6: ignore_label, 
