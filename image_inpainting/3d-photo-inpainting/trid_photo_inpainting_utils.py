@@ -17,7 +17,13 @@ import transforms3d
 from vispy import scene, io
 from vispy.scene import visuals
 from vispy.visuals.filters import Alpha
-from moviepy.editor import ImageSequenceClip
+
+try:
+    # moviepy v1.x
+    from moviepy.editor import ImageSequenceClip
+except ModuleNotFoundError:
+    # moviepy v2.x
+    from moviepy import ImageSequenceClip
 
 __all__ = [
     'path_planning',
