@@ -119,7 +119,7 @@ def rect_to_xys(rect, image_shape):
 
     rect = ((rect[0], rect[1]), (rect[2], rect[3]), rect[4])
     points = cv2.boxPoints(rect)
-    points = np.int0(points)
+    points = np.intp(points)
     for i_xy, (x, y) in enumerate(points):
         x = get_valid_x(x)
         y = get_valid_y(y)
