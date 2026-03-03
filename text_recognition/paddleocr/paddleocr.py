@@ -1119,7 +1119,7 @@ class TextSystem(object):
         filter_boxes, filter_rec_res = [], []
         for box, rec_reuslt in zip(dt_boxes, rec_res):
             text, score = rec_reuslt
-            if score >= self.drop_score:
+            if np.isscalar(score) and score >= self.drop_score: # ignore empty ndarray
                 filter_boxes.append(box)
                 filter_rec_res.append(rec_reuslt)
 
