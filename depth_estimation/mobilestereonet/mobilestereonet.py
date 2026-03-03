@@ -111,7 +111,7 @@ def preprocess(imgs):
         # pad images
         top_pad = IMAGE_HEIGHT - h
         right_pad = IMAGE_WIDTH - w
-        img = np.lib.pad(img, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
+        img = np.pad(img, ((0, 0), (top_pad, 0), (0, right_pad)), mode='constant', constant_values=0)
 
         img = np.expand_dims(img, axis=0)
         img = img.astype(np.float32)
