@@ -141,7 +141,7 @@ def visualize_result(image, mask, probs, labels):
     plt.title('Attention Map and Image')
     # draw and write
     plt.draw()
-    image_figure = np.fromstring(plt.gcf().canvas.tostring_rgb(),
+    image_figure = np.frombuffer(plt.gcf().canvas.tostring_argb(),
                                  dtype=np.uint8)
     image_figure = image_figure.reshape(FIGURE_HEIGHT,
                                         FIGURE_WIDTH, -1)
