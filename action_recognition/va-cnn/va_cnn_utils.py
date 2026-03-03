@@ -479,7 +479,7 @@ def toimage(data, high=255, low=0):
     shape = list(data.shape)
 
     bytedata = bytescale(data, high=high, low=low)
-    strdata = bytedata.tostring()
+    strdata = bytedata.tobytes()
     shape = (shape[1], shape[0])
 
     image = Image.frombytes('RGB', shape, strdata)
