@@ -41,6 +41,7 @@ cd ../../audio_processing/reazon_speech2/; python3 reazon_speech2.py ${OPTION}
 cd ../../audio_processing/gpt-sovits/; python3 gpt-sovits.py ${OPTION}
 cd ../../audio_processing/gpt-sovits-v2/; python3 gpt-sovits-v2.py ${OPTION}
 cd ../../audio_processing/gpt-sovits-v3/; python3 gpt-sovits-v3.py ${OPTION}
+cd ../../audio_processing/gpt-sovits-v2-pro/; python3 gpt-sovits-v2-pro.py ${OPTION}
 cd ../../audio_processing/bert-vits2/; python3 bert-vits2.py ${OPTION}
 cd ../../audio_processing/dtln/; python3 dtln.py ${OPTION}
 cd ../../audio_processing/pytorch_wavenet/; python3 pytorch_wavenet.py ${OPTION}
@@ -48,6 +49,9 @@ cd ../../audio_processing/audiosep/; python3 audiosep.py ${OPTION}
 cd ../../audio_processing/cosyvoice2/; python3 cosyvoice2.py ${OPTION}
 cd ../../audio_processing/sensevoice/; python3 sensevoice.py ${OPTION}
 cd ../../audio_processing/fastspeech2/; python3 fastspeech2.py ${OPTION}
+cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
+cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
+#cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}
 cd ../../background_ramoval/deep-image-matting; python3 deep-image-matting.py ${OPTION}
 cd ../../background_ramoval/u2net; python3 u2net.py ${OPTION}
 cd ../../background_ramoval/u2net; python3 u2net.py -a small ${OPTION}
@@ -75,6 +79,7 @@ cd ../../diffusion/sdxl-turbo; python3 sdxl-turbo.py ${OPTION}
 cd ../../diffusion/sd-turbo; python3 sd-turbo.py ${OPTION}
 cd ../../diffusion/anything_v3; python3 anything_v3.py ${OPTION}
 cd ../../diffusion/depth_anything_controlnet; python3 depth_anything_controlnet.py ${OPTION}
+cd ../../diffusion/latentsync; python3 latentsync.py ${OPTION}
 cd ../../deep_fashion/clothing-detection; python3 clothing-detection.py ${OPTION}
 cd ../../deep_fashion/fashionai-key-points-detection; python3 fashionai-key-points-detection.py ${OPTION}
 cd ../../deep_fashion/mmfashion; python3 mmfashion.py ${OPTION}
@@ -260,11 +265,13 @@ cd ../../natural_language_processing/glucose; python3 glucose.py ${OPTION}
 cd ../../natural_language_processing/cross_encoder_mmarco; python3 cross_encoder_mmarco.py ${OPTION}
 cd ../../natural_language_processing/soundchoice-g2p; python3 soundchoice-g2p.py ${OPTION}
 cd ../../natural_language_processing/g2p_en; python3 g2p_en.py ${OPTION}
+cd ../../natural_language_processing/g2pw; python3 g2pw.py ${OPTION}
 cd ../../natural_language_processing/t5_base_japanese_ner; pyhton3 t5_base_japanese_ner.py ${OPTION}
 cd ../../natural_language_processing/japanese-reranker-cross-encoder; python3 japanese-reranker-cross-encoder.py ${OPTION}
 cd ../../natural_language_processing/bert_ner_japanese; python3 bert_ner_japanese.py ${OPTION}
 cd ../../natural_language_processing/multilingual-minilmv2; python3 multilingual-minilmv2.py ${OPTION}
 cd ../../natural_language_processing/ruri-v3; python3 ruri-v3.py ${OPTION}
+cd ../../natural_language_processing/embeddinggemma; python3 embeddinggemma.py ${OPTION}
 cd ../../network_intrusion_detection/bert-network-packet-flow-header-payload; python3 bert-network-packet-flow-header-payload.py ${OPTION}
 cd ../../network_intrusion_detection/falcon-adapter-network-packet; python3 falcon-adapter-network-packet.py ${OPTION}
 cd ../../neural_rendering/nerf; python3 nerf.py ${OPTION}

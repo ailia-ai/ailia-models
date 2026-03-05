@@ -5,7 +5,7 @@
 ![input_image](image00430.jpg)  
 (from https://github.com/YadiraF/PRNet/tree/master/TestImages/AFLW2000)
 
-- Before feeding the image into the model, the face dectection model (e.g., [yolov3-face](https://github.com/axinc-ai/ailia-models/tree/master/yolov3-face))
+- Before feeding the image into the model, the face dectection model (e.g., [yolov3-face](https://github.com/ailia-ai/ailia-models/tree/master/yolov3-face))
  must be applied to extract appropriately sized (256 * 256) face images.  
  ![input_cropped_image](image00430-cropped.jpg)
  

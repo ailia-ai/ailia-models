@@ -4,3 +4,6 @@ nltk
 pyopenjtalk>=0.3.4
 g2p_en
 wordsegment
+jieba
+pypinyin
+cn2an

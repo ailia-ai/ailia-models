@@ -51,7 +51,7 @@ python3 bert-vits2.py --text 吾輩は猫である --emo 私は今とても嬉�
 ```
 The output of this script will be like this.
 
-https://github.com/axinc-ai/ailia-models/assets/53651931/57d9eb49-78eb-4eea-9cde-eb6fbf09ed96
+https://github.com/ailia-ai/ailia-models/assets/53651931/57d9eb49-78eb-4eea-9cde-eb6fbf09ed96
 
 
 For more information about the arguments, try running ```python3 bert-vits2-jp.py --help```

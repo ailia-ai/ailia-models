@@ -4,7 +4,7 @@ from . import symbols2 as symbols_v2
 def clean_text(text, language):
     symbols = symbols_v2.symbols
     language_module_map = {
-        # "zh": "chinese2",
+        "zh": "chinese2",
         "ja": "japanese",
         "en": "english",
         # "ko": "korean",
@@ -19,7 +19,9 @@ def clean_text(text, language):
         fromlist=[language_module_map[language]],
     )
     norm_text = language_module.text_normalize(text)
-    if language == "en":
+    if language == "zh":
+        phones, word2ph = language_module.g2p(norm_text)
+    elif language == "en":
         phones = language_module.g2p(norm_text)
         if len(phones) < 4:
             phones = [","] + phones

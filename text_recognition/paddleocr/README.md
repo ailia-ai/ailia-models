@@ -123,7 +123,7 @@ apt install fonts-ipaexfont
 
 [PaddleOCR2Pytorch : PaddleOCR推理的pytorch实现和模型转换](https://github.com/frotms/PaddleOCR2Pytorch)
 
-[Research of PaddleOCR](https://github.com/axinc-ai/ailia-models/issues/310)
+[Research of PaddleOCR](https://github.com/ailia-ai/ailia-models/issues/310)
 
 <br/>
 

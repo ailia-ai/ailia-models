@@ -60,7 +60,7 @@ By adding the `--use_dlib` option, you can use original version of face alignmen
 
 - [ReStyle](https://github.com/yuval-alaluf/restyle-encoder)
 
-- [PSGAN](https://github.com/axinc-ai/ailia-models/tree/master/style_transfer/psgan) (face alignment without dlib)
+- [PSGAN](https://github.com/ailia-ai/ailia-models/tree/master/style_transfer/psgan) (face alignment without dlib)
 
 ## Framework
 

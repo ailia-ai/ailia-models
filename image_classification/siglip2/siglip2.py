@@ -5,7 +5,6 @@ from logging import getLogger
 import numpy as np
 import cv2
 from PIL import Image
-from transformers import AutoTokenizer
 
 import ailia
 
@@ -56,6 +55,9 @@ parser.add_argument(
     default="base-patch16-224",
     choices=("base-patch16-224", "large-patch16-256", "giant-patch16-256"),
     help="model type",
+)
+parser.add_argument(
+    "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
@@ -129,6 +131,8 @@ def recognize_from_image(models):
         truncation=True,
     )
     input_ids = encoded["input_ids"]
+    if not args.disable_ailia_tokenizer:
+        input_ids = input_ids[:,1:] # remove bos token
 
     net = models["net"]
 
@@ -204,9 +208,16 @@ def main():
 
         net = onnxruntime.InferenceSession(WEIGTH_PATH)
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        "tokenizer" if model_type == "giant-patch16-256" else "tokenizer-giant"
-    )
+    if args.disable_ailia_tokenizer:
+        from transformers import AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            "tokenizer" if model_type == "giant-patch16-256" else "tokenizer-giant"
+        )
+    else:
+        from ailia_tokenizer import GemmaTokenizer
+
+        tokenizer = GemmaTokenizer.from_pretrained("tokenizer" if model_type == "giant-patch16-256" else "tokenizer-giant")
 
     models = dict(model_type=model_type, tokenizer=tokenizer, net=net)
 

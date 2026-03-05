@@ -157,39 +157,39 @@ python3 launcher.py
 ### Python
 
 - [ailia SDK python Tutorial (EN)](https://medium.com/axinc-ai/ailia-sdk-tutorial-python-ea29ae990cf6) [(日本語)](https://medium.com/axinc/ailia-sdk-%E3%83%81%E3%83%A5%E3%83%BC%E3%83%88%E3%83%AA%E3%82%A2%E3%83%AB-python-28379dbc9649)
-- [API reference (EN)](https://axinc-ai.github.io/ailia-sdk/api/python/en/)
-- [ailia Models](https://github.com/axinc-ai/ailia-models) (* This site)
+- [API reference (EN)](https://ailia-ai.github.io/ailia-sdk/api/python/en/)
+- [ailia Models](https://github.com/ailia-ai/ailia-models) (* This site)
 
 * (*) 全てのpython用AIモデルは他の言語(C++/Unity(C#)/Java(JNI)/Kotlin)でも使用することは可能ですが、適切な前処理・後処理のコードをpythonを参考に追加する必要があります。（一部の良く使われるモデルに関してはailiaのdetector API, classifier API, pose APIが提供されています）
 
 ### C++
 
 - [ailia SDK C++ Tutorial (EN)](https://medium.com/axinc-ai/ailia-sdk-tutorial-c-75e59bbefffe) [(日本語)](https://medium.com/axinc/ailia-sdk-%E3%83%81%E3%83%A5%E3%83%BC%E3%83%88%E3%83%AA%E3%82%A2%E3%83%AB-c-dc949d9dcd28)
-- [API reference (EN)](https://axinc-ai.github.io/ailia-sdk/api/cpp/en/) [(日本語)](https://axinc-ai.github.io/ailia-sdk/api/cpp/jp/)
-- [ailia Models for C++](https://github.com/axinc-ai/ailia-models-cpp)
-- [iOS Xcode Sample Project](https://github.com/axinc-ai/ailia-xcode)
-- [Android NDK Sample Project](https://github.com/axinc-ai/ailia-android-ndk)
+- [API reference (EN)](https://ailia-ai.github.io/ailia-sdk/api/cpp/en/) [(日本語)](https://ailia-ai.github.io/ailia-sdk/api/cpp/jp/)
+- [ailia Models for C++](https://github.com/ailia-ai/ailia-models-cpp)
+- [iOS Xcode Sample Project](https://github.com/ailia-ai/ailia-xcode)
+- [Android NDK Sample Project](https://github.com/ailia-ai/ailia-android-ndk)
 
 ### Unity
 
 - [ailia SDK Unity(C#) Tutorial (EN)](https://medium.com/axinc-ai/ailia-sdk-tutorial-unity-54f2a8155b8f) [(日本語)](https://medium.com/axinc/ailia-sdk-%E3%83%81%E3%83%A5%E3%83%BC%E3%83%88%E3%83%AA%E3%82%A2%E3%83%AB-unity-257fa1e98777)
-- [API reference (EN)](https://axinc-ai.github.io/ailia-sdk/api/unity/en/) [(日本語)](https://axinc-ai.github.io/ailia-sdk/api/unity/jp/)
-- [ailia Models for Unity](https://github.com/axinc-ai/ailia-models-unity)
+- [API reference (EN)](https://ailia-ai.github.io/ailia-sdk/api/unity/en/) [(日本語)](https://ailia-ai.github.io/ailia-sdk/api/unity/jp/)
+- [ailia Models for Unity](https://github.com/ailia-ai/ailia-models-unity)
 
 ### Java
 
 - [ailia SDK Java(JNI) Tutorial (EN)](https://medium.com/axinc-ai/ailia-sdk-tutorial-jni-92b797725e08) [(日本語)](https://medium.com/axinc/ailia-sdk-%E3%83%81%E3%83%A5%E3%83%BC%E3%83%88%E3%83%AA%E3%82%A2%E3%83%AB-jni-7a11c1da08dc)
-- [API reference (EN)](https://axinc-ai.github.io/ailia-sdk/api/java/en/)
-- [Android Studio Sample Project](https://github.com/axinc-ai/ailia-android-studio)
+- [API reference (EN)](https://ailia-ai.github.io/ailia-sdk/api/java/en/)
+- [Android Studio Sample Project](https://github.com/ailia-ai/ailia-android-studio)
 - 
 ### Kotlin
--  [Android Studio Sample Project](https://github.com/axinc-ai/ailia-android-studio-kotlin)
+-  [Android Studio Sample Project](https://github.com/ailia-ai/ailia-android-studio-kotlin)
 
 ### Rust
 - [ailiaをRustから使用する](https://medium.com/axinc/ailia-%E3%82%92rust%E3%81%8B%E3%82%89%E4%BD%BF%E7%94%A8%E3%81%99%E3%82%8B-9ff51677a469)
-- [ailia models Rust](https://github.com/axinc-ai/ailia-models-rust)
+- [ailia models Rust](https://github.com/ailia-ai/ailia-models-rust)
 
 ### Flutter
 - [ailia SDKを使用してFlutterでONNX形式のAIモデルを推論する](https://medium.com/axinc/ailia-sdk%E3%82%92%E4%BD%BF%E7%94%A8%E3%81%97%E3%81%A6flutter%E3%81%A7onnx%E5%BD%A2%E5%BC%8F%E3%81%AEai%E3%83%A2%E3%83%87%E3%83%AB%E6%8E%A8%E8%AB%96%E3%81%99%E3%82%8B-7c68509b296)
-- [ailia models Flutter](https://github.com/axinc-ai/ailia-flutter)
+- [ailia models Flutter](https://github.com/ailia-ai/ailia-flutter)
 

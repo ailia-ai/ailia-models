@@ -14,7 +14,7 @@ ref_text = "水をマレーシアから買わなくてはならない。"
 ref_file_path = "reference_audio_girl.wav"
 if not os.path.exists(ref_file_path):
 	urllib.request.urlretrieve(
-		"https://github.com/axinc-ai/ailia-models/raw/refs/heads/master/audio_processing/gpt-sovits/reference_audio_captured_by_ax.wav",
+		"https://github.com/ailia-ai/ailia-models/raw/refs/heads/master/audio_processing/gpt-sovits/reference_audio_captured_by_ax.wav",
 		"reference_audio_girl.wav"
 	)
 audio_waveform, sampling_rate = librosa.load(ref_file_path, mono=True)

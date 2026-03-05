@@ -22,6 +22,8 @@ class SimpleDecoder():
 		waveform = waveform * (1 << 15)
 		waveform = np.asarray(waveform, dtype=np.float32)
 		waveform += np.random.normal(scale=1.0, size=len(waveform)).astype(np.float32)
+		alpha = 0.97
+		waveform = np.append(waveform[0], waveform[1:] - alpha * waveform[:-1])
 		mel_spec = ailia.audio.mel_spectrogram(
 			wav=waveform,
 			sample_rate=16000,

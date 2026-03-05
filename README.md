@@ -4,10 +4,10 @@ The collection of pre-trained, state-of-the-art AI models.
 
 # About ailia SDK
 
-[ailia SDK](https://axinc.jp/en/solutions/ailia_sdk.html) is a self-contained, cross-platform, high-speed inference SDK for AI. The ailia SDK provides a consistent C++ API across Windows, Mac, Linux, iOS, Android, Jetson, and Raspberry Pi platforms. It also supports Unity (C#), Python, Rust, Flutter(Dart) and JNI for efficient AI implementation. The ailia SDK makes extensive use of the GPU through Vulkan and Metal to enable accelerated computing.
+[ailia SDK](https://ailia.ai/en/sdk/) is a self-contained, cross-platform, high-speed inference SDK for AI. The ailia SDK provides a consistent C++ API across Windows, Mac, Linux, iOS, Android, Jetson, and Raspberry Pi platforms. It also supports Unity (C#), Python, Rust, Flutter(Dart) and JNI for efficient AI implementation. The ailia SDK makes extensive use of the GPU through Vulkan and Metal to enable accelerated computing.
 
 - [Contact us](https://www.ailia.ai/en-contact-product)
-- [Mail](mailto:contact@axinc.jp)
+- [Mail](mailto:contact@ailia.ai)
 
 # How to use
 
@@ -21,21 +21,21 @@ If you would like to try on your computer:
 
 # Documentation
 
-[ailia-models wiki](https://deepwiki.com/axinc-ai/ailia-models)
+[ailia-models wiki](https://deepwiki.com/ailia-ai/ailia-models)
 
 # Supported models
-390 models as of December 17, 2025
+396 models as of January 16, 2026
 
 # Latest update
+- 2026.01.16 Add embeddinggemma
+- 2025.12.30 Add demucs, latentsync
+- 2025.12.26 Add sadtalker
+- 2025.12.25 Add samurai, cotracker3 (ailia SDK 1.6.1)
+- 2025.12.21 Add silerovad v5, v6, v6_2
 - 2025.12.17 Add sensevoice, cosyvoice2
 - 2025.12.01 Add glass, mobilevlm, donut
-- 2025.11.07 Add mobile_sam, yolox_body_head_hand_face, yolov12 (ailia SDK 1.6)
-- 2025.11.03 Add fp16 version of whisper tiny and base
-- 2025.09.29 Add ruri-v3 (embedding)
-- 2025.09.22 Add paddleocr_v3
-- 2025.07.17 Add 6d_repnet_360, siglip2
 
-- More information in our [Wiki](https://github.com/axinc-ai/ailia-models/wiki)
+- More information in our [Wiki](https://github.com/ailia-ai/ailia-models/wiki)
 
 ## Action recognition
 
@@ -62,7 +62,7 @@ If you would like to try on your computer:
 
 | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |------------:|:------------:|:------------:|:------------:|:------------:|
-|[qwen_audio](/audio_language_model/qwen_audio) | [Qwen-Audio](https://github.com/QwenLM/Qwen-Audio) | Pytorch | 1.5.0 and later | |
+|[qwen_audio](/audio_language_model/qwen_audio) | [Qwen-Audio](https://github.com/QwenLM/Qwen-Audio) | Pytorch | 1.5.0 and later | [JP](https://medium.com/axinc/qwen-audio-%E9%9F%B3%E3%82%92%E5%85%A5%E5%8A%9B%E3%81%97%E3%81%A6%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%82%92%E7%94%9F%E6%88%90%E5%8F%AF%E8%83%BD%E3%81%AAaudio-language-model-57d3a5c71643) |
 
 ## Audio processing
 
@@ -73,7 +73,7 @@ If you would like to try on your computer:
 | [crnn_audio_classification](/audio_processing/crnn_audio_classification/) | [crnn-audio-classification](https://github.com/ksanjeevan/crnn-audio-classification) | Pytorch | 1.2.5 and later | [EN](https://medium.com/axinc-ai/crnnsoundclassification-a-machine-learning-model-for-classifying-sound-8e45d1f22fa) [JP](https://medium.com/axinc/crnnsoundclassification-%E9%9F%B3%E5%A3%B0%E3%82%92%E5%88%86%E9%A1%9E%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-2a35564dad42) |
 | [transformer-cnn-emotion-recognition](/audio_processing/transformer-cnn-emotion-recognition/) | [Combining Spatial and Temporal Feature Representions of Speech Emotion by Parallelizing CNNs and Transformer-Encoders](https://github.com/IliaZenkov/transformer-cnn-emotion-recognition)  | Pytorch | 1.2.5 and later |
 | [audioset_tagging_cnn](/audio_processing/audioset_tagging_cnn/) | [PANNs: Large-Scale Pretrained Audio Neural Networks for Audio Pattern Recognition](https://github.com/qiuqiangkong/audioset_tagging_cnn) | Pytorch | 1.2.9 and later | |
-| [clap](/audio_processing/clap/) | [CLAP](https://github.com/LAION-AI/CLAP) | Pytorch | 1.2.6 and later | |
+| [clap](/audio_processing/clap/) | [CLAP](https://github.com/LAION-AI/CLAP) | Pytorch | 1.2.6 and later | [JP](https://medium.com/axinc/clap-%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%81%8B%E3%82%89%E9%9F%B3%E5%A3%B0%E3%82%92%E6%A4%9C%E7%B4%A2%E5%8F%AF%E8%83%BD%E3%81%AB%E3%81%99%E3%82%8B%E7%89%B9%E5%BE%B4%E6%8A%BD%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-f712f9c00dab) |
 | [microsoft clap](/audio_processing/msclap/) | [CLAP](https://github.com/microsoft/CLAP) | Pytorch | 1.2.11 and later | |
 
 ### Music enhancement
@@ -98,6 +98,7 @@ If you would like to try on your computer:
 | [rnnoise](/audio_processing/rnnoise/) | [rnnoise](https://github.com/xiph/rnnoise) | Keras | 1.2.15 and later | |
 | [dtln](/audio_processing/dtln/) | [Dual-signal Transformation LSTM Network](https://github.com/breizhn/DTLN) | Tensorflow | 1.3.0 and later |  |
 | [audiosep](/audio_processing/audiosep/) | [AudioSep](https://github.com/Audio-AGI/AudioSep) | Pytorch | 1.3.0 and later | |
+| [demucs](/audio_processing/demucs/) | [Demucs](https://github.com/facebookresearch/demucs) | Pytorch | 1.4.0 and later | |
 
 ### Phoneme alignment
 
@@ -130,7 +131,7 @@ If you would like to try on your computer:
 | [distil-whisper](/audio_processing/distil-whisper/) | [Hugging Face - Distil-Whisper](https://github.com/huggingface/distil-whisper) | Pytorch | 1.2.16 and later | Nov 2023 | |
 | [reazon_speech2](/audio_processing/reazon_speech2/) | [ReazonSpeech2](https://research.reazon.jp/projects/ReazonSpeech/) | Pytorch | 1.4.0 and later | Feb 2024 | |
 | [kotoba-whisper](/audio_processing/kotoba-whisper/) | [kotoba-whisper](https://huggingface.co/kotoba-tech/kotoba-whisper-v1.0) | Pytorch | 1.2.16 and later | Apr 2024 | |
-| [sensevoice](/audio_processing/sensevoice/) | [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) | Pytorch | 1.2.13 and later | July 2024 | |
+| [sensevoice](/audio_processing/sensevoice/) | [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) | Pytorch | 1.2.13 and later | July 2024 | [JP](https://medium.com/axinc/sensevoice-%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AB%E3%82%82%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9F%E9%AB%98%E9%80%9F%E3%81%AA%E9%9F%B3%E5%A3%B0%E8%AA%8D%E8%AD%98%E3%83%A2%E3%83%87%E3%83%AB-3721c79e0592) |
 
 ### Text to speech
 
@@ -144,6 +145,7 @@ If you would like to try on your computer:
 | [gpt-sovits](/audio_processing/gpt-sovits/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Feb 2024 | [JP](https://medium.com/axinc/gpt-sovits-%E3%83%95%E3%82%A1%E3%82%A4%E3%83%B3%E3%83%81%E3%83%A5%E3%83%BC%E3%83%8B%E3%83%B3%E3%82%B0%E3%81%A7%E3%81%8D%E3%82%8B0%E3%82%B7%E3%83%A7%E3%83%83%E3%83%88%E3%81%AE%E9%9F%B3%E5%A3%B0%E5%90%88%E6%88%90%E3%83%A2%E3%83%87%E3%83%AB-2212eeb5ad20) |
 | [gpt-sovits-v2](/audio_processing/gpt-sovits-v2/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Aug 2024 |  |
 | [gpt-sovits-v3](/audio_processing/gpt-sovits-v3/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Feb 2025 |  |
+| [gpt-sovits-v2-pro](/audio_processing/gpt-sovits-v2-pro/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Jun 2025 |  |
 | [cosyvoice2](/audio_processing/cosyvoice2/) | [CosyVoice2](https://github.com/FunAudioLLM/CosyVoice/tree/main) | Pytorch | 1.4.0 and later | Dec 2024 |  |
 
 ### Voice activity detection
@@ -157,6 +159,13 @@ If you would like to try on your computer:
 | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |------------:|:------------:|:------------:|:------------:|:------------:|
 | [rvc](/audio_processing/rvc/) | [Retrieval-based-Voice-Conversion-WebUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI) | Pytorch | 1.2.12 and later | [JP](https://medium.com/axinc/rvc-ai%E3%82%92%E4%BD%BF%E7%94%A8%E3%81%97%E3%81%9F%E3%83%9C%E3%82%A4%E3%82%B9%E3%83%81%E3%82%A7%E3%83%B3%E3%82%B8%E3%83%A3%E3%83%BC-64a813c7a0c4) |
+
+## Autonomous driving
+
+| Model | Reference | Exported From | Supported Ailia Version | Blog |
+|------------:|:------------:|:------------:|:------------:|:------------:|
+|[bevformer](/autonomous_driving/bevformer/) | [BEVFormer](https://github.com/fundamentalvision/BEVFormer) | Pytorch | 1.6.1 and later | |
+|[uniad](/autonomous_driving/uniad/) | [UniAD: Unified Driving](https://github.com/OpenDriveLab/UniAD) | Pytorch | 1.6.1 and later | [JP](https://medium.com/axinc/uniad-end2end%E3%81%AE%E8%87%AA%E5%8B%95%E9%81%8B%E8%BB%A2%E3%81%AE%E5%9F%BA%E6%9C%AC%E3%81%A8%E3%81%AA%E3%82%8B%E3%83%A2%E3%83%87%E3%83%AB-39339e6e277b) |
 
 ## Background removal
 
@@ -221,6 +230,7 @@ If you would like to try on your computer:
 | [<img src="diffusion/latent-consistency-models/Output/0000.png" width=128px>](diffusion/latent-consistency-models/) | [latent-consistency-models](/diffusion/latent-consistency-models/) | [latent-consistency-models](https://github.com/luosiallen/latent-consistency-model) | Pytorch | 1.2.16 and later |
 | [<img src="diffusion/anything_v3/output.png" width=128px>](diffusion/anything_v3/) | [anything_v3](/diffusion/anything_v3/) | [Linaqruf/anything-v3.0](https://huggingface.co/Linaqruf/anything-v3.0) | Pytorch | 1.5.0 and later |
 | [<img src="diffusion/depth_anything_controlnet/visualization.png" width=128px>](diffusion/depth_anything_controlnet/) | [depth_anything_controlnet](/diffusion/depth_anything_controlnet/) | [DepthAnything](https://github.com/LiheYoung/Depth-Anything) | Pytorch | 1.2.16 and later |
+| [<img src="diffusion/latentsync/mask.png" width=128px>](diffusion/latentsync/) | [latentsync](/diffusion/latentsync/) | [LatentSync](https://github.com/bytedance/LatentSync/tree/main) | Pytorch | 1.4.0 and later |
 
 ### Text to audio
 
@@ -242,9 +252,9 @@ If you would like to try on your computer:
 | | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|
 | [<img src="face_detection/yolov1-face/output.png" width=128px>](face_detection/yolov1-face/) | [yolov1-face](/face_detection/yolov1-face/) | [YOLO-Face-detection](https://github.com/dannyblueliu/YOLO-Face-detection/) | Darknet | 1.1.0 and later |
-| [<img src="face_detection/yolov3-face/output.png" width=128px>](face_detection/yolov3-face/) | [yolov3-face](/face_detection/yolov3-face/) | [Face detection using keras-yolov3](https://github.com/axinc-ai/yolov3-face) | Keras | 1.2.1 and later |
+| [<img src="face_detection/yolov3-face/output.png" width=128px>](face_detection/yolov3-face/) | [yolov3-face](/face_detection/yolov3-face/) | [Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face) | Keras | 1.2.1 and later |
 | [<img src="face_detection/blazeface/result.png" width=128px>](face_detection/blazeface/) |[blazeface](/face_detection/blazeface/)| [BlazeFace-PyTorch](https://github.com/hollance/BlazeFace-PyTorch) | Pytorch | 1.2.1 and later | [EN](https://medium.com/axinc-ai/blazeface-a-machine-learning-model-for-fast-detection-of-face-positions-and-key-points-5dcfb9429d72) [JP](https://medium.com/axinc/blazeface-%E9%A1%94%E3%81%AE%E4%BD%8D%E7%BD%AE%E3%81%A8%E3%82%AD%E3%83%BC%E3%83%9D%E3%82%A4%E3%83%B3%E3%83%88%E3%82%92%E9%AB%98%E9%80%9F%E3%81%AB%E6%A4%9C%E5%87%BA%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-e851c348a32b) |
-| [<img src="face_detection/face-mask-detection/output.png" width=128px>](face_detection/face-mask-detection/)| [face-mask-detection](/face_detection/face-mask-detection/) | [Face detection using keras-yolov3](https://github.com/axinc-ai/yolov3-face) | Keras | 1.2.1 and later | [EN](https://medium.com/axinc-ai/facemaskdetection-a-machine-learning-model-to-determine-if-a-person-is-wearing-a-mask-e5a581ea8af9) [JP](https://medium.com/axinc/facemaskdetection-%E3%83%9E%E3%82%B9%E3%82%AF%E3%82%92%E4%BB%98%E3%81%91%E3%81%A6%E3%81%84%E3%82%8B%E3%81%8B%E3%82%92%E5%88%A4%E5%AE%9A%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-b06793f79a97) |
+| [<img src="face_detection/face-mask-detection/output.png" width=128px>](face_detection/face-mask-detection/)| [face-mask-detection](/face_detection/face-mask-detection/) | [Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face) | Keras | 1.2.1 and later | [EN](https://medium.com/axinc-ai/facemaskdetection-a-machine-learning-model-to-determine-if-a-person-is-wearing-a-mask-e5a581ea8af9) [JP](https://medium.com/axinc/facemaskdetection-%E3%83%9E%E3%82%B9%E3%82%AF%E3%82%92%E4%BB%98%E3%81%91%E3%81%A6%E3%81%84%E3%82%8B%E3%81%8B%E3%82%92%E5%88%A4%E5%AE%9A%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-b06793f79a97) |
 | [<img src="face_detection/dbface/selfie_output.png" width=128px>](face_detection/dbface/)| [dbface](face_detection/dbface/) | [DBFace : real-time, single-stage detector for face detection, <br/>with faster speed and higher accuracy](https://github.com/dlunion/DBFace) | Pytorch | 1.2.2 and later |
 | [<img src="face_detection/retinaface/selfie_output.png" width=128px>](face_detection/retinaface/)| [retinaface](face_detection/retinaface/) | [RetinaFace: Single-stage Dense Face Localisation in the Wild.](https://github.com/biubug6/Pytorch_Retinaface) | Pytorch | 1.2.5 and later |  [JP](https://medium.com/axinc/retinaface-%E9%AB%98%E8%A7%A3%E5%83%8F%E5%BA%A6%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9F%E9%A1%94%E6%A4%9C%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-37d0807581ce) |
 | [<img src="face_detection/anime-face-detector/output.png" width=128px>](face_detection/anime-face-detector/)| [anime-face-detector](face_detection/anime-face-detector/) | [Anime Face Detector](https://github.com/hysts/anime-face-detector) | Pytorch | 1.2.6 and later |
@@ -269,7 +279,7 @@ If you would like to try on your computer:
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|
 | [<img src="face_recognition/face_classification/lenna.png">](face_recognition/face_classification/) |[face_classification](/face_recognition/face_classification) | [Real-time face detection and emotion/gender classification](https://github.com/oarriaga/face_classification) | Keras | 1.1.0 and later |
 | [<img src="face_recognition/age-gender-recognition-retail/demo.jpg" width=128px>](face_recognition/age-gender-recognition-retail/) | [age-gender-recognition-retail](/face_recognition/age-gender-recognition-retail/) | [age-gender-recognition-retail-0013](https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/age-gender-recognition-retail-0013) | OpenVINO | 1.2.5 and later | [EN](https://medium.com/axinc-ai/agegenderrecognitionretail-a-machine-learning-model-to-identify-age-and-gender-8506510414b) [JP](https://medium.com/axinc/agegenderrecognitionretail-%E5%B9%B4%E9%BD%A2%E3%81%A8%E6%80%A7%E5%88%A5%E3%82%92%E4%BA%88%E6%B8%AC%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-3632935d19ec) |
-| [<img src="face_recognition/mivolo/output.png" width=128px>](face_recognition/mivolo/) | [mivolo](/face_recognition/mivolo/) | [MiVOLO: Multi-input Transformer for Age and Gender Estimation](https://github.com/WildChlamydia/MiVOLO) | Pytorch | 1.2.13 and later | |
+| [<img src="face_recognition/mivolo/output.png" width=128px>](face_recognition/mivolo/) | [mivolo](/face_recognition/mivolo/) | [MiVOLO: Multi-input Transformer for Age and Gender Estimation](https://github.com/WildChlamydia/MiVOLO) | Pytorch | 1.2.13 and later | [JP](https://medium.com/axinc/multi-input-transformer-for-age-and-gender-estimation-%E5%B9%B4%E9%BD%A2%E3%81%A8%E6%80%A7%E5%88%A5%E3%82%92%E6%8E%A8%E5%AE%9A%E3%81%99%E3%82%8B%E3%81%9F%E3%82%81%E3%81%AE%E3%83%9E%E3%83%AB%E3%83%81%E3%82%A4%E3%83%B3%E3%83%97%E3%83%83%E3%83%88%E3%83%88%E3%83%A9%E3%83%B3%E3%82%B9%E3%83%95%E3%82%A9%E3%83%BC%E3%83%9E%E3%83%BC%E3%83%A2%E3%83%87%E3%83%AB-8b77aa8c6dbc) |
 
 ### Emotion recognition
 
@@ -285,7 +295,7 @@ If you would like to try on your computer:
 | [<img src="face_recognition/gazeml/output.png" width=128px>](face_recognition/gazeml/) | [gazeml](/face_recognition/gazeml/) | [A deep learning framework based on Tensorflow <br/>for the training of high performance gaze estimation](https://github.com/swook/GazeML) | TensorFlow | 1.2.0 and later |
 | [<img src="face_recognition/mediapipe_iris/output.png" width=128px>](face_recognition/mediapipe_iris/) | [mediapipe_iris](/face_recognition/mediapipe_iris/) | [irislandmarks.pytorch](https://github.com/cedriclmenard/irislandmarks.pytorch) | Pytorch | 1.2.2 and later | [EN](https://medium.com/axinc-ai/mediapipe-iris-detecting-key-points-in-the-eye-637f5c1e728e) [JP](https://medium.com/axinc/mediapipe-iris-%E7%9B%AE%E3%81%AE%E3%82%AD%E3%83%BC%E3%83%9D%E3%82%A4%E3%83%B3%E3%83%88%E3%82%92%E6%A4%9C%E5%87%BA%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-a4742f143551) |
 | [<img src="face_recognition/ax_gaze_estimation/output.png" width=128px>](face_recognition/ax_gaze_estimation/) | [ax_gaze_estimation](/face_recognition/ax_gaze_estimation/) | ax Gaze Estimation | Pytorch | 1.2.2 and later | [EN](https://medium.com/axinc-ai/axgazeestimation-a-machine-learning-model-for-estimating-gaze-c9648042d637) [JP](https://medium.com/axinc/axgazeestimation-%E8%A6%96%E7%B7%9A%E3%82%92%E6%8E%A8%E5%AE%9A%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-8446a791968) |
-| [<img src="face_recognition/gazelle/output.png" width=128px>](face_recognition/gazelle/) | [gazelle](/face_recognition/gazelle/) | [gazelle](https://github.com/fkryan/gazelle) | Pytorch | 1.2.16 and later |
+| [<img src="face_recognition/gazelle/output.png" width=128px>](face_recognition/gazelle/) | [gazelle](/face_recognition/gazelle/) | [gazelle](https://github.com/fkryan/gazelle) | Pytorch | 1.2.16 and later | [JP](https://medium.com/axinc/gaze-lle-%E5%A4%A7%E8%A6%8F%E6%A8%A1%E3%83%87%E3%83%BC%E3%82%BF%E3%81%A7%E5%AD%A6%E7%BF%92%E3%81%95%E3%82%8C%E3%81%9F%E5%9F%BA%E7%9B%A4%E3%83%A2%E3%83%87%E3%83%AB%E3%81%AB%E3%82%88%E3%82%8B%E5%8A%B9%E7%8E%87%E7%9A%84%E3%81%AA%E8%A6%96%E7%B7%9A%E6%8E%A8%E5%AE%9A%E3%83%A2%E3%83%87%E3%83%AB-7176706a0e4e) |
 
 ### Head pose estimation
 
@@ -300,7 +310,7 @@ If you would like to try on your computer:
 
 | | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|
-| [<img src="face_recognition/facial_feature/output.png" width=128px>](face_recognition/facial_feature/) |[facial_feature](/face_recognition/facial_feature/)|[kaggle-facial-keypoints](https://github.com/axinc-ai/kaggle-facial-keypoints)|Pytorch| 1.2.0 and later |
+| [<img src="face_recognition/facial_feature/output.png" width=128px>](face_recognition/facial_feature/) |[facial_feature](/face_recognition/facial_feature/)|[kaggle-facial-keypoints](https://github.com/ailia-ai/kaggle-facial-keypoints)|Pytorch| 1.2.0 and later |
 | [<img src="face_recognition/face_alignment/output_3d.png" width=128px>](face_recognition/face_alignment/) |[face_alignment](/face_recognition/face_alignment/)| [2D and 3D Face alignment library build using pytorch](https://github.com/1adrianb/face-alignment) | Pytorch | 1.2.1 and later | [EN](https://medium.com/axinc-ai/facealignment-a-machine-learning-model-for-recognizing-key-points-on-a-face-956f5e796efa) [JP](https://medium.com/axinc/facealignment-%E9%A1%94%E3%81%AE%E3%82%AD%E3%83%BC%E3%83%9D%E3%82%A4%E3%83%B3%E3%83%88%E3%82%92%E8%AA%8D%E8%AD%98%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-a46654c4da14) |
 | [<img src="face_recognition/prnet/results/dense_alignment.png" width=128px>](face_recognition/prnet/) |[prnet](/face_recognition/prnet)| [Joint 3D Face Reconstruction and Dense Alignment <br/>with Position Map Regression Network](https://github.com/YadiraF/PRNet) | TensorFlow | 1.2.2 and later |
 | [<img src="face_recognition/facemesh/output.png" width=128px>](face_recognition/facemesh/) | [facemesh](/face_recognition/facemesh/) | [facemesh.pytorch](https://github.com/thepowerfuldeez/facemesh.pytorch) | Pytorch | 1.2.2 and later | [EN](https://medium.com/axinc-ai/facemesh-detecting-key-points-on-faces-in-real-time-977c03f1bab) [JP](https://medium.com/axinc/facemesh-%E3%83%AA%E3%82%A2%E3%83%AB%E3%82%BF%E3%82%A4%E3%83%A0%E3%81%A7%E9%A1%94%E3%81%AE%E3%82%AD%E3%83%BC%E3%83%9D%E3%82%A4%E3%83%B3%E3%83%88%E3%82%92%E6%A4%9C%E5%87%BA%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-bf223a50b7d6) |
@@ -355,7 +365,7 @@ If you would like to try on your computer:
 
 | | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|
-| [<img src="hand_detection/yolov3-hand/output.png" width=128px>](hand_detection/yolov3-hand/) | [yolov3-hand](/hand_detection/yolov3-hand/) | [Hand detection branch of Face detection using keras-yolov3](https://github.com/axinc-ai/yolov3-face/tree/hand_detection) | Keras | 1.2.1 and later |
+| [<img src="hand_detection/yolov3-hand/output.png" width=128px>](hand_detection/yolov3-hand/) | [yolov3-hand](/hand_detection/yolov3-hand/) | [Hand detection branch of Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face/tree/hand_detection) | Keras | 1.2.1 and later |
 | [<img src="hand_detection/hand_detection_pytorch/CARDS_OFFICE_output.jpg" width=128px>](hand_detection/hand_detection_pytorch/) | [hand_detection_pytorch](/hand_detection/hand_detection_pytorch/) | [hand-detection.PyTorch](https://github.com/zllrunning/hand-detection.PyTorch) | Pytorch | 1.2.2 and later |
 | [<img src="hand_detection/blazepalm/output.png" width=128px>](hand_detection/blazepalm/) |[blazepalm](/hand_detection/blazepalm/) | [MediaPipePyTorch](https://github.com/zmurez/MediaPipePyTorch) | Pytorch | 1.2.5 and later |
 
@@ -411,7 +421,7 @@ If you would like to try on your computer:
 | [<img src="image_classification/japanese-clip/dog.jpeg" width=128px>](image_classification/japanese-clip/) | [japanese-clip](/image_classification/japanese-clip/)|[Japanese-CLIP](https://github.com/rinnakk/japanese-clip) | Pytorch | 1.2.15 and later | |
 | [<img src="image_classification/japanese-stable-clip-vit-l-16/dog.jpeg" width=128px>](image_classification/japanese-stable-clip-vit-l-16/) | [japanese-stable-clip-vit-l-16](/image_classification/japanese-stable-clip-vit-l-16/) | [japanese-stable-clip-vit-l-16](https://huggingface.co/stabilityai/japanese-stable-clip-vit-l-16/) | Pytorch | 1.2.11 and later | |
 | [<img src="image_classification/clip-japanese-base/demo.jpeg" width=128px>](image_classification/clip-japanse-base/) | [clip-japanese-base](/image_classification/clip-japanese-base/)|[line-corporation/clip-japanese-base](https://huggingface.co/line-corporation/clip-japanese-base) | Pytorch | 1.2.16 and later | |
-| [<img src="image_classification/siglip2/demo.jpg" width=128px>](image_classification/siglip2/) | [siglip2](/image_classification/siglip2/)|[Multilingual Vision-Language Encoders with Improved Semantic Understanding, Localization, and Dense Features](https://huggingface.co/google/siglip2-base-patch16-224) | Pytorch | 1.2.16 and later | |
+| [<img src="image_classification/siglip2/demo.jpg" width=128px>](image_classification/siglip2/) | [siglip2](/image_classification/siglip2/)|[Multilingual Vision-Language Encoders with Improved Semantic Understanding, Localization, and Dense Features](https://huggingface.co/google/siglip2-base-patch16-224) | Pytorch | 1.2.16 and later | [JP](https://medium.com/axinc/siglip2-%E6%AC%A1%E4%B8%96%E4%BB%A3%E3%81%AE0%E3%82%B7%E3%83%A7%E3%83%83%E3%83%88%E7%89%A9%E4%BD%93%E8%AD%98%E5%88%A5%E3%83%A2%E3%83%87%E3%83%AB-854e768c3163) |
 
 ### Specific task
 
@@ -456,7 +466,7 @@ If you would like to try on your computer:
 
 | | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|
-| [<img src="image_restoration/nafnet/noise_output.png" width=128px>](image_restoration/nafnet/) | [nafnet](/image_restoration/nafnet/) | [NAFNet: Nonlinear Activation Free Network for Image Restoration](https://github.com/megvii-research/nafnet) | Pytorch | 1.2.10 and later |
+| [<img src="image_restoration/nafnet/noise_output.png" width=128px>](image_restoration/nafnet/) | [nafnet](/image_restoration/nafnet/) | [NAFNet: Nonlinear Activation Free Network for Image Restoration](https://github.com/megvii-research/nafnet) | Pytorch | 1.2.10 and later | [JP](https://medium.com/axinc/nafnet-%E7%94%BB%E5%83%8F%E3%81%AE%E3%83%96%E3%83%A9%E3%83%BC%E3%82%92%E9%99%A4%E5%8E%BB%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-b8547fd67597) | 
 
 ## Image segmentation
 
@@ -522,12 +532,13 @@ If you would like to try on your computer:
 
 ### Embedding
 
-| Model | Reference | Exported From | Supported Ailia Version | Blog |
-|------------:|:------------:|:------------:|:------------:|:------------:|
-|[sentence_transformers_japanese](/natural_language_processing/sentence_transformers_japanese) | [sentence transformers](https://huggingface.co/sentence-transformers/paraphrase-multilingual-mpnet-base-v2) | Pytorch | 1.2.7 and later | [JP](https://medium.com/axinc/sentencetransformer-%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%81%8B%E3%82%89embedding%E3%82%92%E5%8F%96%E5%BE%97%E3%81%99%E3%82%8B%E8%A8%80%E8%AA%9E%E5%87%A6%E7%90%86%E3%83%A2%E3%83%87%E3%83%AB-b7d2a9bb2c31) |
-|[multilingual-e5](/natural_language_processing/multilingual-e5) | [multilingual-e5-base](https://huggingface.co/intfloat/multilingual-e5-base) | Pytorch | 1.2.15 and later | [JP](https://medium.com/axinc/multilingual-e5-%E5%A4%9A%E8%A8%80%E8%AA%9E%E3%81%AE%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%82%92embedding%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-71f1dec7c4f0) |
-|[glucose](/natural_language_processing/glucose) | [GLuCoSE (General Luke-based Contrastive Sentence Embedding)-base-Japanese](https://huggingface.co/pkshatech/GLuCoSE-base-ja) | Pytorch | 1.2.15 and later |
-|[ruri-v3](/natural_language_processing/ruri-v3) | [ruri-v3-310m ](https://huggingface.co/cl-nagoya/ruri-v3-310m) | Pytorch | 1.2.13 and later |
+| Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
+|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|
+|[sentence_transformers_japanese](/natural_language_processing/sentence_transformers_japanese) | [sentence transformers](https://huggingface.co/sentence-transformers/paraphrase-multilingual-mpnet-base-v2) | Pytorch | 1.2.7 and later | Aug 2019 | [JP](https://medium.com/axinc/sentencetransformer-%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%81%8B%E3%82%89embedding%E3%82%92%E5%8F%96%E5%BE%97%E3%81%99%E3%82%8B%E8%A8%80%E8%AA%9E%E5%87%A6%E7%90%86%E3%83%A2%E3%83%87%E3%83%AB-b7d2a9bb2c31) |
+|[multilingual-e5](/natural_language_processing/multilingual-e5) | [multilingual-e5-base](https://huggingface.co/intfloat/multilingual-e5-base) | Pytorch | 1.2.15 and later | Dec 2022 | [JP](https://medium.com/axinc/multilingual-e5-%E5%A4%9A%E8%A8%80%E8%AA%9E%E3%81%AE%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%82%92embedding%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-71f1dec7c4f0) |
+|[glucose](/natural_language_processing/glucose) | [GLuCoSE (General Luke-based Contrastive Sentence Embedding)-base-Japanese](https://huggingface.co/pkshatech/GLuCoSE-base-ja) | Pytorch | 1.2.15 and later | Jul 2023 |
+|[ruri-v3](/natural_language_processing/ruri-v3) | [ruri-v3-310m ](https://huggingface.co/cl-nagoya/ruri-v3-310m) | Pytorch | 1.2.13 and later | Apr 2025 |
+|[embeddinggemma](/natural_language_processing/embeddinggemma) | [EmbeddingGemma](https://ai.google.dev/gemma/docs/embeddinggemma?hl=ja) | Pytorch | 1.2.14 and later | Sep 2025| [JP](https://kyakuno.medium.com/embedding-gemma-google%E3%81%AE%E9%96%8B%E7%99%BA%E3%81%97%E3%81%9F%E8%BB%BD%E9%87%8F%E3%81%A7%E9%AB%98%E7%B2%BE%E5%BA%A6%E3%81%AAembedding%E3%83%A2%E3%83%87%E3%83%AB-9ec139ddfde9) |
 
 ### Error corrector
 
@@ -542,7 +553,8 @@ If you would like to try on your computer:
 | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |------------:|:------------:|:------------:|:------------:|:------------:|
 |[soundchoice-g2p](/natural_language_processing/soundchoice-g2p) | [Hugging Face - speechbrain/soundchoice-g2p](https://huggingface.co/speechbrain/soundchoice-g2p) | Pytorch | 1.2.16 and later | |
-|[g2p_en](/natural_language_processing/g2p_en) | [g2p_en](https://github.com/Kyubyong/g2p) | Pytorch | 1.2.14 and later | |
+|[g2p_en](/natural_language_processing/g2p_en) | [g2p_en](https://github.com/Kyubyong/g2p) | Pytorch | 1.2.14 and later | [JP](https://medium.com/axinc/g2p-en-%E8%8B%B1%E8%AA%9E%E3%81%AE%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%82%92%E9%9F%B3%E7%B4%A0%E3%81%AB%E5%A4%89%E6%8F%9B%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-88947c27b9ea) |
+|[g2pw](/natural_language_processing/g2pw) | [g2pW](https://github.com/GitYCC/g2pW) | Pytorch | 1.2.9 and later | |
 
 ### Named entity recognition
 
@@ -664,7 +676,7 @@ If you would like to try on your computer:
 | [<img src="object_detection/dab-detr/output.jpg" width=128px>](object_detection/dab-detr/) | [dab-detr](/object_detection/dab-detr/) | [DAB-DETR](https://github.com/IDEA-opensource/DAB-DETR) | Pytorch | 1.2.12 and later | Jan 2022 | |
 | [<img src="object_detection/detic/output.png" width=128px>](object_detection/detic/) | [detic](/object_detection/detic/) | [Detecting Twenty-thousand Classes using Image-level Supervision](https://github.com/facebookresearch/Detic) | Pytorch | 1.2.10 and later | Jan 2022 | [EN](https://medium.com/p/49cba412b7d4) [JP](https://medium.com/axinc/detic-21k%E3%82%AF%E3%83%A9%E3%82%B9%E3%82%92%E9%AB%98%E7%B2%BE%E5%BA%A6%E3%81%AB%E3%82%BB%E3%82%B0%E3%83%A1%E3%83%B3%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E3%81%A7%E3%81%8D%E3%82%8B%E7%89%A9%E4%BD%93%E6%A4%9C%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-1b8f777ee89a) |
 | [<img src="object_detection/groundingdino/output.png" width=128px>](object_detection/groundingdino/) | [groundingdino](/object_detection/groundingdino/) | [Grounding DINO](https://github.com/IDEA-Research/GroundingDINO/tree/main) | Pytorch | 1.2.16 and later | Mar 2023 | [JP](https://medium.com/axinc/grounding-dino-%E4%BB%BB%E6%84%8F%E3%81%AE%E7%89%A9%E4%BD%93%E3%82%92%E6%A4%9C%E5%87%BA%E3%81%A7%E3%81%8D%E3%82%8B%E7%89%A9%E4%BD%93%E6%A4%9C%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-3cc87db64f0c) |
-| [<img src="object_detection/rt-detr-v2/output.png" width=128px>](object_detection/rt-detr-v2/) | [rt-detr-v2](/object_detection/rt-detr-v2/) | [RT-DETR](https://github.com/lyuwenyu/RT-DETR) | Pytorch | 1.2.13 and later | |
+| [<img src="object_detection/rt-detr-v2/output.png" width=128px>](object_detection/rt-detr-v2/) | [rt-detr-v2](/object_detection/rt-detr-v2/) | [RT-DETR](https://github.com/lyuwenyu/RT-DETR) | Pytorch | 1.2.13 and later | Jul 2024 |[JP](https://medium.com/axinc/rt-detr-convolution%E3%81%A8transformer%E3%81%AE%E3%83%8F%E3%82%A4%E3%83%96%E3%83%AA%E3%83%83%E3%83%89%E3%81%AA%E7%89%A9%E4%BD%93%E6%A4%9C%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-7b73fd6a8de9) |
 
 ### Specific target
 
@@ -781,11 +793,11 @@ If you would like to try on your computer:
 | [<img src="super_resolution/srresnet/output.png" width=128px>](super_resolution/srresnet/) | [srresnet](/super_resolution/srresnet/) | [Photo-Realistic Single Image Super-Resolution Using a Generative Adversarial Network](https://github.com/twtygqyy/pytorch-SRResNet) | Pytorch | 1.2.0 and later | [EN](https://medium.com/axinc-ai/srresnet-a-machine-learning-model-to-increase-image-resolution-9efc478f2674) [JP](https://medium.com/axinc/srresnet-%E7%94%BB%E5%83%8F%E3%82%92%E9%AB%98%E5%93%81%E8%B3%AA%E3%81%AB%E6%8B%A1%E5%A4%A7%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-9e35b9a90586) |
 | [<img src="super_resolution/edsr/output.png" width=128px>](super_resolution/edsr/) | [edsr](/super_resolution/edsr/) | [Enhanced Deep Residual Networks for Single Image Super-Resolution](https://github.com/sanghyun-son/EDSR-PyTorch.git) | Pytorch | 1.2.6 and later | [EN](https://medium.com/axinc-ai/edsr-a-machine-learning-model-for-super-resolution-image-processing-9deaf36b24ed) [JP](https://medium.com/axinc/edsr-%E7%94%BB%E5%83%8F%E3%81%AE%E8%B6%85%E8%A7%A3%E5%83%8F%E5%87%A6%E7%90%86%E3%82%92%E8%A1%8C%E3%81%86%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-2842b1d244d) |
 | [<img src="super_resolution/han/output.png" width=128px>](super_resolution/han/) | [han](/super_resolution/han/) | [Single Image Super-Resolution via a Holistic Attention Network](https://github.com/wwlCape/HAN) | Pytorch | 1.2.6 and later |
-| [<img src="super_resolution/real-esrgan/output_anime.jpg" width=128px>](super_resolution/real-esrgan/) | [real-esrgan](/super_resolution/real-esrgan/) | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | Pytorch | 1.2.9 and later |
+| [<img src="super_resolution/real-esrgan/output_anime.jpg" width=128px>](super_resolution/real-esrgan/) | [real-esrgan](/super_resolution/real-esrgan/) | [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | Pytorch | 1.2.9 and later | [JP](https://medium.com/axinc/real-esrgan-%E3%83%87%E3%83%8E%E3%82%A4%E3%82%BA%E3%82%92%E5%BC%B7%E5%8C%96%E3%81%97%E3%81%9F%E8%B6%85%E8%A7%A3%E5%83%8F%E3%83%A2%E3%83%87%E3%83%AB-91a434b3683b)|
 | [<img src="super_resolution/rcan-it/output.png" width=128px>](super_resolution/rcan-it/) | [rcan-it](/super_resolution/rcan-it/) | [Revisiting RCAN: Improved Training for Image Super-Resolution](https://github.com/zudi-lin/rcan-it) | Pytorch | 1.2.10 and later |
 | [<img src="super_resolution/swinir/output_classical.png" width=128px>](super_resolution/swinir/) | [swinir](/super_resolution/swinir/) | [SwinIR: Image Restoration Using Swin Transformer](https://github.com/JingyunLiang/SwinIR) | Pytorch | 1.2.12 and later |
 | [<img src="super_resolution/hat/output.png" width=128px>](super_resolution/hat/) | [Hat](/super_resolution/hat/) | [Hat](https://github.com/XPixelGroup/HAT) | Pytorch | 1.2.6 and later |
-| [<img src="super_resolution/span/output.png" width=128px>](super_resolution/span/) | [SPAN](/super_resolution/span/) | [SPAN](https://github.com/hongyuanyu/SPAN) | Pytorch | 1.2.14 and later |
+| [<img src="super_resolution/span/output.png" width=128px>](super_resolution/span/) | [SPAN](/super_resolution/span/) | [SPAN](https://github.com/hongyuanyu/SPAN) | Pytorch | 1.2.14 and later | [JP](https://medium.com/axinc/span-%E3%83%91%E3%83%A9%E3%83%A1%E3%83%BC%E3%82%BF%E3%83%95%E3%83%AA%E3%83%BC%E3%81%AEattention%E3%81%AB%E3%82%88%E3%82%8B%E5%8A%B9%E7%8E%87%E7%9A%84%E3%81%AA%E8%B6%85%E8%A7%A3%E5%83%8F%E3%83%A2%E3%83%87%E3%83%AB-3af731eae44a) | 
 
 ## Text detection
 
@@ -803,7 +815,7 @@ If you would like to try on your computer:
 | [<img src="text_recognition/deep-text-recognition-benchmark/demo_image/demo_1.png" width=64px>](text_recognition/deep-text-recognition-benchmark/) |[deep-text-recognition-benchmark](/text_recognition/deep-text-recognition-benchmark/) | [deep-text-recognition-benchmark](https://github.com/clovaai/deep-text-recognition-benchmark) | Pytorch | 1.2.6 and later | |
 | [<img src="text_recognition/crnn.pytorch/demo.png" width=64px>](text_recognition/crnn.pytorch/) |[crnn.pytorch](/text_recognition/crnn.pytorch/) | [Convolutional Recurrent Neural Network](https://github.com/meijieru/crnn.pytorch) | Pytorch | 1.2.6 and later | |
 | [<img src="text_recognition/paddleocr/output.png" width=64px>](text_recognition/paddleocr/) |[paddleocr](/text_recognition/paddleocr/) | [PaddleOCR : Awesome multilingual OCR toolkits based on PaddlePaddle](https://github.com/PaddlePaddle/PaddleOCR) | Pytorch | 1.2.6 and later | [EN](https://medium.com/axinc-ai/paddleocr-the-latest-lightweight-ocr-system-a13171d7ea3e) [JP](https://medium.com/axinc/paddleocr-%E6%9C%80%E6%96%B0%E3%81%AE%E8%BB%BD%E9%87%8Focr%E3%82%B7%E3%82%B9%E3%83%86%E3%83%A0-8744205f3703) |
-| [<img src="text_recognition/paddleocr_v3/output.png" width=64px>](text_recognition/paddleocr_v3/) |[paddleocr_v3](/text_recognition/paddleocr_v3/) | [PaddleOCR : Awesome multilingual OCR toolkits based on PaddlePaddle](https://github.com/PaddlePaddle/PaddleOCR) | Pytorch | 1.2.17 and later | |
+| [<img src="text_recognition/paddleocr_v3/output.png" width=64px>](text_recognition/paddleocr_v3/) |[paddleocr_v3](/text_recognition/paddleocr_v3/) | [PaddleOCR : Awesome multilingual OCR toolkits based on PaddlePaddle](https://github.com/PaddlePaddle/PaddleOCR) | Pytorch | 1.2.17 and later | [JP](https://medium.com/axinc/paddleocr-v3-%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%8C%E9%AB%98%E7%B2%BE%E5%BA%A6%E5%8C%96%E3%81%97%E3%81%9F%E6%9C%80%E6%96%B0%E3%81%AEocr%E3%83%A2%E3%83%87%E3%83%AB-7dfa93a3dfcd) |
 | [<img src="text_recognition/easyocr/example/chinese.jpg" width=64px>](text_recognition/easyocr/) |[easyocr](/text_recognition/easyocr/) | [Ready-to-use OCR with 80+ supported languages](https://github.com/JaidedAI/EasyOCR) | Pytorch | 1.2.6 and later | |
 | [<img src="text_recognition/ndlocr_text_recognition/demo.png" width=64px>](text_recognition/ndlocr_text_recognition/) |[ndlocr_text_recognition](/text_recognition/ndlocr_text_recognition/) | [NDL OCR](https://github.com/ndl-lab/text_recognition) | Pytorch | 1.2.5 and later | |
 | [<img src="text_recognition/donut/cord_sample_receipt1.png" width=64px>](text_recognition/donut/) |[donut](/text_recognition/donut/) | [Donut](https://github.com/clovaai/donut) | Pytorch | 1.2.16 and later | |
@@ -813,7 +825,7 @@ If you would like to try on your computer:
 | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |------------:|:------------:|:------------:|:------------:|:------------:|
 | [informer2020](/time_series_forecasting/informer2020/) | [Informer: Beyond Efficient Transformer for Long Sequence Time-Series Forecasting (AAAI'21 Best Paper)](https://github.com/zhouhaoyi/Informer2020) | Pytorch | 1.2.10 and later ||
-| [timesfm](/time_series_forecasting/timesfm/) | [TimesFM](https://github.com/google-research/timesfm) | Pytorch | 1.2.16 and later ||
+| [timesfm](/time_series_forecasting/timesfm/) | [TimesFM](https://github.com/google-research/timesfm) | Pytorch | 1.2.16 and later | [JP](https://medium.com/axinc/timesfm-%E6%99%82%E7%B3%BB%E5%88%97%E4%BA%88%E6%B8%AC%E3%81%AE%E5%9F%BA%E7%9B%A4%E3%83%A2%E3%83%87%E3%83%AB-0a11fdefa319) |
 
 ## Vehicle recognition
 
@@ -826,9 +838,9 @@ If you would like to try on your computer:
 
 | | Model | Reference | Exported From | Supported Ailia Version | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|
-| [<img src="vision_language_model/llava/view.jpg" width=128px>](vision_language_model/llava/) | [llava](/vision_language_model/llava) | [LLaVA](https://github.com/haotian-liu/LLaVA) | Pytorch | 1.2.16 and later | |
-| [<img src="vision_language_model/florence2/car.jpg" width=128px>](vision_language_model/florence2/) | [florence2](vision_language_model/florence2) | [Hugging Face - microsoft/Florence-2-base](https://huggingface.co/microsoft/Florence-2-base) | Pytorch | 1.2.16 and later | |
-| [<img src="vision_language_model/qwen2_vl/demo.jpeg" width=128px>](vision_language_model/qwen2_vl/) | [qwen2_vl](vision_language_model/qwen2_vl) | [Qwen2-VL](https://github.com/QwenLM/Qwen2-VL) | Pytorch | 1.5.0 and later | |
+| [<img src="vision_language_model/llava/view.jpg" width=128px>](vision_language_model/llava/) | [llava](/vision_language_model/llava) | [LLaVA](https://github.com/haotian-liu/LLaVA) | Pytorch | 1.2.16 and later | [JP](https://medium.com/axinc/llava-%E7%94%BB%E5%83%8F%E3%81%AB%E5%AF%BE%E3%81%97%E3%81%A6%E8%B3%AA%E5%95%8F%E3%81%A7%E3%81%8D%E3%82%8B%E5%A4%A7%E8%A6%8F%E6%A8%A1%E8%A8%80%E8%AA%9E%E3%83%A2%E3%83%87%E3%83%AB-6ede836f2bed) |
+| [<img src="vision_language_model/florence2/car.jpg" width=128px>](vision_language_model/florence2/) | [florence2](vision_language_model/florence2) | [Hugging Face - microsoft/Florence-2-base](https://huggingface.co/microsoft/Florence-2-base) | Pytorch | 1.2.16 and later | [JP](https://medium.com/axinc/florence2-%E8%BB%BD%E9%87%8F%E3%81%A7%E3%82%A8%E3%83%83%E3%82%B8%E5%AE%9F%E8%A3%85%E5%8F%AF%E8%83%BD%E3%81%AAvision-language-model-71809797a957) |
+| [<img src="vision_language_model/qwen2_vl/demo.jpeg" width=128px>](vision_language_model/qwen2_vl/) | [qwen2_vl](vision_language_model/qwen2_vl) | [Qwen2-VL](https://github.com/QwenLM/Qwen2-VL) | Pytorch | 1.5.0 and later | [JP](https://medium.com/axinc/qwen2-vl-%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%81%A7%E5%8B%95%E4%BD%9C%E3%81%99%E3%82%8Bvision-language-model-b6f75fa30a08) |
 | [<img src="vision_language_model/llava-jp/sample.jpg" width=128px>](vision_language_model/llava-jp/) | [llava-jp](vision_language_model/llava-jp) | [LLaVA-JP](https://github.com/tosiyuki/LLaVA-JP/tree/main) | Pytorch | 1.5.0 and later | |
 | [<img src="vision_language_model/mobilevlm/demo.jpg" width=128px>](vision_language_model/mobilevlm/) | [mobilevlm](vision_language_model/mobilevlm) | [MobileVLM](https://github.com/Meituan-AutoML/MobileVLM) | Pytorch | 1.5.0 and later | |
 
@@ -840,7 +852,7 @@ If you would like to try on your computer:
 
 # Other languages
 
-- [unity version](https://github.com/axinc-ai/ailia-models-unity)
-- [c++ version](https://github.com/axinc-ai/ailia-models-cpp)
-- [flutter version](https://github.com/axinc-ai/ailia-models-flutter)
-- [rust version](https://github.com/axinc-ai/ailia-models-rust)
+- [unity version](https://github.com/ailia-ai/ailia-models-unity)
+- [c++ version](https://github.com/ailia-ai/ailia-models-cpp)
+- [flutter version](https://github.com/ailia-ai/ailia-models-flutter)
+- [rust version](https://github.com/ailia-ai/ailia-models-rust)

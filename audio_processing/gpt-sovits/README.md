@@ -33,6 +33,12 @@ Run for english.
 python3 gpt-sovits.py -i "Hello world. We are testing speech synthesis." --text_language en --ref_audio reference_audio_captured_by_ax.wav --ref_text "水をマレーシアから買わなくてはならない。" --ref_language ja
 ```
 
+Run for chinese.
+
+```
+python3 gpt-sovits.py -i "你好世界。我们正在测试语音合成。" --text_language zh --ref_audio reference_audio_captured_by_ax.wav --ref_text "水をマレーシアから買わなくてはならない。" --ref_language ja
+```
+
 ### Reference
 [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS)
 
@@ -51,6 +57,10 @@ ONNX opset = 17
 - [t2s_fsdec.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/gpt-sovits/t2s_fsdec.onnx.prototxt)
 - [t2s_sdec.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/gpt-sovits/t2s_sdec.onnx.prototxt)
 - [vits.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/gpt-sovits/vits.onnx.prototxt)
+
+#### Chinese BERT model
+
+- [chinese-roberta.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/gpt-sovits/chinese-roberta.onnx.prototxt)
 
 #### Optimized model
 

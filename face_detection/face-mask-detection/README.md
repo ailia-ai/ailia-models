@@ -46,7 +46,7 @@ $ python3 face-mask-detection.py -a mb2-ssd
 
 ## Reference
 
-- [Face detection using keras-yolov3](https://github.com/axinc-ai/yolov3-face)
+- [Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face)
 
 ## Framework
 
