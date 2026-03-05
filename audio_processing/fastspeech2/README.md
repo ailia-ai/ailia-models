@@ -19,18 +19,13 @@ It is necessary to be connected to the Internet while downloading.
 For the sample text (default):
 
 ```bash
-$ python3 fastspeech2.py \
-  --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
-  --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx
+$ python3 fastspeech2.py
 ```
 
 Specify your own text:
 
 ```bash
-python3 fastspeech2.py \
-  --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
-  --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
-  --text "Hello, this is a test."
+python3 fastspeech2.py --text "Hello, this is a test."
 ```
 
 Specify speaker ID for multi-speaker models:
@@ -47,8 +42,6 @@ Control pitch, energy, and speaking rate:
 
 ```bash
 python3 fastspeech2.py \
-  --onnx_fs2 onnx/fastspeech2/ljspeech.onnx \
-  --onnx_hifi onnx/hifigan/hifigan_ljspeech.onnx \
   --text "Hello world" \
   --pitch_control 1.2 \
   --duration_control 0.8
@@ -60,10 +53,8 @@ For LibriTTS (English, Multi-Speaker)
 
 ```bash
 python3 fastspeech2.py \
+  --model_name LibriTTS \
   --text "Hello, I am speaking from a multi-speaker model." \
-  --preprocess_config config/LibriTTS/preprocess.yaml \
-  --onnx_fs2 onnx/fastspeech2/libritts.onnx \
-  --onnx_hifi onnx/hifigan/hifigan.onnx \
   --speaker_id 0
 ```
 
@@ -71,10 +62,8 @@ For AISHELL-3 (Mandarin, Multi-Speaker):
 
 ```bash
 python3 fastspeech2.py \
+  --model_name AISHELL-3 \
   --text "你好" \
-  --preprocess_config config/AISHELL3/preprocess.yaml \
-  --onnx_fs2 onnx/fastspeech2/aishell3.onnx \
-  --onnx_hifi onnx/hifigan/hifigan.onnx \
   --speaker_id 16
 ```
 
@@ -87,11 +76,10 @@ python3 fastspeech2.py \
 - `--pitch_control`: Control the pitch of the whole utterance, larger value for higher pitch (default: 1.0)
 - `--duration_control`: Control the speed of the whole utterance, larger value for slower speaking rate (default: 1.0)
 
-### Additional Arguments (ailia-specific)
+### Additional Arguments
 
 - `--preprocess_config`: Path to preprocess.yaml (default: config/LJSpeech/preprocess.yaml)
-- `--onnx_fs2`: Path to FastSpeech2 ONNX file (default: ljspeech.onnx)
-- `--onnx_hifi`: Path to HiFi-GAN ONNX file (default: hifigan.onnx)
+- `--model_name`: Name of model
 - `--output_dir`: Output directory for generated audio files (default: onnx/result/ailia)
 - `-b`, `--benchmark`: Running the inference on the same input 5 times to measure execution performance
 - `--env_id`: The backend environment id

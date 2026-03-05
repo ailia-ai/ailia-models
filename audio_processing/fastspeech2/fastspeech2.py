@@ -25,16 +25,7 @@ from text import text_to_sequence
 logger = getLogger(__name__)
 
 # モデル設定
-# onnxファイルの箇所を変更しています。こちらが正しいパスになります。
-WEIGHT_PATH_FS2 = 'onnx/fastspeech2/ljspeech.onnx'
-# hifiganは単一話者用(LJSpeech)と多話者用(Other)で別のモデルを使用します。
-# 前者がhifigan_ljspeech.onnx、後者がhifigan.onnxになります。
-WEIGHT_PATH_HIFI = None
-# 以下のパスは前回から変更していません。
-REMOTE_PATH = "https://storage.googleapis.com/ailia-models/fastspeech2"
-
-PREPROCESS_CONFIG = "config/LJSpeech/preprocess.yaml"
-
+REMOTE_PATH = "https://storage.googleapis.com/ailia-models/fastspeech2/"
 
 parser = get_base_parser(
     'FastSpeech2',
@@ -76,29 +67,30 @@ parser.add_argument(
 )
 # 以下引数の指定。デフォルトはLJSpeech.
 parser.add_argument(
-    '--preprocess_config',
-    type=str,
-    default=PREPROCESS_CONFIG,
-    help='path to preprocess.yaml'
-)
-parser.add_argument(
-    '--onnx_fs2',
-    default=WEIGHT_PATH_FS2,
-    help='Path to FastSpeech2 ONNX file.'
-)
-parser.add_argument(
-    '--onnx_hifi',
-    default=WEIGHT_PATH_HIFI,
-    help='Path to HiFi-GAN ONNX file.'
-)
-parser.add_argument(
     '--output_dir',
     type=str,
     default=None,
     help='output directory for generated audio files'
 )
+parser.add_argument(
+    '-m', '--model_name',
+    default='ljspeech',
+    choices=["ljspeech", "LibriTTS", "AISHELL-3"],
+)
 args = update_parser(parser)
 
+if args.model_name == 'ljspeech':
+    WEIGHT_PATH_FS2 = 'ljspeech.onnx'
+    WEIGHT_PATH_HIFI = "hifigan_ljspeech.onnx"
+    PREPROCESS_CONFIG = "config/LJSpeech/preprocess.yaml"
+elif args.model_name == 'LibriTTS':
+    WEIGHT_PATH_FS2 = 'libritts.onnx'
+    WEIGHT_PATH_HIFI = "hifigan.onnx"
+    PREPROCESS_CONFIG = "config/LibriTTS/preprocess.yaml"
+elif args.model_name == 'AISHELL-3':
+    WEIGHT_PATH_FS2 = 'aishell3.onnx'
+    WEIGHT_PATH_HIFI = "hifigan.onnx"
+    PREPROCESS_CONFIG = "config/AISHELL3/preprocess.yaml"
 
 def expand_phoneme(values, durations):
     out = []
@@ -246,56 +238,37 @@ def select_hifigan(preprocess_config_path):
     """preprocess_configのパスからデータセット名を判定し、適切なHiFi-GANを選択"""
     dataset = os.path.basename(os.path.dirname(preprocess_config_path))
     if dataset == "LJSpeech":
-        return "onnx/hifigan/hifigan_ljspeech.onnx"
+        return "hifigan_ljspeech.onnx"
     else:
-        return "onnx/hifigan/hifigan.onnx"
+        return "hifigan.onnx"
 
 
 def infer():
-    if args.onnx_hifi is None:
-        args.onnx_hifi = select_hifigan(args.preprocess_config)
-        logger.info(f"Auto-selected HiFi-GAN: {args.onnx_hifi}")
-
     # モデルのダウンロード
-    try:
-        check_and_download_models(args.onnx_fs2, args.onnx_fs2 + ".prototxt", REMOTE_PATH)
-    except Exception:
-        pass
-    try:
-        check_and_download_models(args.onnx_hifi, args.onnx_hifi + ".prototxt", REMOTE_PATH)
-    except Exception:
-        pass
+    check_and_download_models(WEIGHT_PATH_FS2, WEIGHT_PATH_FS2 + ".prototxt", REMOTE_PATH)
+    check_and_download_models(WEIGHT_PATH_HIFI, WEIGHT_PATH_HIFI + ".prototxt", REMOTE_PATH)
 
     # -------------------------------------------
     # ロード
     # -------------------------------------------
-    if not os.path.exists(args.onnx_fs2) or not os.path.exists(args.onnx_hifi):
-        logger.error("Error: ONNX file not found.")
-        return
-
-    logger.info("Loading Config...")
-    try:
-        preprocess_config = yaml.load(open(args.preprocess_config, "r"), Loader=yaml.FullLoader)
-    except Exception as e:
-        logger.error(f"Error loading config: {e}")
-        return
+    preprocess_config = yaml.load(open(PREPROCESS_CONFIG, "r"), Loader=yaml.FullLoader)
 
     logger.info("Loading ONNX Models (ailia SDK)...")
     try:
         env_id = args.env_id
-        fs2_net = ailia.Net(None, args.onnx_fs2, env_id=env_id)
-        hifi_net = ailia.Net(None, args.onnx_hifi, env_id=env_id)
+        fs2_net = ailia.Net(WEIGHT_PATH_FS2 + ".prototxt", WEIGHT_PATH_FS2, env_id=env_id)
+        hifi_net = ailia.Net(WEIGHT_PATH_HIFI + ".prototxt", WEIGHT_PATH_HIFI, env_id=env_id)
     except Exception as e:
         logger.error(f"Error initializing ailia: {e}")
         return
 
     # ONNXモデルの出力名を取得
-    onnx_model = onnx.load(args.onnx_fs2)
+    onnx_model = onnx.load(WEIGHT_PATH_FS2)
     fs2_output_names = [output.name for output in onnx_model.graph.output]
 
     # 入力
     logger.info(f"Input Text: {args.text}")
-    sequence = preprocess_text(args.text, preprocess_config, args.preprocess_config)
+    sequence = preprocess_text(args.text, preprocess_config, PREPROCESS_CONFIG)
 
     real_len = len(sequence)
     logger.info(f"Sequence Length: {real_len}")
@@ -399,7 +372,7 @@ def infer():
     if args.output_dir is not None:
         output_dir = args.output_dir
     else:
-        dataset_name = os.path.basename(os.path.dirname(args.preprocess_config))
+        dataset_name = os.path.basename(os.path.dirname(PREPROCESS_CONFIG))
         output_dir = os.path.join("onnx", "result", dataset_name)
     os.makedirs(output_dir, exist_ok=True)
 
