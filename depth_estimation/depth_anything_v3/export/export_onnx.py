@@ -6,7 +6,9 @@ import torch.nn as nn
 
 
 def get_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description='Export Depth Anything V3 model to ONNX format'
+    )
     parser.add_argument(
         '--encoder', '-ec', type=str, default='vits',
         help='model type: vits, vitb, vitl'
@@ -21,51 +23,83 @@ def get_args():
     )
     parser.add_argument(
         '--input_size', type=int, default=504,
-        help='input image size (default: 504)'
+        help='input image size (default: 504, must be multiple of 14)'
     )
     return parser.parse_args()
 
 
-model_configs = {
-    'vits': {'encoder': 'vits', 'features': 64, 'out_channels': [48, 96, 192, 384]},
-    'vitb': {'encoder': 'vitb', 'features': 128, 'out_channels': [96, 192, 384, 768]},
-    'vitl': {'encoder': 'vitl', 'features': 256, 'out_channels': [256, 512, 1024, 1024]},
+model_name_map = {
+    'vits': 'depth-anything/DA3-Small',
+    'vitb': 'depth-anything/DA3-Base',
+    'vitl': 'depth-anything/DA3-Large',
 }
+
+config_name_map = {
+    'vits': 'depth_anything_3.configs.da3-small',
+    'vitb': 'depth_anything_3.configs.da3-base',
+    'vitl': 'depth_anything_3.configs.da3-large',
+}
+
+
+class DepthAnything3Wrapper(nn.Module):
+    """Wrapper for ONNX export that takes (B, 3, H, W) input
+    and returns (B, H, W) depth output."""
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x):
+        # Add view dimension: (B, 3, H, W) -> (B, 1, 3, H, W)
+        x = x.unsqueeze(1)
+        output = self.model(x)
+        return output.depth
 
 
 def main():
     args = get_args()
 
-    assert args.encoder in model_configs, \
-        f'encoder should be one of {list(model_configs.keys())}'
+    assert args.encoder in model_name_map, \
+        f'encoder should be one of {list(model_name_map.keys())}'
+    assert args.input_size % 14 == 0, \
+        f'input_size must be a multiple of 14, got {args.input_size}'
 
-    # Clone the Depth-Anything-3 repo and install dependencies before running:
+    # Install depth_anything_3 before running:
+    #   pip install depth-anything-3
+    # Or clone and install from source:
     #   git clone https://github.com/ByteDance-Seed/Depth-Anything-3.git
     #   cd Depth-Anything-3
     #   pip install -e .
-    # Then run this script from within the Depth-Anything-3 directory or add it to sys.path.
     try:
-        from depth_anything_3.api import DepthAnything3
-    except ImportError:
-        print("Error: Cannot import depth_anything_3.")
-        print("Please clone the Depth-Anything-3 repository:")
-        print("  git clone https://github.com/ByteDance-Seed/Depth-Anything-3.git")
-        print("  cd Depth-Anything-3")
-        print("  pip install -e .")
-        print("Then run this script from within the Depth-Anything-3 directory.")
+        from depth_anything_3.cfg import load_config, create_object
+        from safetensors.torch import load_file
+        from huggingface_hub import hf_hub_download
+    except ImportError as e:
+        print(f"Error: {e}")
+        print("Please install required packages:")
+        print("  pip install depth-anything-3 safetensors huggingface_hub")
         sys.exit(1)
 
-    # Load pretrained model
-    model_name_map = {
-        'vits': 'depth-anything/DA3-Small',
-        'vitb': 'depth-anything/DA3-Base',
-        'vitl': 'depth-anything/DA3-Large',
-    }
+    # Create model from config
+    config_name = config_name_map[args.encoder]
+    print(f'Loading config {config_name}...')
+    cfg = load_config(config_name)
+    model = create_object(cfg)
+
+    # Download and load pretrained weights
     model_name = model_name_map[args.encoder]
-    print(f'Loading model {model_name}...')
-    da3 = DepthAnything3.from_pretrained(model_name)
-    model = da3.model
+    print(f'Downloading weights from {model_name}...')
+    weight_path = hf_hub_download(
+        repo_id=model_name,
+        filename='model.safetensors',
+    )
+    state_dict = load_file(weight_path)
+    model.load_state_dict(state_dict, strict=False)
     model.eval()
+
+    # Wrap model for ONNX export
+    wrapper = DepthAnything3Wrapper(model)
+    wrapper.eval()
 
     if args.output is None:
         output_path = f'da3_{args.encoder}.onnx'
@@ -80,7 +114,7 @@ def main():
     print(f'Input size: {input_size}x{input_size}')
 
     torch.onnx.export(
-        model,
+        wrapper,
         dummy_input,
         output_path,
         opset_version=args.opset,
@@ -93,6 +127,9 @@ def main():
     )
 
     print(f'Successfully exported to {output_path}')
+    print()
+    print('To upload to GCS:')
+    print(f'  gsutil cp {output_path} gs://ailia-models/depth_anything_v3/')
 
 
 if __name__ == '__main__':
