@@ -11,7 +11,6 @@ import scipy.io.wavfile as wavfile
 import re
 from string import punctuation
 from logging import getLogger
-import onnx
 
 sys.path.append('../../util')
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa
@@ -264,9 +263,12 @@ def infer():
         logger.error(f"Error initializing ailia: {e}")
         return
 
-    # ONNXモデルの出力名を取得
-    onnx_model = onnx.load(WEIGHT_PATH_FS2)
-    fs2_output_names = [output.name for output in onnx_model.graph.output]
+    # ailia APIからFastSpeech2の入出力名を取得
+    fs2_input_blobs = fs2_net.get_input_blob_list()
+    fs2_output_blobs = fs2_net.get_output_blob_list()
+    fs2_input_names = [fs2_net.get_blob_name(blob) for blob in fs2_input_blobs]
+    fs2_output_names = [fs2_net.get_blob_name(blob) for blob in fs2_output_blobs]
+    fs2_input_blob_map = dict(zip(fs2_input_names, fs2_input_blobs))
 
     # 入力
     logger.info(f"Input Text: {args.text}")
@@ -278,24 +280,22 @@ def infer():
     texts = np.array([sequence], dtype=np.int64) 
     src_lens = np.array([real_len], dtype=np.int64)
 
-    # ONNXモデルの入力名を取得
-    fs2_input_names = [inp.name for inp in onnx_model.graph.input
-                       if inp.name not in [n.name for n in onnx_model.graph.initializer]]
-
-
     max_src_len = np.array(real_len, dtype=np.int64)
 
 
     if "speakers" in fs2_input_names:
-        for inp in onnx_model.graph.input:
-            if inp.name == "speakers":
-                dims = [d.dim_value if d.dim_value > 0 else d.dim_param
-                        for d in inp.type.tensor_type.shape.dim]
-                if len(dims) == 2:
-                    speakers = np.array([[args.speaker_id]], dtype=np.int64)
-                else:
-                    speakers = np.array([args.speaker_id], dtype=np.int64)
-                break
+        speaker_blob = fs2_input_blob_map.get("speakers")
+        speaker_shape = None
+        if speaker_blob is not None and hasattr(fs2_net, "get_blob_shape"):
+            try:
+                speaker_shape = fs2_net.get_blob_shape(speaker_blob)
+            except Exception:
+                speaker_shape = None
+
+        if speaker_shape is not None and len(speaker_shape) == 2:
+            speakers = np.array([[args.speaker_id]], dtype=np.int64)
+        else:
+            speakers = np.array([args.speaker_id], dtype=np.int64)
     else:
         speakers = None
 
