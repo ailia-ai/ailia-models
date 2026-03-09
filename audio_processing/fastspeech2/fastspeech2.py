@@ -67,10 +67,10 @@ parser.add_argument(
 )
 # 以下引数の指定。デフォルトはLJSpeech.
 parser.add_argument(
-    '--output_dir',
+    '-o', '--output',
     type=str,
     default=None,
-    help='output directory for generated audio files'
+    help='output wav path (if omitted, --savepath is used)'
 )
 parser.add_argument(
     '-m', '--model_name',
@@ -78,6 +78,8 @@ parser.add_argument(
     choices=["ljspeech", "LibriTTS", "AISHELL-3"],
 )
 args = update_parser(parser)
+if args.output is None:
+    args.output = args.savepath
 
 if args.model_name == 'ljspeech':
     WEIGHT_PATH_FS2 = 'ljspeech.onnx'
@@ -369,18 +371,12 @@ def infer():
     MAX_WAV_VALUE = preprocess_config["preprocessing"]["audio"]["max_wav_value"]
     wav = (wav * MAX_WAV_VALUE).astype("int16")
 
-    if args.output_dir is not None:
-        output_dir = args.output_dir
-    else:
-        dataset_name = os.path.basename(os.path.dirname(PREPROCESS_CONFIG))
-        output_dir = os.path.join("onnx", "result", dataset_name)
-    os.makedirs(output_dir, exist_ok=True)
-
-    # データの保存方法も元のリポジトリに合わせました。
-    #音声データとメルスペクトログラムが保存されます
-    basename = args.text[:100]
-    wav_path = os.path.join(output_dir, "{}.wav".format(basename))
-    plot_path = os.path.join(output_dir, "{}.png".format(basename))
+    # レビュー指摘に合わせ、常に指定パスへwavを保存する。
+    wav_path = args.output
+    output_dir = os.path.dirname(wav_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    plot_path = os.path.splitext(wav_path)[0] + ".png"
 
     sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
     wavfile.write(wav_path, sampling_rate, wav)
