@@ -49,11 +49,15 @@ parser.add_argument(
 parser.add_argument(
 	"--onnx", action="store_true", help="use onnx runtime."
 )
+parser.add_argument("--finetuning", type=str, default=None, help="use finetuning model", choices=(None, "japanese"))
 args = update_parser(parser)
 
 # ======================
 # Models
 # ======================
+
+REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sensevoice/"
+REMOTE_PATH_VAD = REMOTE_PATH
 
 if args.fp16:
 	WEIGHT_PATH = "sensevoice_small_fp16.onnx"
@@ -65,7 +69,10 @@ else:
 MODEL_PATH = WEIGHT_PATH + ".prototxt"
 VAD_MODEL_PATH = VAD_WEIGHT_PATH + ".prototxt"
 
-REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sensevoice/"
+if args.finetuning is not None:
+	REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sensevoice-finetuning/"
+	WEIGHT_PATH = "sensevoice_small_" + args.finetuning + ".onnx"
+	MODEL_PATH = None
 
 def format_timestamp(seconds: float, always_include_hours: bool = False):
 	assert seconds >= 0, "non-negative timestamp expected"
@@ -225,7 +232,7 @@ def recognize_from_mic():
 
 def main():
 	check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
-	check_and_download_models(VAD_WEIGHT_PATH, VAD_MODEL_PATH, REMOTE_PATH)
+	check_and_download_models(VAD_WEIGHT_PATH, VAD_MODEL_PATH, REMOTE_PATH_VAD)
 	
 	if args.V:
 		recognize_from_mic()

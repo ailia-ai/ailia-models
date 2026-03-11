@@ -56,6 +56,7 @@ This model requires ailia SDK 1.2.16 and later.
 ## Reference
 
 * [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2)
+* [Depth Anything ONNX](https://github.com/fabio-sim/Depth-Anything-ONNX)
 
 ## Framework
 
