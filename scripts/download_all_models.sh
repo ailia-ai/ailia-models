@@ -278,6 +278,7 @@ cd ../../network_intrusion_detection/bert-network-packet-flow-header-payload; py
 cd ../../network_intrusion_detection/falcon-adapter-network-packet; python3 falcon-adapter-network-packet.py ${OPTION}
 cd ../../neural_rendering/nerf; python3 nerf.py ${OPTION}
 cd ../../neural_rendering/tripo_sr; python3 tripo_sr.py ${OPTION}
+cd ../../neural_rendering/lgm; python3 lgm.py ${OPTION}
 cd ../../object_detection/centernet; python3 centernet.py ${OPTION}
 cd ../../object_detection/m2det; python3 m2det.py ${OPTION}
 cd ../../object_detection/maskrcnn; python3 maskrcnn.py ${OPTION}

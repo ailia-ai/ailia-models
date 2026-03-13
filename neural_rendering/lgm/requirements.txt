@@ -1,0 +1,6 @@
+torch
+transformers
+plyfile
+rembg
+rich
+wheel
