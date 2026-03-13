@@ -1,0 +1,30 @@
+dataset: "AISHELL3"
+
+path:
+  corpus_path: "/home/ming/Data/AISHELL-3"
+  lexicon_path: "lexicon/pinyin-lexicon-r.txt"
+  raw_path: "./raw_data/AISHELL3"
+  preprocessed_path: "./preprocessed_data/AISHELL3"
+
+preprocessing:
+  val_size: 512
+  text:
+    text_cleaners: []
+    language: "zh"
+  audio:
+    sampling_rate: 22050
+    max_wav_value: 32768.0
+  stft:
+    filter_length: 1024
+    hop_length: 256
+    win_length: 1024
+  mel:
+    n_mel_channels: 80
+    mel_fmin: 0
+    mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
+  pitch:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True
+  energy:
+    feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
+    normalization: True

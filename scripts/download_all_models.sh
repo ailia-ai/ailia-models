@@ -48,6 +48,7 @@ cd ../../audio_processing/pytorch_wavenet/; python3 pytorch_wavenet.py ${OPTION}
 cd ../../audio_processing/audiosep/; python3 audiosep.py ${OPTION}
 cd ../../audio_processing/cosyvoice2/; python3 cosyvoice2.py ${OPTION}
 cd ../../audio_processing/sensevoice/; python3 sensevoice.py ${OPTION}
+cd ../../audio_processing/fastspeech2/; python3 fastspeech2.py ${OPTION}
 cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
 cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
 #cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}

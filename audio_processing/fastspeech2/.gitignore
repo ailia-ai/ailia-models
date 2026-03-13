@@ -1,0 +1,6 @@
+venv310
+onnx
+*.prototxt
+*.onnx
+*.wav
+*.png
