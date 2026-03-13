@@ -201,6 +201,7 @@ cd ../../image_manipulation/u2net_portrait; python3 u2net_portrait.py ${OPTION}
 cd ../../image_manipulation/style2paints; python3 style2paints.py ${OPTION}
 cd ../../image_manipulation/deep_white_balance; python3 deep_white_balance.py ${OPTION}
 cd ../../image_manipulation/deblur_gan; python3 deblur_gan.py ${OPTION}
+cd ../../image_manipulation/mimo-unet; python3 mimo-unet.py ${OPTION}
 cd ../../image_manipulation/invertible_denoising_network; python3 invertible_denoising_network.py ${OPTION}
 cd ../../image_manipulation/dfm; python3 dfm.py ${OPTION}
 cd ../../image_manipulation/dehamer; python3 dehamer.py ${OPTION}
