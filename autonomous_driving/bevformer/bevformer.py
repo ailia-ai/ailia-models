@@ -34,6 +34,11 @@ WEIGHT_PATH = 'bevformer_tiny.onnx'
 MODEL_PATH = 'bevformer_tiny.onnx.prototxt'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/bevformer/'
 
+WEIGHT_PATH_DEFORMABLE = 'bevformer_tiny_deformable.onnx'
+MODEL_PATH_DEFORMABLE = 'bevformer_tiny_deformable.onnx.prototxt'
+
+MODEL_CHOICES = ['bevformer_tiny', 'bevformer_tiny_deformable']
+
 CAMERA_NAMES = [
     'CAM_FRONT', 'CAM_FRONT_LEFT', 'CAM_FRONT_RIGHT',
     'CAM_BACK', 'CAM_BACK_LEFT', 'CAM_BACK_RIGHT',
@@ -144,6 +149,12 @@ parser.add_argument(
 parser.add_argument(
     '--onnx', action='store_true',
     help='Use ONNX Runtime instead of ailia SDK.'
+)
+parser.add_argument(
+    '--model', type=str, default='bevformer_tiny',
+    choices=MODEL_CHOICES,
+    help='Model variant: bevformer_tiny (F.grid_sample) or '
+         'bevformer_tiny_deformable (MS DeformableAttention op).'
 )
 args = update_parser(parser)
 
@@ -677,19 +688,29 @@ def recognize_from_video(predictor, predict_fn):
 def main():
     use_onnx = args.onnx or not HAS_AILIA
 
+    # Select model files based on --model option
+    if args.model == 'bevformer_tiny_deformable':
+        weight_path = WEIGHT_PATH_DEFORMABLE
+        model_path = MODEL_PATH_DEFORMABLE
+    else:
+        weight_path = WEIGHT_PATH
+        model_path = MODEL_PATH
+
+    logger.info(f'Model: {args.model}')
+
     if use_onnx:
         import onnxruntime as ort
         logger.info('Using ONNX Runtime')
 
-        check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+        check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
         session = ort.InferenceSession(
-            WEIGHT_PATH, providers=['CPUExecutionProvider'])
+            weight_path, providers=['CPUExecutionProvider'])
 
         predict_fn = predict_onnx
         predictor = session
     else:
-        check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+        check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
         env_id = args.env_id
 
@@ -697,7 +718,7 @@ def main():
             reduce_constant=True, ignore_input_with_initializer=True,
             reduce_interstage=True, reuse_interstage=False)
         net = ailia.Net(
-            MODEL_PATH, WEIGHT_PATH,
+            model_path, weight_path,
             env_id=env_id, memory_mode=memory_mode)
 
         predict_fn = predict_ailia

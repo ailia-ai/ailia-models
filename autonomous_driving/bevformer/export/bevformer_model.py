@@ -32,6 +32,33 @@ import torch.nn.functional as F
 import torchvision.models as models
 
 from deformable_attention import MSDeformAttn
+from deformable_attention import multi_scale_deformable_attn_pytorch
+
+# Module-level configurable attention implementation.
+# Call configure_deformable_attn(use_ms=True) before building the model
+# to use the MS extension (com.microsoft::MultiScaleDeformableAttention) op.
+_ms_deform_attn_class = MSDeformAttn
+_ms_deform_attn_fn = multi_scale_deformable_attn_pytorch
+
+
+def configure_deformable_attn(use_ms=False):
+    """Configure which deformable attention implementation to use.
+
+    Args:
+        use_ms: If True, use com.microsoft::MultiScaleDeformableAttention
+                ONNX op. If False (default), use F.grid_sample-based impl.
+    """
+    global _ms_deform_attn_class, _ms_deform_attn_fn
+    if use_ms:
+        from deformable_attention_ms import MSDeformAttn as cls
+        from deformable_attention_ms import multi_scale_deformable_attn_ms as fn
+        _ms_deform_attn_class = cls
+        _ms_deform_attn_fn = fn
+    else:
+        from deformable_attention import MSDeformAttn as cls
+        from deformable_attention import multi_scale_deformable_attn_pytorch as fn
+        _ms_deform_attn_class = cls
+        _ms_deform_attn_fn = fn
 
 
 # ============================================================
@@ -331,8 +358,7 @@ class TemporalSelfAttention(MSDeformAttn):
             + sampling_offsets / offset_normalizer
         )
 
-        from deformable_attention import multi_scale_deformable_attn_pytorch
-        output = multi_scale_deformable_attn_pytorch(
+        output = _ms_deform_attn_fn(
             val, spatial_shapes, sampling_locations, attention_weights)
         output = self.output_proj(output)
         return output
@@ -402,8 +428,6 @@ class MSDeformAttnNoOutputProj(nn.Module):
         Returns:
             output: (N, Lq, C) -- without output_proj applied
         """
-        from deformable_attention import multi_scale_deformable_attn_pytorch
-
         N, Lq, _ = query.shape
         num_Z_anchors = reference_points.shape[2]
 
@@ -440,7 +464,7 @@ class MSDeformAttnNoOutputProj(nn.Module):
         sampling_locations = sampling_locations.view(
             N, Lq, self.n_heads, self.n_levels, self.n_points, 2)
 
-        output = multi_scale_deformable_attn_pytorch(
+        output = _ms_deform_attn_fn(
             value, input_spatial_shapes,
             sampling_locations, attention_weights)
         return output
@@ -708,8 +732,8 @@ class DecoderLayer(nn.Module):
         # attentions: ModuleList with 2 elements
         self.attentions = nn.ModuleList([
             DecoderSelfAttention(d_model, n_heads, dropout=dropout),
-            MSDeformAttn(d_model=d_model, n_levels=cross_attn_n_levels,
-                         n_heads=n_heads, n_points=cross_attn_n_points),
+            _ms_deform_attn_class(d_model=d_model, n_levels=cross_attn_n_levels,
+                                  n_heads=n_heads, n_points=cross_attn_n_points),
         ])
 
         # ffns: ModuleList with 1 element
@@ -1379,12 +1403,21 @@ def inverse_sigmoid(x, eps=1e-5):
     return torch.log(x / (1 - x))
 
 
-def build_bevformer_tiny(num_cams=6, img_h=480, img_w=800):
+def build_bevformer_tiny(num_cams=6, img_h=480, img_w=800,
+                         use_ms_deformable=False):
     """Build a BEVFormer-tiny model with default configuration.
+
+    Args:
+        num_cams: number of camera views
+        img_h: input image height
+        img_w: input image width
+        use_ms_deformable: If True, use com.microsoft::MultiScaleDeformableAttention
+            ONNX op instead of F.grid_sample-based implementation.
 
     Returns:
         model: BEVFormerTiny instance ready for weight loading
     """
+    configure_deformable_attn(use_ms=use_ms_deformable)
     model = BEVFormerTiny(
         num_cams=num_cams,
         embed_dims=256,

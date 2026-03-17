@@ -3,14 +3,18 @@ Export BEVFormer-tiny to ONNX.
 
 This script exports the full BEVFormer-tiny model (backbone + BEV encoder
 with deformable attention + detection head) as a single ONNX model.
-Deformable Attention is implemented using F.grid_sample (standard ONNX op).
+
+Two deformable attention implementations are available:
+  - bevformer_tiny: Uses F.grid_sample (standard ONNX op)
+  - bevformer_tiny_deformable: Uses com.microsoft::MultiScaleDeformableAttention
+    (MS extension ONNX op, faster with ONNX Runtime)
 
 Usage:
-    # Export with pretrained weights (auto-downloaded)
+    # Export standard model (F.grid_sample)
     python3 bevformer_onnx_export.py
 
-    # Export with custom resolution
-    python3 bevformer_onnx_export.py --img_h 480 --img_w 800
+    # Export MS deformable attention model
+    python3 bevformer_onnx_export.py --model bevformer_tiny_deformable
 
     # Export and verify with ONNX Runtime
     python3 bevformer_onnx_export.py --verify
@@ -30,6 +34,13 @@ from bevformer_model import build_bevformer_tiny, load_pretrained
 CHECKPOINT_URL = 'https://github.com/zhiqi-li/storage/releases/download/v1.0/bevformer_tiny_epoch_24.pth'
 CHECKPOINT_FILE = 'bevformer_tiny_epoch_24.pth'
 
+MODEL_CHOICES = ['bevformer_tiny', 'bevformer_tiny_deformable']
+
+DEFAULT_OUTPUTS = {
+    'bevformer_tiny': '../bevformer_tiny.onnx',
+    'bevformer_tiny_deformable': '../bevformer_tiny_deformable.onnx',
+}
+
 
 def download_checkpoint(ckpt_path):
     """Download pretrained weights if not present."""
@@ -45,13 +56,18 @@ def download_checkpoint(ckpt_path):
 
 def export_model(args):
     """Export the full BEVFormer-tiny model to ONNX."""
-    print(f'Building BEVFormer-tiny (img: {args.img_h}x{args.img_w}, '
-          f'cams: {args.num_cams})...')
+    use_ms_deformable = (args.model == 'bevformer_tiny_deformable')
+    attn_desc = ('MS DeformableAttention op' if use_ms_deformable
+                 else 'F.grid_sample')
+
+    print(f'Building {args.model} (img: {args.img_h}x{args.img_w}, '
+          f'cams: {args.num_cams}, attn: {attn_desc})...')
 
     model = build_bevformer_tiny(
         num_cams=args.num_cams,
         img_h=args.img_h,
         img_w=args.img_w,
+        use_ms_deformable=use_ms_deformable,
     )
 
     # Load pretrained weights
@@ -76,7 +92,13 @@ def export_model(args):
 
     # ONNX export
     output_path = args.output
+    if output_path is None:
+        output_path = DEFAULT_OUTPUTS[args.model]
     print(f'Exporting to {output_path} (opset={args.opset})...')
+
+    custom_opsets = {}
+    if use_ms_deformable:
+        custom_opsets['com.microsoft'] = 1
 
     torch.onnx.export(
         model,
@@ -86,6 +108,7 @@ def export_model(args):
         output_names=['cls_scores', 'bbox_preds'],
         opset_version=args.opset,
         do_constant_folding=True,
+        custom_opsets=custom_opsets if custom_opsets else None,
     )
 
     # Merge external data into a single .onnx file
@@ -178,8 +201,15 @@ def main():
     parser = argparse.ArgumentParser(
         description='Export BEVFormer-tiny to ONNX')
     parser.add_argument(
-        '--output', type=str, default='../bevformer_tiny.onnx',
-        help='Output ONNX file path')
+        '--model', type=str, default='bevformer_tiny',
+        choices=MODEL_CHOICES,
+        help='Model variant to export. '
+             'bevformer_tiny: F.grid_sample-based deformable attention. '
+             'bevformer_tiny_deformable: MS extension '
+             'MultiScaleDeformableAttention op.')
+    parser.add_argument(
+        '--output', type=str, default=None,
+        help='Output ONNX file path (auto-set based on model if not given)')
     parser.add_argument(
         '--opset', type=int, default=18,
         help='ONNX opset version (>= 16 for grid_sample, 18 recommended)')
