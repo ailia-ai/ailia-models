@@ -104,8 +104,9 @@ def export_model(args):
     )
 
     if use_ms_deformable:
-        # MS custom op requires legacy TorchScript tracer (autograd.Function.symbolic)
-        export_kwargs['dynamo'] = False
+        from deformable_attention_ms import get_custom_translation_table
+        export_kwargs['custom_translation_table'] = (
+            get_custom_translation_table())
         export_kwargs['custom_opsets'] = {'com.microsoft': 1}
 
     torch.onnx.export(

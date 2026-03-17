@@ -2,9 +2,10 @@
 Multi-Scale Deformable Attention using com.microsoft::MultiScaleDeformableAttention
 ONNX op.
 
-When exported to ONNX, this emits the MS extension custom op instead of the
-F.grid_sample-based implementation. At runtime in PyTorch, it produces the
-same results as the standard implementation.
+When exported to ONNX via the dynamo exporter with custom_translation_table,
+this emits the MS extension custom op instead of the F.grid_sample-based
+implementation. At runtime in PyTorch, it produces the same results as the
+standard implementation.
 
 Reference:
     Deformable DETR: Deformable Transformers for End-to-End Object Detection
@@ -16,87 +17,124 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import onnxscript
 
 
-class MultiScaleDeformableAttentionOp(torch.autograd.Function):
-    """Custom autograd Function that emits com.microsoft::MultiScaleDeformableAttention
-    during ONNX export while computing correct results in PyTorch."""
+# ============================================================
+# torch.library custom op: runs correctly in PyTorch,
+# exported as com.microsoft::MultiScaleDeformableAttention via
+# the custom_translation_table mechanism.
+# ============================================================
 
-    @staticmethod
-    def forward(ctx, value, spatial_shapes, level_start_index,
-                sampling_locations, attention_weights):
-        """
-        Args:
-            value: (N, sum(Hi*Wi), M, D)
-            spatial_shapes: (L, 2) int64 tensor
-            level_start_index: (L,) int64 tensor
-            sampling_locations: (N, Lq, M, L, P, 2) in [0, 1]
-            attention_weights: (N, Lq, M, L, P)
+@torch.library.custom_op('ms_deform::msda', mutates_args=())
+def ms_deform_attn_op(
+    value: torch.Tensor,
+    spatial_shapes: torch.Tensor,
+    level_start_index: torch.Tensor,
+    sampling_locations: torch.Tensor,
+    attention_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Multi-scale deformable attention (PyTorch implementation).
 
-        Returns:
-            output: (N, Lq, M*D)
-        """
-        N, _, M, D = value.shape
-        _, Lq, _, L, P, _ = sampling_locations.shape
+    Args:
+        value: (N, sum(Hi*Wi), M, D)
+        spatial_shapes: (L, 2) int64 tensor of (H, W) per level
+        level_start_index: (L,) int64 tensor
+        sampling_locations: (N, Lq, M, L, P, 2) normalized to [0, 1]
+        attention_weights: (N, Lq, M, L, P)
 
-        shapes_list = [
-            (int(spatial_shapes[i, 0]), int(spatial_shapes[i, 1]))
-            for i in range(L)
-        ]
-        split_sizes = [H * W for H, W in shapes_list]
-        value_list = value.split(split_sizes, dim=1)
+    Returns:
+        output: (N, Lq, M*D)
+    """
+    N, _, M, D = value.shape
+    _, Lq, _, L, P, _ = sampling_locations.shape
 
-        sampling_grids = 2 * sampling_locations - 1
+    shapes_list = [
+        (int(spatial_shapes[i, 0]), int(spatial_shapes[i, 1]))
+        for i in range(L)
+    ]
+    split_sizes = [int(H * W) for H, W in shapes_list]
+    value_list = value.split(split_sizes, dim=1)
 
-        sampling_value_list = []
-        for lid in range(L):
-            H, W = shapes_list[lid]
-            value_l = (
-                value_list[lid]
-                .permute(0, 2, 3, 1)
-                .reshape(N * M, D, H, W)
-            )
-            sampling_grid_l = (
-                sampling_grids[:, :, :, lid]
-                .permute(0, 2, 1, 3, 4)
-                .reshape(N * M, Lq, P, 2)
-            )
-            sampling_value_l = F.grid_sample(
-                value_l, sampling_grid_l,
-                mode='bilinear', padding_mode='zeros', align_corners=False
-            )
-            sampling_value_list.append(sampling_value_l)
+    sampling_grids = 2 * sampling_locations - 1
 
-        attention_weights_flat = (
-            attention_weights
+    sampling_value_list = []
+    for lid in range(L):
+        H, W = shapes_list[lid]
+        value_l = (
+            value_list[lid]
+            .permute(0, 2, 3, 1)
+            .reshape(N * M, D, H, W)
+        )
+        sampling_grid_l = (
+            sampling_grids[:, :, :, lid]
             .permute(0, 2, 1, 3, 4)
-            .reshape(N * M, 1, Lq, L * P)
+            .reshape(N * M, Lq, P, 2)
         )
-        sampling_values = (
-            torch.stack(sampling_value_list, dim=-1)
-            .reshape(N * M, D, Lq, L * P)
+        sampling_value_l = F.grid_sample(
+            value_l, sampling_grid_l,
+            mode='bilinear', padding_mode='zeros', align_corners=False
         )
-        output = (sampling_values * attention_weights_flat).sum(-1)
-        output = output.reshape(N, M * D, Lq).permute(0, 2, 1)
+        sampling_value_list.append(sampling_value_l)
 
-        return output.contiguous()
+    attention_weights_flat = (
+        attention_weights
+        .permute(0, 2, 1, 3, 4)
+        .reshape(N * M, 1, Lq, L * P)
+    )
+    sampling_values = (
+        torch.stack(sampling_value_list, dim=-1)
+        .reshape(N * M, D, Lq, L * P)
+    )
+    output = (sampling_values * attention_weights_flat).sum(-1)
+    output = output.reshape(N, M * D, Lq).permute(0, 2, 1)
 
-    @staticmethod
-    def symbolic(g, value, spatial_shapes, level_start_index,
-                 sampling_locations, attention_weights):
-        return g.op(
-            "com.microsoft::MultiScaleDeformableAttention",
-            value, spatial_shapes, level_start_index,
-            sampling_locations, attention_weights)
+    return output.contiguous()
 
+
+@ms_deform_attn_op.register_fake
+def _ms_deform_attn_fake(value, spatial_shapes, level_start_index,
+                          sampling_locations, attention_weights):
+    N, _, M, D = value.shape
+    _, Lq, _, _, _, _ = sampling_locations.shape
+    return torch.empty(N, Lq, M * D, dtype=value.dtype, device=value.device)
+
+
+# ============================================================
+# onnxscript function for ONNX export (custom_translation_table)
+# ============================================================
+
+_msft_opset = onnxscript.values.Opset('com.microsoft', 1)
+
+
+@onnxscript.script(default_opset=onnxscript.opset18)
+def ms_deform_attn_onnx(
+    value: onnxscript.FLOAT,
+    spatial_shapes: onnxscript.INT64,
+    level_start_index: onnxscript.INT64,
+    sampling_locations: onnxscript.FLOAT,
+    attention_weights: onnxscript.FLOAT,
+) -> onnxscript.FLOAT:
+    return _msft_opset.MultiScaleDeformableAttention(
+        value, spatial_shapes, level_start_index,
+        sampling_locations, attention_weights)
+
+
+def get_custom_translation_table():
+    """Return custom_translation_table dict for torch.onnx.export."""
+    return {torch.ops.ms_deform.msda.default: ms_deform_attn_onnx}
+
+
+# ============================================================
+# Wrapper function (same interface as multi_scale_deformable_attn_pytorch)
+# ============================================================
 
 def multi_scale_deformable_attn_ms(
     value, value_spatial_shapes, sampling_locations, attention_weights
 ):
     """Multi-scale deformable attention using MS ONNX op.
 
-    Same interface as multi_scale_deformable_attn_pytorch but emits
-    com.microsoft::MultiScaleDeformableAttention during ONNX export.
+    Same interface as multi_scale_deformable_attn_pytorch.
 
     Args:
         value: (N, sum(Hi*Wi), M, D)
@@ -119,10 +157,14 @@ def multi_scale_deformable_attn_ms(
             + spatial_shapes[i - 1, 0] * spatial_shapes[i - 1, 1]
         )
 
-    return MultiScaleDeformableAttentionOp.apply(
+    return ms_deform_attn_op(
         value, spatial_shapes, level_start_index,
         sampling_locations, attention_weights)
 
+
+# ============================================================
+# MSDeformAttn module (same interface as standard version)
+# ============================================================
 
 class MSDeformAttn(nn.Module):
     """Multi-Scale Deformable Attention using MS ONNX extension op.

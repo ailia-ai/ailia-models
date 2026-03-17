@@ -685,6 +685,121 @@ def recognize_from_video(predictor, predict_fn):
     logger.info('Script finished successfully.')
 
 
+def _register_ms_deform_attn_op():
+    """Register MultiScaleDeformableAttention custom op for ONNX Runtime.
+
+    Uses onnxruntime-extensions to provide a numpy-based implementation
+    of the com.microsoft::MultiScaleDeformableAttention op.
+    """
+    from onnxruntime_extensions import PyCustomOpDef, onnx_op
+
+    def _grid_sample_np(data, grid_xy):
+        """Vectorized bilinear grid sample (align_corners=False, zeros pad).
+
+        Args:
+            data: (B, C, H, W) float32
+            grid_xy: (B, Hg, Wg, 2) in [-1, 1]
+
+        Returns:
+            (B, C, Hg, Wg) float32
+        """
+        B, C, H, W = data.shape
+        _, Hg, Wg, _ = grid_xy.shape
+
+        # [-1,1] -> pixel coords (align_corners=False)
+        ix = ((grid_xy[..., 0] + 1) * W - 1) / 2.0
+        iy = ((grid_xy[..., 1] + 1) * H - 1) / 2.0
+
+        ix0 = np.floor(ix).astype(np.int64)
+        iy0 = np.floor(iy).astype(np.int64)
+        ix1 = ix0 + 1
+        iy1 = iy0 + 1
+
+        dx = (ix - ix0).astype(np.float32)
+        dy = (iy - iy0).astype(np.float32)
+
+        data_flat = data.reshape(B, C, H * W)
+
+        def gather(iyy, ixx):
+            mask = ((ixx >= 0) & (ixx < W) & (iyy >= 0) & (iyy < H))
+            idx = np.clip(iyy, 0, H - 1) * W + np.clip(ixx, 0, W - 1)
+            idx = np.broadcast_to(
+                idx.reshape(B, 1, Hg * Wg), (B, C, Hg * Wg))
+            out = np.take_along_axis(data_flat, idx, axis=2)
+            out = out.reshape(B, C, Hg, Wg)
+            out = out * mask[:, None, :, :].astype(np.float32)
+            return out
+
+        v00 = gather(iy0, ix0)
+        v01 = gather(iy0, ix1)
+        v10 = gather(iy1, ix0)
+        v11 = gather(iy1, ix1)
+
+        w00 = ((1 - dx) * (1 - dy))[:, None, :, :]
+        w01 = (dx * (1 - dy))[:, None, :, :]
+        w10 = ((1 - dx) * dy)[:, None, :, :]
+        w11 = (dx * dy)[:, None, :, :]
+
+        return (v00 * w00 + v01 * w01 + v10 * w10 + v11 * w11
+                ).astype(np.float32)
+
+    @onnx_op(
+        op_type="MultiScaleDeformableAttention",
+        inputs=[
+            PyCustomOpDef.dt_float,   # value: (N, S, M, D)
+            PyCustomOpDef.dt_int64,   # spatial_shapes: (L, 2)
+            PyCustomOpDef.dt_int64,   # level_start_index: (L,)
+            PyCustomOpDef.dt_float,   # sampling_locations: (N, Lq, M, L, P, 2)
+            PyCustomOpDef.dt_float,   # attention_weights: (N, Lq, M, L, P)
+        ],
+        outputs=[PyCustomOpDef.dt_float],
+        op_domain="ai.onnx.contrib",
+    )
+    def ms_deform_attn_impl(value, spatial_shapes, level_start_index,
+                            sampling_locations, attention_weights):
+        N, S, M, D = value.shape
+        _, Lq, _, L, P, _ = sampling_locations.shape
+
+        # Convert [0,1] to [-1,1] for grid_sample convention
+        sampling_grids = 2 * sampling_locations - 1
+
+        sampling_value_list = []
+        for lid in range(L):
+            H = int(spatial_shapes[lid, 0])
+            W = int(spatial_shapes[lid, 1])
+            start = int(level_start_index[lid])
+
+            # (N, H*W, M, D) -> (N*M, D, H, W)
+            value_l = (value[:, start:start + H * W, :, :]
+                       .transpose(0, 2, 3, 1)
+                       .reshape(N * M, D, H, W))
+
+            # (N, Lq, M, P, 2) -> (N*M, Lq, P, 2)
+            grid_l = (sampling_grids[:, :, :, lid]
+                      .transpose(0, 2, 1, 3, 4)
+                      .reshape(N * M, Lq, P, 2))
+
+            # (N*M, D, Lq, P)
+            sampled = _grid_sample_np(value_l, grid_l)
+            sampling_value_list.append(sampled)
+
+        # (N*M, 1, Lq, L*P)
+        attn_w = (attention_weights
+                  .transpose(0, 2, 1, 3, 4)
+                  .reshape(N * M, 1, Lq, L * P))
+
+        # (N*M, D, Lq, L*P)
+        vals = np.concatenate(sampling_value_list, axis=-1)
+
+        # Weighted sum -> (N*M, D, Lq) -> (N, M*D, Lq) -> (N, Lq, M*D)
+        output = (vals * attn_w).sum(axis=-1)
+        output = output.reshape(N, M * D, Lq).transpose(0, 2, 1)
+
+        return output.astype(np.float32)
+
+    logger.info('Registered MultiScaleDeformableAttention custom op')
+
+
 def main():
     use_onnx = args.onnx or not HAS_AILIA
 
@@ -704,8 +819,34 @@ def main():
 
         check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
-        session = ort.InferenceSession(
-            weight_path, providers=['CPUExecutionProvider'])
+        sess_options = ort.SessionOptions()
+
+        if args.model == 'bevformer_tiny_deformable':
+            _register_ms_deform_attn_op()
+            from onnxruntime_extensions import get_library_path
+            sess_options.register_custom_ops_library(get_library_path())
+
+            # Patch ONNX model: change com.microsoft domain to
+            # ai.onnx.contrib for onnxruntime-extensions compatibility
+            import onnx as _onnx
+            _model = _onnx.load(weight_path)
+            for node in _model.graph.node:
+                if (node.op_type == 'MultiScaleDeformableAttention'
+                        and node.domain == 'com.microsoft'):
+                    node.domain = 'ai.onnx.contrib'
+            for opset in _model.opset_import:
+                if opset.domain == 'com.microsoft':
+                    opset.domain = 'ai.onnx.contrib'
+            model_bytes = _model.SerializeToString()
+            del _model
+
+            session = ort.InferenceSession(
+                model_bytes, sess_options=sess_options,
+                providers=['CPUExecutionProvider'])
+        else:
+            session = ort.InferenceSession(
+                weight_path, sess_options=sess_options,
+                providers=['CPUExecutionProvider'])
 
         predict_fn = predict_onnx
         predictor = session
