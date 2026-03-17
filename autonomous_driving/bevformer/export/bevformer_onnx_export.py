@@ -96,19 +96,23 @@ def export_model(args):
         output_path = DEFAULT_OUTPUTS[args.model]
     print(f'Exporting to {output_path} (opset={args.opset})...')
 
-    custom_opsets = {}
+    export_kwargs = dict(
+        input_names=['images'],
+        output_names=['cls_scores', 'bbox_preds'],
+        opset_version=args.opset,
+        do_constant_folding=True,
+    )
+
     if use_ms_deformable:
-        custom_opsets['com.microsoft'] = 1
+        # MS custom op requires legacy TorchScript tracer (autograd.Function.symbolic)
+        export_kwargs['dynamo'] = False
+        export_kwargs['custom_opsets'] = {'com.microsoft': 1}
 
     torch.onnx.export(
         model,
         (dummy_imgs,),
         output_path,
-        input_names=['images'],
-        output_names=['cls_scores', 'bbox_preds'],
-        opset_version=args.opset,
-        do_constant_folding=True,
-        custom_opsets=custom_opsets if custom_opsets else None,
+        **export_kwargs,
     )
 
     # Merge external data into a single .onnx file
