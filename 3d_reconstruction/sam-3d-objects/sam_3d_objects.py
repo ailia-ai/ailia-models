@@ -12,6 +12,7 @@ sys.path.append("../../util")
 from arg_utils import get_base_parser, get_savepath, update_parser
 from detector_utils import load_image
 from model_utils import check_and_download_models
+from resize_utils import tv_resize
 
 logger = getLogger(__name__)
 
@@ -90,7 +91,7 @@ def _pad_square(arr, fill=0.0):
 
 def _resize(arr, size, bilinear=True):
     interp = cv2.INTER_LINEAR if bilinear else cv2.INTER_NEAREST
-    return cv2.resize(arr.astype(np.float32), (size, size), interpolation=interp)
+    return tv_resize(arr.astype(np.float32), (size, size), interpolation=interp)
 
 
 def _normalize_pointmap(pointmap, mask, shift=None, scale=None):
