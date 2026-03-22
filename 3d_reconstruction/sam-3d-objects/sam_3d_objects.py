@@ -316,12 +316,12 @@ def preprocess(rgba, pointmap):
     pm_full = _resize(_pad_square(rgb_pointmap, fill=0.0), IMAGE_SIZE, bilinear=False)
 
     result = {
-        "image": image_518.transpose(2, 0, 1),
-        "mask": mask_518[..., None].transpose(2, 0, 1),
-        "rgb_image": rgb_full_518.transpose(2, 0, 1),
-        "rgb_image_mask": msk_full_518[..., None].transpose(2, 0, 1),
-        "pointmap": pm_518.transpose(2, 0, 1),
-        "rgb_pointmap": pm_full_518.transpose(2, 0, 1),
+        "image": processed_rgb.transpose(2, 0, 1)[None, ...],
+        "mask": processed_mask[..., None].transpose(2, 0, 1)[None, ...],
+        "rgb_image": rgb_full.transpose(2, 0, 1)[None, ...],
+        "rgb_image_mask": msk_full[..., None].transpose(2, 0, 1)[None, ...],
+        "pointmap": processed_pm.transpose(2, 0, 1)[None, ...],
+        "rgb_pointmap": pm_full.transpose(2, 0, 1)[None, ...],
     }
     return result
 
@@ -383,6 +383,37 @@ def compute_pointmap(rgba_img, moge_model):
         "pts_color": rgb_img_chw,
         "pointmap": pointmap_chw,
     }
+
+
+def sample_sparse_structure(input_dict, models, rng):
+    """Sample sparse structure from SS inputs."""
+    logger.info("Running condition embedder ...")
+    net = models["ss_cond"]
+    if not args.onnx:
+        output = net.predict(
+            [
+                input_dict["image"],
+                input_dict["mask"],
+                input_dict["rgb_image"],
+                input_dict["rgb_image_mask"],
+                input_dict["pointmap"],
+                input_dict["rgb_pointmap"],
+            ]
+        )
+    else:
+        output = net.run(
+            ["cond_tokens"],
+            {
+                "image": input_dict["image"],
+                "mask": input_dict["mask"],
+                "rgb_image": input_dict["rgb_image"],
+                "rgb_image_mask": input_dict["rgb_image_mask"],
+                "pointmap": input_dict["pointmap"],
+                "rgb_pointmap": input_dict["rgb_pointmap"],
+            },
+        )
+    ss_cond = output[0]
+    logger.info("Condition embedder finishes!")
 
 
 def inference(models, img, mask):
