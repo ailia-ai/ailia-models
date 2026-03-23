@@ -1,19 +1,15 @@
-﻿import sys
-import os
+﻿import os
+import sys
 import time
-from logging import getLogger
-
 import numpy as np
 import cv2
-
-import os
-import numpy as np
+from logging import getLogger
 
 # Import original modules
 sys.path.append('../../util')
 import webcamera_utils
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa
-from model_utils import check_and_download_models  # noqa
+from model_utils import check_and_download_file  # noqa
 from webcamera_utils import get_capture, get_writer  # noqa
 
 logger = getLogger(__name__)
@@ -38,40 +34,8 @@ parser = get_base_parser(
     'Segment Anything 3', IMAGE_PATH, SAVE_IMAGE_PATH
 )
 parser.add_argument(
-    '-p', '--pos', action='append', type=int, metavar="X", nargs=2,
-    help='Positive coordinate specified by x,y.'
-)
-parser.add_argument(
-    '--neg', action='append', type=int, metavar="X", nargs=2,
-    help='Negative coordinate specified by x,y.'
-)
-parser.add_argument(
-    '--box', type=int, metavar="X", nargs=4,
-    help='Box coordinate specified by x1,y1,x2,y2.'
-)
-parser.add_argument(
-    '--num_mask_mem', type=int, default=7, choices=(0, 1, 2, 3, 4, 5, 6, 7),
-    help='Number of mask mem. (default 1 input frame + 6 previous frames)'
-)
-parser.add_argument(
-    '--max_obj_ptrs_in_encoder', type=int, default=16, choices=(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15),
-    help='Number of obj ptr in encoder.'
-)
-parser.add_argument(
-    '-m', '--model_type', default='hiera_l', choices=('hiera_l', 'hiera_b+', 'hiera_s', 'hiera_t'),
-    help='Select model.'
-)
-parser.add_argument(
     '--onnx', action='store_true',
     help='execute onnxruntime version.'
-)
-parser.add_argument(
-    '--normal', action='store_true',
-    help='Use normal version of onnx model. Normal version requires 6 dim matmul.'
-)
-parser.add_argument(
-    '--version', default='2', choices=('2', '2.1'),
-    help='Select model.'
 )
 
 args = update_parser(parser)
@@ -81,10 +45,7 @@ args = update_parser(parser)
 # Model path
 # ======================
 
-# if args.version == "2.1":
-#     REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-2.1/'
-# else:
-#     REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-2/'
+REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-3/'
 
 
 # ======================
@@ -177,7 +138,8 @@ np.random.seed(3)
 #     return input_point, input_label, input_box
 
 
-# def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
+def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
+    pass
 #     input_point, input_label, input_box = get_input_point()
 # 
 #     image_predictor = SAM2ImagePredictor()
@@ -251,7 +213,8 @@ np.random.seed(3)
 #     return img
 
 
-# def recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
+def recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
+    pass
 #     image_size = 1024
 # 
 #     if args.video == "demo":
@@ -387,80 +350,44 @@ np.random.seed(3)
 
 
 def main():
-    pass
-    # # fetch image encoder model
-    # model_type = args.model_type
-    # if args.version == "2.1":
-    #     model_type = model_type + "_2.1"
-    # WEIGHT_IMAGE_ENCODER_L_PATH = 'image_encoder_'+model_type+'.onnx'
-    # MODEL_IMAGE_ENCODER_L_PATH = 'image_encoder_'+model_type+'.onnx.prototxt'
-    # WEIGHT_PROMPT_ENCODER_L_PATH = 'prompt_encoder_'+model_type+'.onnx'
-    # MODEL_PROMPT_ENCODER_L_PATH = 'prompt_encoder_'+model_type+'.onnx.prototxt'
-    # WEIGHT_MASK_DECODER_L_PATH = 'mask_decoder_'+model_type+'.onnx'
-    # MODEL_MASK_DECODER_L_PATH = 'mask_decoder_'+model_type+'.onnx.prototxt'
-    # if args.normal:
-    #     # 6dim matmul
-    #     if args.version == "2.1":
-    #         raise Exception("SAM2.1 not exported normal model.")
-    #     WEIGHT_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.onnx'
-    #     MODEL_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.onnx.prototxt'
-    # else:
-    #     # 4dim matmul with batch 1
-    #     WEIGHT_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.opt.onnx'
-    #     MODEL_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.opt.onnx.prototxt'
-    # WEIGHT_MEMORY_ENCODER_L_PATH = 'memory_encoder_'+model_type+'.onnx'
-    # MODEL_MEMORY_ENCODER_L_PATH = 'memory_encoder_'+model_type+'.onnx.prototxt'
-    # WEIGHT_MLP_L_PATH = 'mlp_'+model_type+'.onnx'
-    # MODEL_MLP_L_PATH = 'mlp_'+model_type+'.onnx.prototxt'
-    # if args.version == "2.1":
-    #     WEIGHT_TPOS_L_PATH = 'obj_ptr_tpos_proj_'+model_type+'.onnx'
-    #     MODEL_TPOS_L_PATH = 'obj_ptr_tpos_proj_'+model_type+'.onnx.prototxt'
-    # else:
-    #     WEIGHT_TPOS_L_PATH = None
-    #     MODEL_TPOS_L_PATH = None
+    WEIGHT_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx'
+    DATA_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx.data'
+    MODEL_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx.prototxt'
+    WEIGHT_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx'
+    DATA_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx.data'
+    MODEL_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx.prototxt'
+    WEIGHT_MASK_DECODER_L_PATH = 'sam3_decoder.onnx'
+    DATA_MASK_DECODER_L_PATH = 'sam3_decoder.onnx.data'
+    MODEL_MASK_DECODER_L_PATH = 'sam3_decoder.onnx.prototxt'
 
-    # # model files check and download
-    # check_and_download_models(WEIGHT_IMAGE_ENCODER_L_PATH, MODEL_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
-    # check_and_download_models(WEIGHT_PROMPT_ENCODER_L_PATH, MODEL_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
-    # check_and_download_models(WEIGHT_MASK_DECODER_L_PATH, MODEL_MASK_DECODER_L_PATH, REMOTE_PATH)
-    # check_and_download_models(WEIGHT_MEMORY_ATTENTION_L_PATH, MODEL_MEMORY_ATTENTION_L_PATH, REMOTE_PATH)
-    # check_and_download_models(WEIGHT_MEMORY_ENCODER_L_PATH, MODEL_MEMORY_ENCODER_L_PATH, REMOTE_PATH)
-    # check_and_download_models(WEIGHT_MLP_L_PATH, MODEL_MLP_L_PATH, REMOTE_PATH)
-    # if args.version == "2.1":
-    #     check_and_download_models(WEIGHT_TPOS_L_PATH, MODEL_TPOS_L_PATH, REMOTE_PATH)
+    check_and_download_file(WEIGHT_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(DATA_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(MODEL_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(WEIGHT_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(DATA_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(MODEL_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(WEIGHT_MASK_DECODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(DATA_MASK_DECODER_L_PATH, REMOTE_PATH)
+    check_and_download_file(MODEL_MASK_DECODER_L_PATH, REMOTE_PATH)
 
-    # if args.onnx:
-    #     import onnxruntime
-    #     image_encoder = onnxruntime.InferenceSession(WEIGHT_IMAGE_ENCODER_L_PATH)
-    #     prompt_encoder = onnxruntime.InferenceSession(WEIGHT_PROMPT_ENCODER_L_PATH)
-    #     mask_decoder = onnxruntime.InferenceSession(WEIGHT_MASK_DECODER_L_PATH)
-    #     memory_attention = onnxruntime.InferenceSession(WEIGHT_MEMORY_ATTENTION_L_PATH)
-    #     memory_encoder = onnxruntime.InferenceSession(WEIGHT_MEMORY_ENCODER_L_PATH)
-    #     mlp = onnxruntime.InferenceSession(WEIGHT_MLP_L_PATH)
-    #     if args.version == "2.1":
-    #         obj_ptr_tpos_proj = onnxruntime.InferenceSession(WEIGHT_TPOS_L_PATH)
-    #     else:
-    #         obj_ptr_tpos_proj = None
-    # else:
-    #     import ailia
-    #     memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
-    #     image_encoder = ailia.Net(weight=WEIGHT_IMAGE_ENCODER_L_PATH, stream=MODEL_IMAGE_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-    #     prompt_encoder = ailia.Net(weight=WEIGHT_PROMPT_ENCODER_L_PATH, stream=MODEL_PROMPT_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-    #     mask_decoder = ailia.Net(weight=WEIGHT_MASK_DECODER_L_PATH, stream=MODEL_MASK_DECODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-    #     memory_attention = ailia.Net(weight=WEIGHT_MEMORY_ATTENTION_L_PATH, stream=MODEL_MEMORY_ATTENTION_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-    #     memory_encoder = ailia.Net(weight=WEIGHT_MEMORY_ENCODER_L_PATH, stream=MODEL_MEMORY_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-    #     mlp = ailia.Net(weight=WEIGHT_MLP_L_PATH, stream=MODEL_MLP_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-    #     if args.version == "2.1":
-    #         obj_ptr_tpos_proj = ailia.Net(weight=WEIGHT_TPOS_L_PATH, stream=MODEL_TPOS_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-    #     else:
-    #         obj_ptr_tpos_proj = None
+    if args.onnx:
+        import onnxruntime
+        image_encoder = onnxruntime.InferenceSession(WEIGHT_IMAGE_ENCODER_L_PATH)
+        prompt_encoder = onnxruntime.InferenceSession(WEIGHT_PROMPT_ENCODER_L_PATH)
+        mask_decoder = onnxruntime.InferenceSession(WEIGHT_MASK_DECODER_L_PATH)
+    else:
+        import ailia
+        memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
+        image_encoder = ailia.Net(weight=WEIGHT_IMAGE_ENCODER_L_PATH, stream=MODEL_IMAGE_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        prompt_encoder = ailia.Net(weight=WEIGHT_PROMPT_ENCODER_L_PATH, stream=MODEL_PROMPT_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        mask_decoder = ailia.Net(weight=WEIGHT_MASK_DECODER_L_PATH, stream=MODEL_MASK_DECODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
 
-    # if args.video is not None:
-    #     recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj)
-    # else:
-    #     recognize_from_image(image_encoder, prompt_encoder, mask_decoder)
+    if args.video is not None:
+        recognize_from_video(image_encoder, prompt_encoder, mask_decoder)
+    else:
+        recognize_from_image(image_encoder, prompt_encoder, mask_decoder)
 
-    # logger.info('Script finished successfully.')
+    logger.info('Script finished successfully.')
 
 
 if __name__ == '__main__':

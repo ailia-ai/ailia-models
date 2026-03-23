@@ -6,14 +6,8 @@ Download from [Hugging Face](https://huggingface.co/wkentaro/sam3-onnx-models):
 
 ```
 hf download --local-dir models wkentaro/sam3-onnx-models
-
-models
-├── sam3_decoder.onnx
-├── sam3_decoder.onnx.data
-├── sam3_image_encoder.onnx
-├── sam3_image_encoder.onnx.data
-├── sam3_language_encoder.onnx
-└── sam3_language_encoder.onnx.data
+mv models/*.onnx models/*.onnx.data .
+python3 onnx2prototxt.py *.onnx
 ```
 
 ## Image mode
