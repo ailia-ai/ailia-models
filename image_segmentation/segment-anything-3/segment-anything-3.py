@@ -34,16 +34,12 @@ parser = get_base_parser(
     'Segment Anything 3', IMAGE_PATH, SAVE_IMAGE_PATH
 )
 parser.add_argument(
-    '-p', '--pos', action='append', type=int, metavar="X", nargs=2,
-    help='Positive coordinate specified by x,y.'
-)
-parser.add_argument(
-    '--neg', action='append', type=int, metavar="X", nargs=2,
-    help='Negative coordinate specified by x,y.'
-)
-parser.add_argument(
-    '--box', type=int, metavar="X", nargs=4,
+    '--box', type=int, metavar='X', nargs=4,
     help='Box coordinate specified by x1,y1,x2,y2.'
+)
+parser.add_argument(
+    '--prompt', type=str, default='visual',
+    help='Text prompt for segmentation.',
 )
 parser.add_argument(
     '--onnx', action='store_true',
@@ -120,32 +116,12 @@ from sam3_image_predictor import SAM3ImagePredictor
 
 
 def get_input_point():
-    pos_points = args.pos
-    neg_points = args.neg
     box = args.box
-    if pos_points is None:
-        if neg_points is None and box is None:
-            pos_points = [POINT1]
-        else:
-            pos_points = []
-    if neg_points is None:
-        neg_points = []
-    input_point = []
-    input_label = []
-    if pos_points:
-        for i in range(len(pos_points)):
-            input_point.append(pos_points[i])
-            input_label.append(1)
-    if neg_points:
-        for i in range(len(neg_points)):
-            input_point.append(neg_points[i])
-            input_label.append(0)
-    input_point = np.array(input_point)
-    input_label = np.array(input_label)
-    input_box = None
     if box:
         input_box = np.array(box)
-    return input_point, input_label, input_box
+    else:
+        input_box = None
+    return input_box
 
 
 def preprocess_frame(img, image_size):
@@ -206,9 +182,10 @@ def preprocess_frame(img, image_size):
 
 
 def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
-    input_point, input_label, input_box = get_input_point()
-
     image_predictor = SAM3ImagePredictor()
+
+    input_box = get_input_point()
+    prompt = args.prompt
 
     for image_path in args.input:
         image = cv2.imread(image_path)
@@ -224,8 +201,7 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
                 masks, scores, logits = image_predictor.predict(
                     orig_hw=orig_hw,
                     features=features,
-                    point_coords=input_point,
-                    point_labels=input_label,
+                    prompt=prompt,
                     box=input_box,
                     prompt_encoder=prompt_encoder,
                     mask_decoder=mask_decoder,
@@ -245,8 +221,7 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
             masks, scores, logits = image_predictor.predict(
                 orig_hw=orig_hw,
                 features=features,
-                point_coords=input_point,
-                point_labels=input_label,
+                prompt=prompt,
                 box=input_box,
                 prompt_encoder=prompt_encoder,
                 mask_decoder=mask_decoder,
