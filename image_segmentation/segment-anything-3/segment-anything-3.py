@@ -24,7 +24,7 @@ SAVE_IMAGE_PATH = 'output.png'
 POINT1 = (500, 375)
 POINT2 = (1125, 625)
 
-TARGET_LENGTH = 1024
+TARGET_SIZE = 1008
 
 # ======================
 # Arguemnt Parser Config
@@ -32,6 +32,18 @@ TARGET_LENGTH = 1024
 
 parser = get_base_parser(
     'Segment Anything 3', IMAGE_PATH, SAVE_IMAGE_PATH
+)
+parser.add_argument(
+    '-p', '--pos', action='append', type=int, metavar="X", nargs=2,
+    help='Positive coordinate specified by x,y.'
+)
+parser.add_argument(
+    '--neg', action='append', type=int, metavar="X", nargs=2,
+    help='Negative coordinate specified by x,y.'
+)
+parser.add_argument(
+    '--box', type=int, metavar="X", nargs=4,
+    help='Box coordinate specified by x1,y1,x2,y2.'
 )
 parser.add_argument(
     '--onnx', action='store_true',
@@ -55,7 +67,7 @@ REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-3/'
 np.random.seed(3)
 
 
-# def show_mask(mask, img, color = np.array([255, 144, 30]), obj_id=None):
+# def show_mask(mask, img, color=np.array([255, 144, 30]), obj_id=None):
 #     color = color.reshape(1, 1, -1)
 # 
 #     h, w = mask.shape[-2:]
@@ -99,7 +111,7 @@ np.random.seed(3)
 # Logic
 # ======================
 
-# from sam2_image_predictor import SAM2ImagePredictor
+from sam3_image_predictor import SAM3ImagePredictor
 # from sam2_video_predictor import SAM2VideoPredictor
 
 # ======================
@@ -107,120 +119,159 @@ np.random.seed(3)
 # ======================
 
 
-# def get_input_point():
-#     pos_points = args.pos
-#     neg_points = args.neg
-#     box = args.box
+def get_input_point():
+    pos_points = args.pos
+    neg_points = args.neg
+    box = args.box
+    if pos_points is None:
+        if neg_points is None and box is None:
+            pos_points = [POINT1]
+        else:
+            pos_points = []
+    if neg_points is None:
+        neg_points = []
+    input_point = []
+    input_label = []
+    if pos_points:
+        for i in range(len(pos_points)):
+            input_point.append(pos_points[i])
+            input_label.append(1)
+    if neg_points:
+        for i in range(len(neg_points)):
+            input_point.append(neg_points[i])
+            input_label.append(0)
+    input_point = np.array(input_point)
+    input_label = np.array(input_label)
+    input_box = None
+    if box:
+        input_box = np.array(box)
+    return input_point, input_label, input_box
+
+
+def preprocess_frame(img, image_size):
+    img_mean = (0.485, 0.456, 0.406)
+    img_std = (0.229, 0.224, 0.225)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = cv2.resize(img, (image_size, image_size))
+    img = img / 255.0
+    img = img - img_mean
+    img = img / img_std
+    img = np.transpose(img, (2, 0, 1))
+    return img
+
+
+# def annotate_frame(points, labels, box, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
+#     ann_frame_idx = 0  # the frame index we interact with
+#     ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
 # 
-#     if pos_points is None:
-#         if neg_points is None and box is None:
-#             pos_points = [POINT1]
-#         else:
-#             pos_points = []
-#     if neg_points is None:
-#         neg_points = []
+#     _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
+#         inference_state=inference_state,
+#         frame_idx=ann_frame_idx,
+#         obj_id=ann_obj_id,
+#         points=points,
+#         labels=labels,
+#         box=box,
+#         image_encoder=image_encoder,
+#         prompt_encoder=prompt_encoder,
+#         mask_decoder=mask_decoder,
+#         memory_attention=memory_attention,
+#         memory_encoder=memory_encoder,
+#         mlp=mlp
+#     )
 # 
-#     input_point = []
-#     input_label = []
-#     if pos_points:
-#         for i in range(len(pos_points)):
-#             input_point.append(pos_points[i])
-#             input_label.append(1)
-#     if neg_points:
-#         for i in range(len(neg_points)):
-#             input_point.append(neg_points[i])
-#             input_label.append(0)
-#     input_point = np.array(input_point)
-#     input_label = np.array(input_label)
-#     input_box = None
-#     if box:
-#         input_box = np.array(box)
-#     return input_point, input_label, input_box
+#     predictor.propagate_in_video_preflight(inference_state,
+#                                                                             image_encoder = image_encoder,
+#                                                                             prompt_encoder = prompt_encoder,
+#                                                                             mask_decoder = mask_decoder,
+#                                                                             memory_attention = memory_attention,
+#                                                                             memory_encoder = memory_encoder,
+#                                                                             mlp = mlp,
+#                                                                             obj_ptr_tpos_proj = obj_ptr_tpos_proj)
+
+
+# def process_frame(image, frame_idx, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
+#     out_frame_idx, out_obj_ids, out_mask_logits = predictor.propagate_in_video(inference_state,
+#                                                                                 image_encoder = image_encoder,
+#                                                                                 prompt_encoder = prompt_encoder,
+#                                                                                 mask_decoder = mask_decoder,
+#                                                                                 memory_attention = memory_attention,
+#                                                                                 memory_encoder = memory_encoder,
+#                                                                                 mlp = mlp,
+#                                                                                 obj_ptr_tpos_proj = obj_ptr_tpos_proj,
+#                                                                                 frame_idx = frame_idx)
+# 
+#     image = show_mask((out_mask_logits[0] > 0.0), image, color = np.array([30, 144, 255]), obj_id = out_obj_ids[0])
+# 
+#     return image
 
 
 def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
-    pass
-#     input_point, input_label, input_box = get_input_point()
-# 
-#     image_predictor = SAM2ImagePredictor()
-# 
-#     for image_path in args.input:
-#         image = cv2.imread(image_path)
-#         orig_hw = [image.shape[0], image.shape[1]]
-#         image_size = 1024
-#         image_np = preprocess_frame(image, image_size=image_size)
-# 
-#         if args.benchmark:
-#             logger.info('BENCHMARK mode')
-#             total_time_estimation = 0
-#             for i in range(args.benchmark_count):
-#                 start = int(round(time.time() * 1000))
-#                 features = image_predictor.set_image(image_np, image_encoder, args.onnx)
-#                 masks, scores, logits = image_predictor.predict(
-#                     orig_hw=orig_hw,
-#                     features=features,
-#                     point_coords=input_point,
-#                     point_labels=input_label,
-#                     box=input_box,
-#                     prompt_encoder=prompt_encoder,
-#                     mask_decoder=mask_decoder,
-#                     onnx=args.onnx
-#                 )
-#                 end = int(round(time.time() * 1000))
-#                 estimation_time = (end - start)
-# 
-#                 # Logging
-#                 logger.info(f'\tailia processing estimation time {estimation_time} ms')
-#                 if i != 0:
-#                     total_time_estimation = total_time_estimation + estimation_time
-# 
-#             logger.info(f'\taverage time estimation {total_time_estimation / (args.benchmark_count - 1)} ms')
-#         else:
-#             features = image_predictor.set_image(image_np, image_encoder, args.onnx)
-#             masks, scores, logits = image_predictor.predict(
-#                 orig_hw=orig_hw,
-#                 features=features,
-#                 point_coords=input_point,
-#                 point_labels=input_label,
-#                 box=input_box,
-#                 prompt_encoder=prompt_encoder,
-#                 mask_decoder=mask_decoder,
-#                 onnx=args.onnx
-#             )
-# 
-#         sorted_ind = np.argsort(scores)[::-1]
-#         masks = masks[sorted_ind]
-#         scores = scores[sorted_ind]
-#         logits = logits[sorted_ind]
-# 
-#         savepath = get_savepath(args.savepath, image_path, ext='.png')
-#         logger.info(f'saved at : {savepath}')
-#         image = show_mask(masks[0], image)
-#         image = show_points(input_point, input_label, image)
-#         image = show_box(input_box, image)
-#         cv2.imwrite(savepath, image)
+    input_point, input_label, input_box = get_input_point()
+
+    image_predictor = SAM3ImagePredictor()
+
+    for image_path in args.input:
+        image = cv2.imread(image_path)
+        orig_hw = [image.shape[0], image.shape[1]]
+        image_np = preprocess_frame(image, image_size=TARGET_SIZE)
+
+        if args.benchmark:
+            logger.info('BENCHMARK mode')
+            total_time_estimation = 0
+            for i in range(args.benchmark_count):
+                start = int(round(time.time() * 1000))
+                features = image_predictor.set_image(image_np, image_encoder, args.onnx)
+                masks, scores, logits = image_predictor.predict(
+                    orig_hw=orig_hw,
+                    features=features,
+                    point_coords=input_point,
+                    point_labels=input_label,
+                    box=input_box,
+                    prompt_encoder=prompt_encoder,
+                    mask_decoder=mask_decoder,
+                    onnx=args.onnx
+                )
+                end = int(round(time.time() * 1000))
+                estimation_time = (end - start)
+
+                # Logging
+                logger.info(f'\tailia processing estimation time {estimation_time} ms')
+                if i != 0:
+                    total_time_estimation = total_time_estimation + estimation_time
+
+            logger.info(f'\taverage time estimation {total_time_estimation / (args.benchmark_count - 1)} ms')
+        else:
+            features = image_predictor.set_image(image_np, image_encoder, args.onnx)
+            masks, scores, logits = image_predictor.predict(
+                orig_hw=orig_hw,
+                features=features,
+                point_coords=input_point,
+                point_labels=input_label,
+                box=input_box,
+                prompt_encoder=prompt_encoder,
+                mask_decoder=mask_decoder,
+                onnx=args.onnx
+            )
+
+        sorted_ind = np.argsort(scores)[::-1]
+        masks = masks[sorted_ind]
+        scores = scores[sorted_ind]
+        logits = logits[sorted_ind]
+
+        savepath = get_savepath(args.savepath, image_path, ext='.png')
+        logger.info(f'saved at : {savepath}')
+        image = show_mask(masks[0], image)
+        image = show_points(input_point, input_label, image)
+        image = show_box(input_box, image)
+        cv2.imwrite(savepath, image)
 
 
-# def preprocess_frame(img, image_size):
-#     img_mean=(0.485, 0.456, 0.406)
-#     img_std=(0.229, 0.224, 0.225)
-#     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-#     img = cv2.resize(img, (image_size, image_size))
-#     img = img / 255.0
-#     img = img - img_mean
-#     img = img / img_std
-#     img = np.transpose(img, (2, 0, 1))
-#     return img
-
-
-def recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
-    pass
-#     image_size = 1024
-# 
-#     if args.video == "demo":
+def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
+    raise NotImplementedError
+#     if args.video == 'demo':
 #         frame_names = [
 #             p for p in os.listdir(args.video)
-#             if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG"]
+#             if os.path.splitext(p)[-1] in ['.jpg', '.jpeg', '.JPG', '.JPEG']
 #         ]
 #         frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
 #         input_point = np.array([[210, 350], [250, 220]], dtype=np.float32)
@@ -267,7 +318,7 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_att
 #         if frame_shown and cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) == 0:
 #             break
 # 
-#         image = preprocess_frame(frame, image_size)
+#         image = preprocess_frame(frame, image_size=TARGET_SIZE)
 # 
 #         predictor.append_image(
 #             inference_state,
@@ -303,50 +354,6 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_att
 # 
 #     if writer is not None:
 #         writer.release()
-
-# def annotate_frame(points, labels, box, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
-#     ann_frame_idx = 0  # the frame index we interact with
-#     ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
-# 
-#     _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
-#         inference_state=inference_state,
-#         frame_idx=ann_frame_idx,
-#         obj_id=ann_obj_id,
-#         points=points,
-#         labels=labels,
-#         box=box,
-#         image_encoder=image_encoder,
-#         prompt_encoder=prompt_encoder,
-#         mask_decoder=mask_decoder,
-#         memory_attention=memory_attention,
-#         memory_encoder=memory_encoder,
-#         mlp=mlp
-#     )
-# 
-#     predictor.propagate_in_video_preflight(inference_state,
-#                                                                             image_encoder = image_encoder,
-#                                                                             prompt_encoder = prompt_encoder,
-#                                                                             mask_decoder = mask_decoder,
-#                                                                             memory_attention = memory_attention,
-#                                                                             memory_encoder = memory_encoder,
-#                                                                             mlp = mlp,
-#                                                                             obj_ptr_tpos_proj = obj_ptr_tpos_proj)
-
-
-# def process_frame(image, frame_idx, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
-#     out_frame_idx, out_obj_ids, out_mask_logits = predictor.propagate_in_video(inference_state,
-#                                                                                 image_encoder = image_encoder,
-#                                                                                 prompt_encoder = prompt_encoder,
-#                                                                                 mask_decoder = mask_decoder,
-#                                                                                 memory_attention = memory_attention,
-#                                                                                 memory_encoder = memory_encoder,
-#                                                                                 mlp = mlp,
-#                                                                                 obj_ptr_tpos_proj = obj_ptr_tpos_proj,
-#                                                                                 frame_idx = frame_idx)
-# 
-#     image = show_mask((out_mask_logits[0] > 0.0), image, color = np.array([30, 144, 255]), obj_id = out_obj_ids[0])
-# 
-#     return image
 
 
 def main():
