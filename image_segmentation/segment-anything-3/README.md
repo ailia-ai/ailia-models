@@ -5,9 +5,7 @@
 Download from [Hugging Face](https://huggingface.co/wkentaro/sam3-onnx-models):
 
 ```
-hf download --local-dir models wkentaro/sam3-onnx-models
-mv models/*.onnx models/*.onnx.data .
-python3 onnx2prototxt.py *.onnx
+hf download --local-dir . --include "*.onnx*" wkentaro/sam3-onnx-models
 ```
 
 ## Image mode

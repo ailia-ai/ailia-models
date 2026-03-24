@@ -314,23 +314,17 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
 def main():
     WEIGHT_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx'
     DATA_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx.data'
-    MODEL_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx.prototxt'
     WEIGHT_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx'
     DATA_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx.data'
-    MODEL_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx.prototxt'
     WEIGHT_MASK_DECODER_L_PATH = 'sam3_decoder.onnx'
     DATA_MASK_DECODER_L_PATH = 'sam3_decoder.onnx.data'
-    MODEL_MASK_DECODER_L_PATH = 'sam3_decoder.onnx.prototxt'
 
     check_and_download_file(WEIGHT_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
     check_and_download_file(DATA_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(MODEL_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
     check_and_download_file(DATA_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(MODEL_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_MASK_DECODER_L_PATH, REMOTE_PATH)
     check_and_download_file(DATA_MASK_DECODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(MODEL_MASK_DECODER_L_PATH, REMOTE_PATH)
 
     if args.onnx:
         import onnxruntime
@@ -340,9 +334,9 @@ def main():
     else:
         import ailia
         memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
-        image_encoder = ailia.Net(weight=WEIGHT_IMAGE_ENCODER_L_PATH, stream=MODEL_IMAGE_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-        prompt_encoder = ailia.Net(weight=WEIGHT_PROMPT_ENCODER_L_PATH, stream=MODEL_PROMPT_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-        mask_decoder = ailia.Net(weight=WEIGHT_MASK_DECODER_L_PATH, stream=MODEL_MASK_DECODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        image_encoder = ailia.Net(weight=WEIGHT_IMAGE_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        prompt_encoder = ailia.Net(weight=WEIGHT_PROMPT_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        mask_decoder = ailia.Net(weight=WEIGHT_MASK_DECODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
 
     if args.video is not None:
         recognize_from_video(image_encoder, prompt_encoder, mask_decoder)
