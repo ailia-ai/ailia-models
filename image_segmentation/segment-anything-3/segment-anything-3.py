@@ -59,7 +59,7 @@ REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-3/'
 # ======================
 
 from sam3_image_predictor import SAM3ImagePredictor
-# from sam2_video_predictor import SAM2VideoPredictor
+from sam3_video_predictor import SAM3VideoPredictor
 
 np.random.seed(3)
 
@@ -246,7 +246,7 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
 #     else:
 #         writer = None
 # 
-#     predictor = SAM2VideoPredictor(args.onnx, args.normal, args.benchmark)
+#     predictor = SAM3VideoPredictor(args.onnx, args.normal, args.benchmark)
 # 
 #     inference_state = predictor.init_state(args.num_mask_mem, args.max_obj_ptrs_in_encoder, args.version)
 #     predictor.reset_state(inference_state)
