@@ -5,14 +5,14 @@ import numpy as np
 import cv2
 from logging import getLogger
 
-# Import original modules
 sys.path.append('../../util')
-import webcamera_utils
+import webcamera_utils  # noqa
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa
 from model_utils import check_and_download_file  # noqa
 from webcamera_utils import get_capture, get_writer  # noqa
 
 logger = getLogger(__name__)
+
 
 # ======================
 # Parameters
@@ -21,13 +21,11 @@ logger = getLogger(__name__)
 IMAGE_PATH = 'demo/truck.jpg'
 SAVE_IMAGE_PATH = 'output.png'
 
-POINT1 = (500, 375)
-POINT2 = (1125, 625)
-
 TARGET_SIZE = 1008
 
+
 # ======================
-# Arguemnt Parser Config
+# Argument Parser Config
 # ======================
 
 parser = get_base_parser(
@@ -57,62 +55,40 @@ REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-3/'
 
 
 # ======================
-# Utility
-# ======================
-
-np.random.seed(3)
-
-
-# def show_mask(mask, img, color=np.array([255, 144, 30]), obj_id=None):
-#     color = color.reshape(1, 1, -1)
-# 
-#     h, w = mask.shape[-2:]
-#     mask = mask.reshape(h, w, 1)
-# 
-#     mask_image = mask * color
-#     img = (img * ~mask) + (img * mask) * 0.6 + mask_image * 0.4
-# 
-#     return img
-
-
-# def show_points(coords, labels, img):
-#     pos_points = coords[labels == 1]
-#     neg_points = coords[labels == 0]
-# 
-#     for p in pos_points:
-#         cv2.drawMarker(
-#             img, p, (0, 255, 0), markerType=cv2.MARKER_TILTED_CROSS, line_type=cv2.LINE_AA,
-#             markerSize=30, thickness=5)
-#     for p in neg_points:
-#         cv2.drawMarker(
-#             img, p, (0, 0, 255), markerType=cv2.MARKER_TILTED_CROSS, line_type=cv2.LINE_AA,
-#             markerSize=30, thickness=5)
-# 
-#     return img
-
-
-# def show_box(box, img):
-#     if box is None:
-#         return img
-# 
-#     cv2.rectangle(
-#         img, (box[0], box[1]), (box[2], box[3]), color=(2, 118, 2),
-#         thickness=3,
-#         lineType=cv2.LINE_4,
-#         shift=0)
-# 
-#     return img
-
-# ======================
-# Logic
+# Support
 # ======================
 
 from sam3_image_predictor import SAM3ImagePredictor
 # from sam2_video_predictor import SAM2VideoPredictor
 
-# ======================
-# Main
-# ======================
+np.random.seed(3)
+
+
+def show_mask(mask, image, color=np.array([255, 144, 30]), obj_id=None):
+    color = color.reshape(1, 1, -1)
+
+    h, w = mask.shape[-2:]
+    mask = mask.reshape(h, w, 1)
+
+    mask_image = mask * color
+    image = (image * ~mask) + (image * mask) * 0.6 + mask_image * 0.4
+
+    return image
+
+
+def show_box(box, image):
+    if box is None:
+        return image
+
+    cv2.rectangle(
+        image, (box[0], box[1]), (box[2], box[3]),
+        color=(2, 118, 2),
+        thickness=3,
+        lineType=cv2.LINE_4,
+        shift=0,
+    )
+
+    return image
 
 
 def get_input_point():
@@ -124,16 +100,16 @@ def get_input_point():
     return input_box
 
 
-def preprocess_frame(img, image_size):
-    img_mean = (0.485, 0.456, 0.406)
-    img_std = (0.229, 0.224, 0.225)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img = cv2.resize(img, (image_size, image_size))
-    img = img / 255.0
-    img = img - img_mean
-    img = img / img_std
-    img = np.transpose(img, (2, 0, 1))
-    return img
+def preprocess_frame(image, image_size):
+    image_mean = (0.485, 0.456, 0.406)
+    image_std = (0.229, 0.224, 0.225)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = cv2.resize(image, (image_size, image_size))
+    image = image / 255.0
+    image = image - image_mean
+    image = image / image_std
+    image = np.transpose(image, (2, 0, 1))
+    return image
 
 
 # def annotate_frame(points, labels, box, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
@@ -181,6 +157,10 @@ def preprocess_frame(img, image_size):
 #     return image
 
 
+# ======================
+# Main
+# ======================
+
 def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
     image_predictor = SAM3ImagePredictor()
 
@@ -198,7 +178,7 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
             for i in range(args.benchmark_count):
                 start = int(round(time.time() * 1000))
                 features = image_predictor.set_image(image_np, image_encoder, args.onnx)
-                masks, scores, logits = image_predictor.predict(
+                scores, boxes, masks = image_predictor.predict(
                     orig_hw=orig_hw,
                     features=features,
                     prompt=prompt,
@@ -218,7 +198,7 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
             logger.info(f'\taverage time estimation {total_time_estimation / (args.benchmark_count - 1)} ms')
         else:
             features = image_predictor.set_image(image_np, image_encoder, args.onnx)
-            masks, scores, logits = image_predictor.predict(
+            scores, masks, boxes = image_predictor.predict(
                 orig_hw=orig_hw,
                 features=features,
                 prompt=prompt,
@@ -229,16 +209,16 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
             )
 
         sorted_ind = np.argsort(scores)[::-1]
-        masks = masks[sorted_ind]
         scores = scores[sorted_ind]
-        logits = logits[sorted_ind]
+        masks = masks[sorted_ind]
+        boxes = boxes[sorted_ind]
 
         savepath = get_savepath(args.savepath, image_path, ext='.png')
-        logger.info(f'saved at : {savepath}')
-        image = show_mask(masks[0], image)
-        image = show_points(input_point, input_label, image)
+        for mask in masks:
+            image = show_mask(mask, image)
         image = show_box(input_box, image)
-        cv2.imwrite(savepath, image)
+        cv2.imwrite(savepath, image.astype(np.uint8))
+        logger.info(f'saved at : {savepath}')
 
 
 def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):

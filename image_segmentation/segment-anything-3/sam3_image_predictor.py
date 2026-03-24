@@ -31,7 +31,7 @@ class SAM3ImagePredictor:
         tokens = self._tokenize(prompt)
         box_coords, box_labels, box_masks = self._prep_box(box, orig_hw)
 
-        masks, iou_predictions, low_res_masks = self._predict(
+        scores, masks, boxes = self._predict(
             features,
             orig_hw,
             tokens=tokens,
@@ -43,7 +43,7 @@ class SAM3ImagePredictor:
             onnx=onnx
         )
 
-        return masks[0], iou_predictions[0], low_res_masks[0]
+        return scores, masks, boxes
 
     def _tokenize(self, prompt):
         from osam._models.yoloworld.clip import tokenize
@@ -107,23 +107,10 @@ class SAM3ImagePredictor:
                 'box_masks': box_masks,
             })
 
-        raise NotImplementedError
+        return scores, masks, boxes
 
-        low_res_masks, iou_predictions, _, _ = self._forward_postprocess(masks, iou_pred, sam_tokens_out, object_score_logits)
-
-        # Upscale the masks to the original image resolution
-        masks = self._postprocess_masks(low_res_masks, orig_hw)
-        low_res_masks = np.clip(low_res_masks, -32.0, 32.0)
-        mask_threshold = 0.0
-        masks = masks > mask_threshold
-
-        return masks, iou_predictions, low_res_masks
-
-    def _forward_postprocess(self, masks, iou_pred, mask_tokens_out, object_score_logits):
-        masks = masks[:, 1:, :, :]
-        iou_pred = iou_pred[:, 1:]
-        sam_tokens_out = mask_tokens_out[:, 1:]  # [b, 3, c] shape # use_multimask_token_for_obj_ptr
-        return masks, iou_pred, sam_tokens_out, object_score_logits
+    def _transform_boxes(self, boxes, orig_hw=None):
+        boxes = self._transform_coords(boxes.reshape(-1, 2, 2), orig_hw)
 
     def _transform_coords(self, coords, orig_hw):
         h, w = orig_hw
@@ -134,17 +121,4 @@ class SAM3ImagePredictor:
         resolution = 1008
         coords = coords * resolution  # unnormalize coords
         return coords
-
-    def _transform_boxes(self, boxes, orig_hw=None):
-        boxes = self._transform_coords(boxes.reshape(-1, 2, 2), orig_hw)
         return boxes
-
-    def _postprocess_masks(self, masks, orig_hw):
-        interpolated_masks = []
-        for mask in masks:
-            mask = np.transpose(mask, (1, 2, 0))
-            resized_mask = cv2.resize(mask, (orig_hw[1], orig_hw[0]), interpolation=cv2.INTER_LINEAR)
-            resized_mask = np.transpose(resized_mask, (2, 0, 1))
-            interpolated_masks.append(resized_mask)
-        interpolated_masks = np.array(interpolated_masks)
-        return interpolated_masks
