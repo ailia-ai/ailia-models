@@ -1,4 +1,4 @@
 *.onnx
 *.onnx.data
 *.onnx.prototxt
-models/
+output.png
