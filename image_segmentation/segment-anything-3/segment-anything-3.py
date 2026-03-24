@@ -208,6 +208,9 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
                 onnx=args.onnx
             )
 
+        if args.benchmark:
+            return
+
         sorted_ind = np.argsort(scores)[::-1]
         scores = scores[sorted_ind]
         masks = masks[sorted_ind]
