@@ -6,6 +6,8 @@ from logging import getLogger
 import ailia
 import cv2
 import numpy as np
+from scipy.ndimage import uniform_filter
+from tqdm import tqdm
 
 # import original modules
 sys.path.append("../../util")
@@ -23,8 +25,10 @@ logger = getLogger(__name__)
 
 WEIGHT_MOGE = "moge.onnx"
 WEIGHT_SS_COND = "ss_condition_embedder.onnx"
+WEIGHT_SS_GEN = "ss_generator_step.onnx"
 MODEL_MOGE = WEIGHT_MOGE + ".prototxt"
 MODEL_SS_COND = WEIGHT_SS_COND + ".prototxt"
+MODEL_SS_GEN = WEIGHT_SS_GEN + ".prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sam-3d-objects/"
 
 IMAGE_PATH = "input.png"
@@ -32,6 +36,14 @@ MASK_PATH = "mask.png"
 SAVE_PATH = "output.ply"
 
 IMAGE_SIZE = 518  # DINOv2 input resolution
+
+# Sparse Structure (SS) flow matching parameters
+SS_STEPS = 25
+SS_RESCALE_T = 3.0
+SS_CFG = 7.0
+SS_CFG_T_MIN = 0.0
+SS_CFG_T_MAX = 500.0
+SS_TIME_SCALE = 1000.0
 
 
 # ======================
@@ -64,6 +76,32 @@ args = update_parser(parser)
 # ======================
 # Secondary Functions
 # ======================
+
+
+class LazyModel:
+    """Defers model loading until the first predict/run call."""
+
+    def __init__(self, loader_fn, name=""):
+        self._loader_fn = loader_fn
+        self._name = name
+        self._net = None
+
+    def load(self):
+        if self._net is None:
+            logger.info(f"Loading model: {self._name}")
+            self._net = self._loader_fn()
+        return self._net
+
+    def unload(self):
+        if self._net is not None:
+            logger.info(f"Unloading model: {self._name}")
+            self._net = None
+
+    def predict(self, *args, **kwargs):
+        return self.load().predict(*args, **kwargs)
+
+    def run(self, *args, **kwargs):
+        return self.load().run(*args, **kwargs)
 
 
 def load_mask(path):
@@ -265,6 +303,143 @@ def recover_focal_shift(
 
 
 # ======================
+# Sparse structure helpers
+# ======================
+
+
+def prune_sparse_structure(coords, max_neighbor_dist=1):
+    """Remove fully-interior voxels.  coords : [N, 4]  int32 (batch, z, y, x)."""
+    if coords.shape[0] == 0:
+        return coords
+
+    batch, z, y, x = coords[:, 0], coords[:, 1], coords[:, 2], coords[:, 3]
+    coords = coords[:, 1:]
+    # 1) shift coords so minimum is zero
+    min_xyz = coords.min(axis=0)
+    coords0 = coords - min_xyz
+    # 2) build occupancy grid
+    max_xyz = coords0.max(axis=0) + 1  # size in each dim
+    D, H, W = max_xyz.tolist()
+    occ = np.zeros((D, H, W), dtype=np.float32)
+    x, y, z = coords0.T
+    occ[x, y, z] = 1.0
+    # 3) 3×3×3 convolution to count each voxel + neighbors
+    k = 2 * max_neighbor_dist + 1
+    counts = np.round(uniform_filter(occ, size=k, mode="constant") * (k**3)).astype(
+        np.int32
+    )
+    # 4) lookup counts at each original coord
+    is_surface = counts[x, y, z] < k**3
+    # 5) return filtered batch+coords (shift back if you want original coords)
+    out_batch = batch[is_surface]
+    out_coords = coords[is_surface]
+    coords = np.concatenate([out_batch[:, None], out_coords], axis=1)
+
+    return coords
+
+
+def downsample_sparse_structure(coords, max_coords=42000, factor=2):
+    """Down-sample coords if more than max_coords; returns (new_coords, factor_used)."""
+    if coords.shape[0] <= max_coords:
+        return coords, 1
+
+    c_f = coords[:, 1:].astype(np.float32)
+    c_min, c_max = c_f.min(0), c_f.max(0)
+    orig = c_max - c_min + 1
+    tgt = orig / factor
+    offset = (orig - tgt) / 2.0
+    target_min = c_min + offset
+    target_max = c_min + offset + tgt - 1
+
+    c_norm = (c_f - c_min) / (c_max - c_min)
+    c_rescaled = c_norm * (tgt - 1) + target_min
+    c_rescaled = np.round(c_rescaled).astype(np.int32)
+    c_rescaled = np.clip(
+        c_rescaled, target_min.astype(np.int32), target_max.astype(np.int32)
+    )
+
+    new_full = np.hstack([coords[:, 0:1], c_rescaled])
+    unique_coords = np.unique(new_full, axis=0).astype(np.int32)
+
+    if unique_coords.shape[0] > max_coords:
+        idx = np.random.permutation(unique_coords.shape[0])[:max_coords]
+        unique_coords = unique_coords[idx]
+
+    return unique_coords, factor
+
+
+# ======================
+# Flow matching
+# ======================
+
+
+def _t_schedule(steps, rescale_t):
+    """Time schedule [0→1] with optional rescaling."""
+    t = np.linspace(0.0, 1.0, steps + 1, dtype=np.float32)
+    if rescale_t != 1.0:
+        t = t / (1.0 + (rescale_t - 1.0) * (1.0 - t))
+    return t
+
+
+def run_ss_flow(net, ss_cond, rng):
+    """
+    Sparse Structure flow matching (MM-DiT, Euler solver).
+
+    net      : OnnxRuntime / ailia session for ss_generator_step
+    ss_cond  : [1, N_tok, 1024]  float32
+    rng      : np.random.Generator
+    Returns  : dict with 'shape', 'rotation', 'scale', 'translation',
+                         'translation_scale'
+    """
+    B = 1
+    x = {
+        "shape": rng.standard_normal((B, 4096, 8)).astype(np.float32),
+        "rotation": rng.standard_normal((B, 1, 6)).astype(np.float32),
+        "scale": rng.standard_normal((B, 1, 3)).astype(np.float32),
+        "translation": rng.standard_normal((B, 1, 3)).astype(np.float32),
+        "translation_scale": rng.standard_normal((B, 1, 1)).astype(np.float32),
+    }
+    zeros_cond = np.zeros_like(ss_cond)
+    t_seq = _t_schedule(SS_STEPS, SS_RESCALE_T)
+    keys = ["shape", "rotation", "scale", "translation", "translation_scale"]
+
+    # Load once before progress starts.
+    net.load()
+
+    for t0, t1 in tqdm(
+        zip(t_seq[:-1], t_seq[1:]),
+        total=SS_STEPS,
+        desc="SS flow",
+        unit="step",
+    ):
+        dt = float(t1 - t0)
+        t_s = float(t0 * SS_TIME_SCALE)
+        t_b = np.full((B,), t_s, dtype=np.float32)
+        d = np.zeros((B,), dtype=np.float32)  # no_shortcut → d=0
+
+        def _step(cond):
+            if not args.onnx:
+                output = net.predict([*x.values(), t_b, d, cond])
+            else:
+                output = net.run(
+                    None,
+                    {**x, "t": t_b, "d": d, "cond": cond},
+                )
+            return dict(zip(keys, output))
+
+        vel = _step(ss_cond)
+        if SS_CFG > 0.0 and SS_CFG_T_MIN <= t_s <= SS_CFG_T_MAX:
+            vel_u = _step(zeros_cond)
+            vel = {k: (1.0 + SS_CFG) * vel[k] - SS_CFG * vel_u[k] for k in keys}
+
+        x = {k: x[k] + vel[k] * dt for k in keys}
+
+    net.unload()  # free memory
+
+    return x
+
+
+# ======================
 # Main functions
 # ======================
 
@@ -326,20 +501,20 @@ def preprocess(rgba, pointmap):
     return result
 
 
-def run_moge(image, moge_model):
+def run_moge(net, image):
     """
     Run MoGe depth estimation.
 
+    net         : ailia.Net or ONNX InferenceSession
     image       : [3, H, W]  float32
-    moge_model  : ONNX InferenceSession or ailia.Net
     Returns     : [H, W, 3]  float32  point map in camera space
     """
-    net = moge_model
     if not args.onnx:
         output = net.predict([image[None, ...]])
     else:
         output = net.run(None, {"image": image[None, ...]})
     points, mask = output  # [1, H, W, 3], [1, H, W]
+    net.unload()  # free memory
 
     mask_binary = mask > 0.5
 
@@ -359,12 +534,12 @@ def run_moge(image, moge_model):
     return points.squeeze(0)  # [H, W, 3]
 
 
-def compute_pointmap(rgba_img, moge_model):
+def compute_pointmap(moge_model, rgba_img):
     """
     Compute pointmap from an RGBA image.
 
-    rgba_img   : np.ndarray  [H, W, 4]  uint8  (RGB + alpha mask)
     moge_model : ONNX InferenceSession or ailia.Net
+    rgba_img   : np.ndarray  [H, W, 4]  uint8  (RGB + alpha mask)
     Returns    : dict with pts_color [3, H, W] and pointmap [3, H, W]
     """
     # RGB only: extract and normalize to [0, 1]
@@ -372,7 +547,7 @@ def compute_pointmap(rgba_img, moge_model):
     rgb_img_chw = rgb_img.transpose(2, 0, 1)
 
     # Get depth map from MoGe: [H, W, 3]
-    pointmap_hwc = run_moge(rgb_img_chw, moge_model)
+    pointmap_hwc = run_moge(moge_model, rgb_img_chw)
 
     # Camera convention: MoGe (x-right, y-down, z-fwd) -> PyTorch3D (x-left, y-up, z-fwd)
     pointmap_hwc = pointmap_hwc * np.array([-1.0, -1.0, 1.0], dtype=np.float32)
@@ -385,7 +560,7 @@ def compute_pointmap(rgba_img, moge_model):
     }
 
 
-def sample_sparse_structure(input_dict, models, rng):
+def sample_sparse_structure(models, input_dict, rng):
     """Sample sparse structure from SS inputs."""
     logger.info("Running condition embedder ...")
     net = models["ss_cond"]
@@ -402,7 +577,7 @@ def sample_sparse_structure(input_dict, models, rng):
         )
     else:
         output = net.run(
-            ["cond_tokens"],
+            None,
             {
                 "image": input_dict["image"],
                 "mask": input_dict["mask"],
@@ -413,7 +588,40 @@ def sample_sparse_structure(input_dict, models, rng):
             },
         )
     ss_cond = output[0]
+    net.unload()  # free memory
     logger.info("Condition embedder finishes!")
+
+    logger.info("Running SS flow matching ...")
+    net = models["ss_gen"]
+    ss_return_dict = run_ss_flow(net, ss_cond, rng)
+
+    shape_latent = ss_return_dict["shape"]
+    latent_vol = shape_latent.transpose(0, 2, 1).reshape(-1, 8, 16, 16, 16)
+
+    logger.info("Decoding SS voxels ...")
+    net = models["ss_dec"]
+    if not args.onnx:
+        output = net.predict([latent_vol])
+    else:
+        output = net.run(None, {"latent": latent_vol})
+    voxels = output[0]
+    net.unload()  # free memory
+
+    # voxels is [B, C, Z, Y, X]; drop channel axis to get [B, Z, Y, X].
+    coords = np.argwhere(voxels > 0)[:, [0, 2, 3, 4]].astype(np.int32)
+
+    original_shape = coords.shape
+    coords = prune_sparse_structure(coords, max_neighbor_dist=1)
+    coords, downsample_factor = downsample_sparse_structure(coords)
+    logger.info(f"Downsampled coords from {original_shape[0]} to {coords.shape[0]}")
+
+    if coords.shape[0] == 0:
+        logger.error("No voxels after sparse structure generation.")
+        return None
+
+    ss_return_dict["coords"] = coords
+    ss_return_dict["downsample_factor"] = downsample_factor
+    return ss_return_dict
 
 
 def inference(models, img, mask):
@@ -425,11 +633,14 @@ def inference(models, img, mask):
     rng = np.random.default_rng(args.seed)
 
     logger.info("Computing pointmap ...")
-    pointmap_dict = compute_pointmap(rgba_img, models["moge"])
+    pointmap_dict = compute_pointmap(models["moge"], rgba_img)
     pointmap = pointmap_dict["pointmap"]
 
     logger.info("Preprocessing ...")
     input_dict = preprocess(rgba_img, pointmap)
+
+    ss_return_dict = sample_sparse_structure(models, input_dict, rng)
+    coords = ss_return_dict["coords"]
 
 
 def recognize_from_image(models):
@@ -471,21 +682,35 @@ def main():
     env_id = args.env_id
 
     if not args.onnx:
-        # Use ailia backend
-        moge_model = ailia.Net(MODEL_MOGE, WEIGHT_MOGE, env_id=env_id)
-        ss_cond = ailia.Net(MODEL_SS_COND, WEIGHT_SS_COND, env_id=env_id)
+        # Use ailia backend (lazy-loaded)
+        def make_ailia(model_path, weight_path):
+            return LazyModel(
+                lambda: ailia.Net(model_path, weight_path, env_id=env_id),
+                name=weight_path,
+            )
+
+        moge_model = make_ailia(MODEL_MOGE, WEIGHT_MOGE)
+        ss_cond = make_ailia(MODEL_SS_COND, WEIGHT_SS_COND)
+        ss_gen = make_ailia(MODEL_SS_GEN, WEIGHT_SS_GEN)
     else:
         # Use ONNX Runtime backend
         import onnxruntime
 
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        def make_ort(weight_path):
+            return LazyModel(
+                lambda: onnxruntime.InferenceSession(weight_path, providers=providers),
+                name=weight_path,
+            )
 
-        moge_model = onnxruntime.InferenceSession(WEIGHT_MOGE, providers=providers)
-        ss_cond = onnxruntime.InferenceSession(WEIGHT_SS_COND, providers=providers)
+        moge_model = make_ort(WEIGHT_MOGE)
+        ss_cond = make_ort(WEIGHT_SS_COND)
+        ss_gen = make_ort(WEIGHT_SS_GEN)
 
     models = {
         "moge": moge_model,
         "ss_cond": ss_cond,
+        "ss_gen": ss_gen,
     }
 
     recognize_from_image(models)
