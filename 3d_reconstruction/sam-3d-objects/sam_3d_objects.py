@@ -26,9 +26,15 @@ logger = getLogger(__name__)
 WEIGHT_MOGE = "moge.onnx"
 WEIGHT_SS_COND = "ss_condition_embedder.onnx"
 WEIGHT_SS_GEN = "ss_generator_step.onnx"
+WEIGHT_SS_DEC = "ss_decoder.onnx"
+WEIGHT_SL_COND = "slat_condition_embedder.onnx"
+WEIGHT_SL_GEN = "slat_generator_step.onnx"
 MODEL_MOGE = WEIGHT_MOGE + ".prototxt"
 MODEL_SS_COND = WEIGHT_SS_COND + ".prototxt"
 MODEL_SS_GEN = WEIGHT_SS_GEN + ".prototxt"
+MODEL_SS_DEC = WEIGHT_SS_DEC + ".prototxt"
+MODEL_SL_COND = WEIGHT_SL_COND + ".prototxt"
+MODEL_SL_GEN = WEIGHT_SL_GEN + ".prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sam-3d-objects/"
 
 IMAGE_PATH = "input.png"
@@ -44,6 +50,14 @@ SS_CFG = 7.0
 SS_CFG_T_MIN = 0.0
 SS_CFG_T_MAX = 500.0
 SS_TIME_SCALE = 1000.0
+
+# Structured Latent (SLAT) flow matching parameters
+SLAT_STEPS = 25
+SLAT_RESCALE_T = 1.0
+SLAT_CFG = 1.0
+SLAT_CFG_T_MIN = 0.0
+SLAT_CFG_T_MAX = 500.0
+SLAT_TIME_SCALE = 1000.0
 
 
 # ======================
@@ -368,6 +382,20 @@ def downsample_sparse_structure(coords, max_coords=42000, factor=2):
     return unique_coords, factor
 
 
+def build_coords_32_upsample_idx(coords_64):
+    """
+    Build half-resolution parent coords and upsample indices.
+    coords_64    : [N64, 4]  int32  (batch, z, y, x)
+    Returns      : (coords_32 [N32, 4], upsample_idx [N64] int64)
+    """
+    parent = coords_64.copy()
+    parent[:, 1:] = coords_64[:, 1:] // 2
+    _, inv = np.unique(parent, axis=0, return_inverse=True)
+    coords_32 = np.unique(parent, axis=0).astype(np.int32)
+    upsample_idx = inv.astype(np.int64)
+    return coords_32, upsample_idx
+
+
 # ======================
 # Flow matching
 # ======================
@@ -437,6 +465,68 @@ def run_ss_flow(net, ss_cond, rng):
     net.unload()  # free memory
 
     return x
+
+
+def run_slat_flow(net, slat_cond, coords_64, coords_32, upsample_idx, rng):
+    """
+    Structured Latent flow matching (sparse Euler solver).
+
+    net          : OnnxRuntime / ailia session for slat_generator_step
+    slat_cond    : [1, 5496, 1024]  float32
+    coords_64    : [N64, 4]          int32
+    coords_32    : [N32, 4]          int32
+    upsample_idx : [N64]             int64
+    rng          : np.random.Generator
+    Returns      : [N64, 8]  float32  final SLAT feats
+    """
+    N64 = coords_64.shape[0]
+    feats = rng.standard_normal((N64, 8)).astype(np.float32)
+    zeros_cond = np.zeros_like(slat_cond)
+    t_seq = _t_schedule(SLAT_STEPS, SLAT_RESCALE_T)
+
+    # Load once before progress starts.
+    net.load()
+
+    for t0, t1 in tqdm(
+        zip(t_seq[:-1], t_seq[1:]),
+        total=SLAT_STEPS,
+        desc="SLAT flow",
+        unit="step",
+    ):
+        dt = float(t1 - t0)
+        t_s = float(t0 * SLAT_TIME_SCALE)
+        t = np.array([t_s], dtype=np.float32)
+
+        def _step(cond):
+            if not args.onnx:
+                output = net.predict(
+                    [feats, coords_64, coords_32, upsample_idx, t, cond]
+                )
+            else:
+                output = net.run(
+                    None,
+                    {
+                        "feats": feats,
+                        "coords_64": coords_64,
+                        "coords_32": coords_32,
+                        "upsample_idx": upsample_idx,
+                        "t": t,
+                        "cond": cond,
+                    },
+                )
+            velocity_feats = output[0]
+            return velocity_feats
+
+        vel = _step(slat_cond)
+        if SLAT_CFG > 0.0 and SLAT_CFG_T_MIN <= t_s <= SLAT_CFG_T_MAX:
+            vel_u = _step(zeros_cond)
+            vel = (1.0 + SLAT_CFG) * vel - SLAT_CFG * vel_u
+
+        feats = feats + vel * dt
+
+    net.unload()  # free memory
+
+    return feats
 
 
 # ======================
@@ -624,6 +714,43 @@ def sample_sparse_structure(models, input_dict, rng):
     return ss_return_dict
 
 
+def sample_slat(models, input_dict, coords, rng):
+    """Sample structured latent from SLAT inputs and sparse coords."""
+    coords_32, upsample_idx = build_coords_32_upsample_idx(coords)
+    logger.info(
+        f"  coords_32: {coords_32.shape[0]}  upsample_idx: {upsample_idx.shape[0]}"
+    )
+
+    logger.info("Embedding SLAT condition ...")
+    net = models["slat_cond"]
+    if not args.onnx:
+        output = net.predict(
+            [
+                input_dict["image"],
+                input_dict["mask"],
+                input_dict["rgb_image"],
+                input_dict["rgb_image_mask"],
+            ]
+        )
+    else:
+        output = net.run(
+            None,
+            {
+                "image": input_dict["image"],
+                "mask": input_dict["mask"],
+                "rgb_image": input_dict["rgb_image"],
+                "rgb_image_mask": input_dict["rgb_image_mask"],
+            },
+        )
+    slat_cond = output[0]
+    net.unload()  # free memory
+    logger.info("Condition embedder finishes!")
+
+    logger.info("Running SLAT flow matching ...")
+    net = models["slat_gen"]
+    return run_slat_flow(net, slat_cond, coords, coords_32, upsample_idx, rng)
+
+
 def inference(models, img, mask):
     """Run full SAM-3D-Objects pipeline for one image and mask."""
     img = img[:, :, ::-1]  # BGR -> RGB
@@ -641,6 +768,8 @@ def inference(models, img, mask):
 
     ss_return_dict = sample_sparse_structure(models, input_dict, rng)
     coords = ss_return_dict["coords"]
+
+    slat = sample_slat(models, input_dict, coords, rng)
 
 
 def recognize_from_image(models):
@@ -692,11 +821,15 @@ def main():
         moge_model = make_ailia(MODEL_MOGE, WEIGHT_MOGE)
         ss_cond = make_ailia(MODEL_SS_COND, WEIGHT_SS_COND)
         ss_gen = make_ailia(MODEL_SS_GEN, WEIGHT_SS_GEN)
+        ss_dec = make_ailia(MODEL_SS_DEC, WEIGHT_SS_DEC)
+        slat_cond = make_ailia(MODEL_SL_COND, WEIGHT_SL_COND)
+        slat_gen = make_ailia(MODEL_SL_GEN, WEIGHT_SL_GEN)
     else:
         # Use ONNX Runtime backend
         import onnxruntime
 
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
         def make_ort(weight_path):
             return LazyModel(
                 lambda: onnxruntime.InferenceSession(weight_path, providers=providers),
@@ -706,11 +839,17 @@ def main():
         moge_model = make_ort(WEIGHT_MOGE)
         ss_cond = make_ort(WEIGHT_SS_COND)
         ss_gen = make_ort(WEIGHT_SS_GEN)
+        ss_dec = make_ort(WEIGHT_SS_DEC)
+        slat_cond = make_ort(WEIGHT_SL_COND)
+        slat_gen = make_ort(WEIGHT_SL_GEN)
 
     models = {
         "moge": moge_model,
         "ss_cond": ss_cond,
         "ss_gen": ss_gen,
+        "ss_dec": ss_dec,
+        "slat_cond": slat_cond,
+        "slat_gen": slat_gen,
     }
 
     recognize_from_image(models)
