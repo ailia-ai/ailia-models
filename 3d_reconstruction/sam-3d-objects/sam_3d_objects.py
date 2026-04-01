@@ -29,12 +29,14 @@ WEIGHT_SS_GEN = "ss_generator_step.onnx"
 WEIGHT_SS_DEC = "ss_decoder.onnx"
 WEIGHT_SL_COND = "slat_condition_embedder.onnx"
 WEIGHT_SL_GEN = "slat_generator_step.onnx"
+WEIGHT_SL_DEC = "slat_decoder_gs.onnx"
 MODEL_MOGE = WEIGHT_MOGE + ".prototxt"
 MODEL_SS_COND = WEIGHT_SS_COND + ".prototxt"
 MODEL_SS_GEN = WEIGHT_SS_GEN + ".prototxt"
 MODEL_SS_DEC = WEIGHT_SS_DEC + ".prototxt"
 MODEL_SL_COND = WEIGHT_SL_COND + ".prototxt"
 MODEL_SL_GEN = WEIGHT_SL_GEN + ".prototxt"
+MODEL_SL_DEC = WEIGHT_SL_DEC + ".prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sam-3d-objects/"
 
 IMAGE_PATH = "input.png"
@@ -58,6 +60,38 @@ SLAT_CFG = 1.0
 SLAT_CFG_T_MIN = 0.0
 SLAT_CFG_T_MAX = 500.0
 SLAT_TIME_SCALE = 1000.0
+
+SLAT_MEAN = np.array(
+    [
+        0.12211431,
+        0.37204156,
+        -1.26521907,
+        -2.05276058,
+        -3.10432536,
+        -0.11294304,
+        -0.85146744,
+        0.45506954,
+    ],
+    dtype=np.float32,
+)
+SLAT_STD = np.array(
+    [
+        2.37326008,
+        2.13174402,
+        2.2413953,
+        2.30589401,
+        2.1191894,
+        1.8969511,
+        2.41684989,
+        2.08374642,
+    ],
+    dtype=np.float32,
+)
+
+# Gaussian Splatting decoder parameters
+NUM_GAUSSIANS = 32
+GS_RESOLUTION = 64
+VOXEL_SIZE = 1.5
 
 
 # ======================
@@ -394,6 +428,66 @@ def build_coords_32_upsample_idx(coords_64):
     coords_32 = np.unique(parent, axis=0).astype(np.int32)
     upsample_idx = inv.astype(np.int64)
     return coords_32, upsample_idx
+
+
+# ======================
+# Gaussian decoder
+# ======================
+
+
+def _halton(base, n):
+    """n-th element of Halton sequence for given base."""
+    result, denom = 0.0, 1.0
+    while n > 0:
+        denom *= base
+        n, r = divmod(n, base)
+        result += r / denom
+    return result
+
+
+def _build_hammersley_perturbation(num_gaussians, voxel_size):
+    """Pre-compute Hammersley offset perturbations (atanh-space) for GS decoder."""
+    pts = np.array(
+        [
+            [i / num_gaussians, _halton(2, i), _halton(3, i)]
+            for i in range(num_gaussians)
+        ],
+        dtype=np.float32,
+    )  # [G, 3]
+    pts = pts * 2.0 - 1.0  # [-1, 1]
+    pts = np.clip(pts / voxel_size, -0.9999, 0.9999)
+    return np.arctanh(pts)  # [G, 3]
+
+
+_HAMMERSLEY_PERT = _build_hammersley_perturbation(NUM_GAUSSIANS, VOXEL_SIZE)
+
+
+def decode_raw_feats_to_gaussians(raw_feats, coords):
+    """
+    Convert raw decoder output to Gaussian Splatting PLY-ready arrays.
+
+    raw_feats : [N, 448]  float32
+    coords    : [N, 4]   int32
+    Returns   : dict with xyz [N*G,3], f_dc [N*G,3], opacities [N*G,1],
+                              scales [N*G,3], rotations [N*G,4]
+    """
+    N, G, R = raw_feats.shape[0], NUM_GAUSSIANS, GS_RESOLUTION
+
+    # Split layout: _xyz:96, _fdc:96, _scl:96, _rot:128, _opa:32
+    xyz_raw = raw_feats[:, 0:96] * 1.0  # lr=1.0
+    fdc_raw = raw_feats[:, 96:192] * 1.0
+    scl_raw = raw_feats[:, 192:288] * 1.0
+    rot_raw = raw_feats[:, 288:416] * 0.1  # lr=0.1
+    opa_raw = raw_feats[:, 416:448] * 1.0
+
+    # Voxel centres: (z+0.5)/R, (y+0.5)/R, (x+0.5)/R  → shape [N, 3]
+    vox_xyz = (coords[:, 1:].astype(np.float32) + 0.5) / R  # (z,y,x) order
+
+    # Hammersley-perturbed XYZ offset: tanh(raw + pert) / R * 0.5 * voxel_size
+    offset = (
+        np.tanh(xyz_raw + _HAMMERSLEY_PERT[None, :, :]) / R * 0.5 * VOXEL_SIZE
+    )  # [N, G, 3]
+    _xyz = (vox_xyz[:, None, :] + offset).reshape(N * G, 3)  # [N*G, 3]
 
 
 # ======================
@@ -751,6 +845,23 @@ def sample_slat(models, input_dict, coords, rng):
     return run_slat_flow(net, slat_cond, coords, coords_32, upsample_idx, rng)
 
 
+def decode_slat(models, slat, coords):
+    """Decode structured latent to Gaussian parameters."""
+    slat = slat * SLAT_STD[None, :] + SLAT_MEAN[None, :]
+
+    logger.info("Decoding SLAT -> Gaussian Splatting ...")
+    net = models["slat_dec"]
+    if not args.onnx:
+        output = net.predict([slat, coords])
+    else:
+        output = net.run(None, {"feats": slat, "coords": coords})
+    raw_feats, out_coords = output[0], output[1]
+    net.unload()  # free memory
+    logger.info(f"  raw_feats: {raw_feats.shape}")
+
+    return decode_raw_feats_to_gaussians(raw_feats, out_coords)
+
+
 def inference(models, img, mask):
     """Run full SAM-3D-Objects pipeline for one image and mask."""
     img = img[:, :, ::-1]  # BGR -> RGB
@@ -770,6 +881,7 @@ def inference(models, img, mask):
     coords = ss_return_dict["coords"]
 
     slat = sample_slat(models, input_dict, coords, rng)
+    decode_slat(models, slat, coords)
 
 
 def recognize_from_image(models):
@@ -824,6 +936,7 @@ def main():
         ss_dec = make_ailia(MODEL_SS_DEC, WEIGHT_SS_DEC)
         slat_cond = make_ailia(MODEL_SL_COND, WEIGHT_SL_COND)
         slat_gen = make_ailia(MODEL_SL_GEN, WEIGHT_SL_GEN)
+        slat_dec = make_ailia(MODEL_SL_DEC, WEIGHT_SL_DEC)
     else:
         # Use ONNX Runtime backend
         import onnxruntime
@@ -842,6 +955,7 @@ def main():
         ss_dec = make_ort(WEIGHT_SS_DEC)
         slat_cond = make_ort(WEIGHT_SL_COND)
         slat_gen = make_ort(WEIGHT_SL_GEN)
+        slat_dec = make_ort(WEIGHT_SL_DEC)
 
     models = {
         "moge": moge_model,
@@ -850,6 +964,7 @@ def main():
         "ss_dec": ss_dec,
         "slat_cond": slat_cond,
         "slat_gen": slat_gen,
+        "slat_dec": slat_dec,
     }
 
     recognize_from_image(models)
