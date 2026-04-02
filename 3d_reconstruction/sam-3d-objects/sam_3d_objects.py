@@ -6,6 +6,7 @@ from logging import getLogger
 import ailia
 import cv2
 import numpy as np
+from plyfile import PlyData, PlyElement
 from scipy.ndimage import uniform_filter
 from tqdm import tqdm
 
@@ -92,6 +93,13 @@ SLAT_STD = np.array(
 NUM_GAUSSIANS = 32
 GS_RESOLUTION = 64
 VOXEL_SIZE = 1.5
+SCALING_BIAS = 0.004
+OPACITY_BIAS = 0.1
+MIN_KERNEL = 0.0009
+
+# AABB [-0.5,-0.5,-0.5, 1.0,1.0,1.0]: get_xyz = _xyz * 1.0 + (-0.5) = _xyz - 0.5
+AABB_ORIGIN = np.array([-0.5, -0.5, -0.5], dtype=np.float32)
+AABB_SCALE = np.array([1.0, 1.0, 1.0], dtype=np.float32)
 
 
 # ======================
@@ -142,7 +150,7 @@ class LazyModel:
 
     def unload(self):
         if self._net is not None:
-            logger.info(f"Unloading model: {self._name}")
+            # logger.info(f"Unloading model: {self._name}")
             self._net = None
 
     def predict(self, *args, **kwargs):
@@ -156,6 +164,56 @@ def load_mask(path):
     """Load mask image, handling both single-channel and multi-channel inputs."""
     mask = load_image(path) > 0
     return mask[..., -1] if mask.ndim == 3 else mask
+
+
+def _logit(p):
+    return np.log(p / (1.0 - p))
+
+
+def _softplus(x):
+    return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
+
+
+def _softplus_inverse(y):
+    """log(exp(y) - 1) — numerically stable for y > 0."""
+    return y + np.log(-np.expm1(-y))
+
+
+def save_ply(gaussians, path):
+    """Save Gaussian Splatting parameters to a standard PLY file."""
+
+    # Convert hidden Gaussian attributes to PLY fields, following gaussian_model.py.
+    xyz = gaussians["xyz"] * AABB_SCALE + AABB_ORIGIN
+    normals = np.zeros_like(xyz)
+    f_dc = gaussians["features_dc"].transpose(0, 2, 1).reshape(xyz.shape[0], -1)
+
+    opacity_bias = float(_logit(np.array(OPACITY_BIAS, dtype=np.float64)))
+    opacities = gaussians["opacity"] + opacity_bias
+
+    scale_bias = float(_softplus_inverse(np.array(SCALING_BIAS, dtype=np.float64)))
+    scales = _softplus(gaussians["scaling"] + scale_bias)
+    scales = np.sqrt(scales**2 + MIN_KERNEL**2)
+    scales = np.log(np.maximum(scales, 1e-12))
+
+    rots_bias = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    rotations = gaussians["rotation"] + rots_bias
+
+    attributes = np.concatenate(
+        [xyz, normals, f_dc, opacities, scales, rotations], axis=1
+    ).astype(np.float32)
+
+    names = (
+        ["x", "y", "z", "nx", "ny", "nz"]
+        + [f"f_dc_{i}" for i in range(f_dc.shape[1])]
+        + ["opacity"]
+        + [f"scale_{i}" for i in range(gaussians["scaling"].shape[1])]
+        + [f"rot_{i}" for i in range(gaussians["rotation"].shape[1])]
+    )
+    dtype = [(n, "f4") for n in names]
+    elements = np.empty(xyz.shape[0], dtype=dtype)
+    elements[:] = list(map(tuple, attributes))
+    el = PlyElement.describe(elements, "vertex")
+    PlyData([el]).write(path)
 
 
 def _crop(arr, top, left, height, width):
@@ -462,32 +520,41 @@ def _build_hammersley_perturbation(num_gaussians, voxel_size):
 _HAMMERSLEY_PERT = _build_hammersley_perturbation(NUM_GAUSSIANS, VOXEL_SIZE)
 
 
-def decode_raw_feats_to_gaussians(raw_feats, coords):
+def decode_feats_to_gaussian(raw_feats, coords):
     """
-    Convert raw decoder output to Gaussian Splatting PLY-ready arrays.
+    Convert SLAT decoder output to hidden Gaussian attributes.
 
     raw_feats : [N, 448]  float32
     coords    : [N, 4]   int32
-    Returns   : dict with xyz [N*G,3], f_dc [N*G,3], opacities [N*G,1],
-                              scales [N*G,3], rotations [N*G,4]
+    Returns   : dict with xyz [N*G,3], features_dc [N*G,1,3],
+                              opacity [N*G,1], scaling [N*G,3], rotation [N*G,4]
     """
     N, G, R = raw_feats.shape[0], NUM_GAUSSIANS, GS_RESOLUTION
 
     # Split layout: _xyz:96, _fdc:96, _scl:96, _rot:128, _opa:32
-    xyz_raw = raw_feats[:, 0:96] * 1.0  # lr=1.0
+    xyz_raw = raw_feats[:, 0:96] * 1.0
     fdc_raw = raw_feats[:, 96:192] * 1.0
     scl_raw = raw_feats[:, 192:288] * 1.0
-    rot_raw = raw_feats[:, 288:416] * 0.1  # lr=0.1
+    rot_raw = raw_feats[:, 288:416] * 0.1
     opa_raw = raw_feats[:, 416:448] * 1.0
 
-    # Voxel centres: (z+0.5)/R, (y+0.5)/R, (x+0.5)/R  → shape [N, 3]
-    vox_xyz = (coords[:, 1:].astype(np.float32) + 0.5) / R  # (z,y,x) order
+    # Voxel centers in normalized grid coordinates.
+    xyz = (coords[:, 1:].astype(np.float32) + 0.5) / R
 
-    # Hammersley-perturbed XYZ offset: tanh(raw + pert) / R * 0.5 * voxel_size
+    # apply perturbation before tanh and add to xyz centers.
+    xyz_offset_raw = xyz_raw.reshape(N, G, 3)
     offset = (
-        np.tanh(xyz_raw + _HAMMERSLEY_PERT[None, :, :]) / R * 0.5 * VOXEL_SIZE
-    )  # [N, G, 3]
-    _xyz = (vox_xyz[:, None, :] + offset).reshape(N * G, 3)  # [N*G, 3]
+        np.tanh(xyz_offset_raw + _HAMMERSLEY_PERT[None, :, :]) / R * 0.5 * VOXEL_SIZE
+    )
+    xyz_hidden = (xyz[:, None, :] + offset).reshape(N * G, 3)
+
+    return {
+        "xyz": xyz_hidden,
+        "features_dc": fdc_raw.reshape(N * G, 1, 3),
+        "opacity": opa_raw.reshape(N * G, 1),
+        "scaling": scl_raw.reshape(N * G, 3),
+        "rotation": rot_raw.reshape(N * G, 4),
+    }
 
 
 # ======================
@@ -746,6 +813,10 @@ def compute_pointmap(moge_model, rgba_img):
 
 def sample_sparse_structure(models, input_dict, rng):
     """Sample sparse structure from SS inputs."""
+    logger.info(
+        f"Sampling sparse structure: inference_steps={SS_STEPS}, strength={int(SS_CFG)}, "
+        f"interval=[{int(SS_CFG_T_MIN)}, {int(SS_CFG_T_MAX)}], rescale_t={int(SS_RESCALE_T)}, cfg_strength_pm=0.0"
+    )
     logger.info("Running condition embedder ...")
     net = models["ss_cond"]
     if not args.onnx:
@@ -775,14 +846,12 @@ def sample_sparse_structure(models, input_dict, rng):
     net.unload()  # free memory
     logger.info("Condition embedder finishes!")
 
-    logger.info("Running SS flow matching ...")
     net = models["ss_gen"]
     ss_return_dict = run_ss_flow(net, ss_cond, rng)
 
     shape_latent = ss_return_dict["shape"]
     latent_vol = shape_latent.transpose(0, 2, 1).reshape(-1, 8, 16, 16, 16)
 
-    logger.info("Decoding SS voxels ...")
     net = models["ss_dec"]
     if not args.onnx:
         output = net.predict([latent_vol])
@@ -798,6 +867,7 @@ def sample_sparse_structure(models, input_dict, rng):
     coords = prune_sparse_structure(coords, max_neighbor_dist=1)
     coords, downsample_factor = downsample_sparse_structure(coords)
     logger.info(f"Downsampled coords from {original_shape[0]} to {coords.shape[0]}")
+    logger.info(f"Rescaling scale by {downsample_factor} after downsampling")
 
     if coords.shape[0] == 0:
         logger.error("No voxels after sparse structure generation.")
@@ -810,12 +880,13 @@ def sample_sparse_structure(models, input_dict, rng):
 
 def sample_slat(models, input_dict, coords, rng):
     """Sample structured latent from SLAT inputs and sparse coords."""
-    coords_32, upsample_idx = build_coords_32_upsample_idx(coords)
     logger.info(
-        f"  coords_32: {coords_32.shape[0]}  upsample_idx: {upsample_idx.shape[0]}"
+        f"Sampling sparse latent: inference_steps={SLAT_STEPS}, strength={int(SLAT_CFG)}, "
+        f"interval=[{int(SLAT_CFG_T_MIN)}, {int(SLAT_CFG_T_MAX)}], rescale_t={int(SLAT_RESCALE_T)}"
     )
+    coords_32, upsample_idx = build_coords_32_upsample_idx(coords)
 
-    logger.info("Embedding SLAT condition ...")
+    logger.info("Running condition embedder ...")
     net = models["slat_cond"]
     if not args.onnx:
         output = net.predict(
@@ -840,7 +911,6 @@ def sample_slat(models, input_dict, coords, rng):
     net.unload()  # free memory
     logger.info("Condition embedder finishes!")
 
-    logger.info("Running SLAT flow matching ...")
     net = models["slat_gen"]
     return run_slat_flow(net, slat_cond, coords, coords_32, upsample_idx, rng)
 
@@ -849,7 +919,7 @@ def decode_slat(models, slat, coords):
     """Decode structured latent to Gaussian parameters."""
     slat = slat * SLAT_STD[None, :] + SLAT_MEAN[None, :]
 
-    logger.info("Decoding SLAT -> Gaussian Splatting ...")
+    logger.info("Decoding sparse latent...")
     net = models["slat_dec"]
     if not args.onnx:
         output = net.predict([slat, coords])
@@ -857,9 +927,8 @@ def decode_slat(models, slat, coords):
         output = net.run(None, {"feats": slat, "coords": coords})
     raw_feats, out_coords = output[0], output[1]
     net.unload()  # free memory
-    logger.info(f"  raw_feats: {raw_feats.shape}")
 
-    return decode_raw_feats_to_gaussians(raw_feats, out_coords)
+    return decode_feats_to_gaussian(raw_feats, out_coords)
 
 
 def inference(models, img, mask):
@@ -881,7 +950,9 @@ def inference(models, img, mask):
     coords = ss_return_dict["coords"]
 
     slat = sample_slat(models, input_dict, coords, rng)
-    decode_slat(models, slat, coords)
+    gaussians = decode_slat(models, slat, coords)
+
+    return gaussians
 
 
 def recognize_from_image(models):
@@ -919,6 +990,11 @@ def main():
     # Download models if needed
     check_and_download_models(WEIGHT_MOGE, MODEL_MOGE, REMOTE_PATH)
     check_and_download_models(WEIGHT_SS_COND, MODEL_SS_COND, REMOTE_PATH)
+    check_and_download_models(WEIGHT_SS_GEN, MODEL_SS_GEN, REMOTE_PATH)
+    check_and_download_models(WEIGHT_SS_DEC, MODEL_SS_DEC, REMOTE_PATH)
+    check_and_download_models(WEIGHT_SL_COND, MODEL_SL_COND, REMOTE_PATH)
+    check_and_download_models(WEIGHT_SL_GEN, MODEL_SL_GEN, REMOTE_PATH)
+    check_and_download_models(WEIGHT_SL_DEC, MODEL_SL_DEC, REMOTE_PATH)
 
     env_id = args.env_id
 
