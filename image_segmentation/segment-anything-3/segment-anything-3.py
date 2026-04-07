@@ -183,18 +183,12 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
 
 def main():
     WEIGHT_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx'
-    DATA_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx.data'
     WEIGHT_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx'
-    DATA_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx.data'
     WEIGHT_MASK_DECODER_L_PATH = 'sam3_decoder.onnx'
-    DATA_MASK_DECODER_L_PATH = 'sam3_decoder.onnx.data'
 
     check_and_download_file(WEIGHT_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(DATA_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(DATA_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_MASK_DECODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(DATA_MASK_DECODER_L_PATH, REMOTE_PATH)
 
     if args.onnx:
         import onnxruntime
