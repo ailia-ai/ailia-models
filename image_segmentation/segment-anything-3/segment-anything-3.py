@@ -59,7 +59,6 @@ REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-3/'
 # ======================
 
 from sam3_image_predictor import SAM3ImagePredictor
-# from sam2_video_predictor import SAM2VideoPredictor
 
 np.random.seed(3)
 
@@ -112,51 +111,6 @@ def preprocess_frame(image, image_size):
     return image
 
 
-# def annotate_frame(points, labels, box, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
-#     ann_frame_idx = 0  # the frame index we interact with
-#     ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
-# 
-#     _, out_obj_ids, out_mask_logits = predictor.add_new_points_or_box(
-#         inference_state=inference_state,
-#         frame_idx=ann_frame_idx,
-#         obj_id=ann_obj_id,
-#         points=points,
-#         labels=labels,
-#         box=box,
-#         image_encoder=image_encoder,
-#         prompt_encoder=prompt_encoder,
-#         mask_decoder=mask_decoder,
-#         memory_attention=memory_attention,
-#         memory_encoder=memory_encoder,
-#         mlp=mlp
-#     )
-# 
-#     predictor.propagate_in_video_preflight(inference_state,
-#                                                                             image_encoder = image_encoder,
-#                                                                             prompt_encoder = prompt_encoder,
-#                                                                             mask_decoder = mask_decoder,
-#                                                                             memory_attention = memory_attention,
-#                                                                             memory_encoder = memory_encoder,
-#                                                                             mlp = mlp,
-#                                                                             obj_ptr_tpos_proj = obj_ptr_tpos_proj)
-
-
-# def process_frame(image, frame_idx, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj):
-#     out_frame_idx, out_obj_ids, out_mask_logits = predictor.propagate_in_video(inference_state,
-#                                                                                 image_encoder = image_encoder,
-#                                                                                 prompt_encoder = prompt_encoder,
-#                                                                                 mask_decoder = mask_decoder,
-#                                                                                 memory_attention = memory_attention,
-#                                                                                 memory_encoder = memory_encoder,
-#                                                                                 mlp = mlp,
-#                                                                                 obj_ptr_tpos_proj = obj_ptr_tpos_proj,
-#                                                                                 frame_idx = frame_idx)
-# 
-#     image = show_mask((out_mask_logits[0] > 0.0), image, color = np.array([30, 144, 255]), obj_id = out_obj_ids[0])
-# 
-#     return image
-
-
 # ======================
 # Main
 # ======================
@@ -190,7 +144,6 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
                 end = int(round(time.time() * 1000))
                 estimation_time = (end - start)
 
-                # Logging
                 logger.info(f'\tailia processing estimation time {estimation_time} ms')
                 if i != 0:
                     total_time_estimation = total_time_estimation + estimation_time
@@ -226,92 +179,6 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
 
 def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
     raise NotImplementedError
-#     if args.video == 'demo':
-#         frame_names = [
-#             p for p in os.listdir(args.video)
-#             if os.path.splitext(p)[-1] in ['.jpg', '.jpeg', '.JPG', '.JPEG']
-#         ]
-#         frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
-#         input_point = np.array([[210, 350], [250, 220]], dtype=np.float32)
-#         input_label = np.array([1, 1], np.int32)
-#         input_box = None
-#         video_width = 960
-#         video_height = 540
-#     else:
-#         frame_names = None
-#         capture = webcamera_utils.get_capture(args.video)
-#         video_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-#         video_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-#         input_point, input_label, input_box = get_input_point()
-# 
-#     if args.savepath != SAVE_IMAGE_PATH:
-#         writer = webcamera_utils.get_writer(args.savepath, video_height, video_width)
-#     else:
-#         writer = None
-# 
-#     predictor = SAM2VideoPredictor(args.onnx, args.normal, args.benchmark)
-# 
-#     inference_state = predictor.init_state(args.num_mask_mem, args.max_obj_ptrs_in_encoder, args.version)
-#     predictor.reset_state(inference_state)
-# 
-#     frame_shown = False
-# 
-#     if args.benchmark:
-#         start = int(round(time.time() * 1000))
-# 
-#     frame_idx = 0
-#     while (True):
-#         if frame_names is None:
-#             ret, frame = capture.read()
-#         else:
-#             ret = True
-#             if frame_idx >= len(frame_names):
-#                 break
-#             frame = cv2.imread(os.path.join(args.video, frame_names[frame_idx]))
-#             video_height = frame.shape[0]
-#             video_width = frame.shape[1]
-# 
-#         if (cv2.waitKey(1) & 0xFF == ord('q')) or not ret:
-#             break
-#         if frame_shown and cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) == 0:
-#             break
-# 
-#         image = preprocess_frame(frame, image_size=TARGET_SIZE)
-# 
-#         predictor.append_image(
-#             inference_state,
-#             image,
-#             video_height,
-#             video_width,
-#             image_encoder)
-# 
-#         if frame_idx == 0:
-#             annotate_frame(input_point, input_label, input_box, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj)
-# 
-#         frame = process_frame(frame, frame_idx, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj)
-#         frame = frame.astype(np.uint8)
-# 
-#         if frame_idx == 0:
-#             frame = show_points(input_point.astype(np.int64), input_label.astype(np.int64), frame)
-#             frame = show_box(input_box, frame)
-# 
-#         cv2.imshow('frame', frame)
-#         if frame_names is not None:
-#             cv2.imwrite(f'video_{frame_idx}.png', frame)
-# 
-#         if writer is not None:
-#             writer.write(frame)
-# 
-#         frame_shown = True
-#         frame_idx = frame_idx + 1
-# 
-#     if args.benchmark:
-#         end = int(round(time.time() * 1000))
-#         estimation_time = (end - start)
-#         logger.info(f'\ttotal processing time {estimation_time} ms')
-# 
-#     if writer is not None:
-#         writer.release()
 
 
 def main():
