@@ -1,0 +1,10 @@
+[project]
+name = "mio-tts"
+version = "1.0.0"
+description = "MioTTS inference with ailia SDK"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "soundfile",
+    "transformers<5",
+]
