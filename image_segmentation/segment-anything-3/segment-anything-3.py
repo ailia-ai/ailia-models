@@ -8,7 +8,7 @@ from logging import getLogger
 sys.path.append('../../util')
 import webcamera_utils  # noqa
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa
-from model_utils import check_and_download_file  # noqa
+from model_utils import check_and_download_models  # noqa
 from webcamera_utils import get_capture, get_writer  # noqa
 
 logger = getLogger(__name__)
@@ -183,12 +183,15 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
 
 def main():
     WEIGHT_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx'
+    MODEL_IMAGE_ENCODER_L_PATH = 'sam3_image_encoder.onnx.prototxt'
     WEIGHT_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx'
+    MODEL_PROMPT_ENCODER_L_PATH = 'sam3_language_encoder.onnx.prototxt'
     WEIGHT_MASK_DECODER_L_PATH = 'sam3_decoder.onnx'
+    MODEL_MASK_DECODER_L_PATH = 'sam3_decoder.onnx.prototxt'
 
-    check_and_download_file(WEIGHT_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(WEIGHT_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
-    check_and_download_file(WEIGHT_MASK_DECODER_L_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_IMAGE_ENCODER_L_PATH, MODEL_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_PROMPT_ENCODER_L_PATH, MODEL_PROMPT_ENCODER_L_PATH, REMOTE_PATH)
+    check_and_download_models(WEIGHT_MASK_DECODER_L_PATH, MODEL_MASK_DECODER_L_PATH, REMOTE_PATH)
 
     if args.onnx:
         import onnxruntime
@@ -198,9 +201,9 @@ def main():
     else:
         import ailia
         memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
-        image_encoder = ailia.Net(weight=WEIGHT_IMAGE_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-        prompt_encoder = ailia.Net(weight=WEIGHT_PROMPT_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
-        mask_decoder = ailia.Net(weight=WEIGHT_MASK_DECODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        image_encoder = ailia.Net(weight=WEIGHT_IMAGE_ENCODER_L_PATH, stream=MODEL_IMAGE_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        prompt_encoder = ailia.Net(weight=WEIGHT_PROMPT_ENCODER_L_PATH, stream=MODEL_PROMPT_ENCODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
+        mask_decoder = ailia.Net(weight=WEIGHT_MASK_DECODER_L_PATH, stream=MODEL_MASK_DECODER_L_PATH, memory_mode=memory_mode, env_id=args.env_id)
 
     if args.video is not None:
         recognize_from_video(image_encoder, prompt_encoder, mask_decoder)
