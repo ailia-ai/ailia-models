@@ -1,3 +1,4 @@
+import gc
 import sys
 import time
 from functools import partial
@@ -40,8 +41,8 @@ MODEL_SL_GEN = WEIGHT_SL_GEN + ".prototxt"
 MODEL_SL_DEC = WEIGHT_SL_DEC + ".prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sam-3d-objects/"
 
-IMAGE_PATH = "input.png"
-MASK_PATH = "mask.png"
+IMAGE_PATH = "image.png"
+MASK_PATH = "mask_15.png"
 SAVE_PATH = "output.ply"
 
 IMAGE_SIZE = 518  # DINOv2 input resolution
@@ -122,6 +123,11 @@ parser.add_argument(
     help="Random seed for reproducible sampling.",
 )
 parser.add_argument(
+    "--torch-rng",
+    action="store_true",
+    help="Use torch.randn (CUDA) for initial noise instead of numpy.",
+)
+parser.add_argument(
     "--onnx",
     action="store_true",
     help="Execute onnxruntime version.",
@@ -152,6 +158,7 @@ class LazyModel:
         if self._net is not None:
             # logger.info(f"Unloading model: {self._name}")
             self._net = None
+            gc.collect()  # break any reference cycles so CUDA memory is freed immediately
 
     def predict(self, *args, **kwargs):
         return self.load().predict(*args, **kwargs)
@@ -214,6 +221,263 @@ def save_ply(gaussians, path):
     elements[:] = list(map(tuple, attributes))
     el = PlyElement.describe(elements, "vertex")
     PlyData([el]).write(path)
+
+
+# ---------------------------------------------------------------------------
+# Gaussian Splatting preview renderer
+# ---------------------------------------------------------------------------
+
+_SH_C0 = 0.28209479177387814  # DC SH coefficient
+
+
+def _gs_look_at(azimuth_deg, elevation_deg, distance=2.5):
+    """Camera-from-world R, t (OpenCV convention: +Z forward, +Y down).
+
+    R @ world_point + t  =  camera-space point  (z > 0 means in front of camera)
+    """
+    az = np.radians(azimuth_deg)
+    el = np.radians(elevation_deg)
+    eye = np.array(
+        [
+            distance * np.cos(el) * np.sin(az),
+            distance * np.sin(el),
+            distance * np.cos(el) * np.cos(az),
+        ],
+        dtype=np.float64,
+    )
+    forward = -eye / np.linalg.norm(eye)  # +Z toward scene (origin)
+    world_up = np.array([0.0, 1.0, 0.0])
+    if abs(np.dot(forward, world_up)) > 0.999:
+        world_up = np.array([1.0, 0.0, 0.0])
+    right = np.cross(forward, world_up)
+    right /= np.linalg.norm(right)
+    down = np.cross(forward, right)  # +Y down (OpenCV image coords)
+    R = np.stack([right, down, forward]).astype(np.float32)
+    t = (-R @ eye).astype(np.float32)
+    return R, t
+
+
+def _quat_to_rotmat(q):
+    """[N, 4] wxyz -> [N, 3, 3] rotation matrices."""
+    w, x, y, z = q[:, 0], q[:, 1], q[:, 2], q[:, 3]
+    n = np.sqrt(w**2 + x**2 + y**2 + z**2) + 1e-8
+    w, x, y, z = w / n, x / n, y / n, z / n
+    R = np.stack(
+        [
+            1 - 2 * (y * y + z * z),
+            2 * (x * y - w * z),
+            2 * (x * z + w * y),
+            2 * (x * y + w * z),
+            1 - 2 * (x * x + z * z),
+            2 * (y * z - w * x),
+            2 * (x * z - w * y),
+            2 * (y * z + w * x),
+            1 - 2 * (x * x + y * y),
+        ],
+        axis=1,
+    ).reshape(-1, 3, 3)
+    return R.astype(np.float32)
+
+
+def _render_gs_view(
+    xyz, colors, opacities, scales, quats, R_cw, t_cw, H, W, fov_deg=40.0, max_radius=48
+):
+    """
+    Alpha-composite Gaussian Splatting from one viewpoint.
+    Returns [H, W, 3] uint8 (white background).
+    """
+    f = 0.5 * W / np.tan(np.radians(fov_deg / 2))
+    cx_px, cy_px = W * 0.5, H * 0.5
+
+    # --- camera transform ---
+    xyz_c = (xyz @ R_cw.T + t_cw).astype(np.float32)  # [N, 3]
+
+    keep = xyz_c[:, 2] > 0.01
+    xyz_c, col, opa, s, q = (
+        xyz_c[keep],
+        colors[keep],
+        opacities[keep],
+        scales[keep],
+        quats[keep],
+    )
+    if len(xyz_c) == 0:
+        return np.full((H, W, 3), 255, np.uint8)
+
+    iz = 1.0 / xyz_c[:, 2]
+    u = f * xyz_c[:, 0] * iz + cx_px
+    v = f * xyz_c[:, 1] * iz + cy_px
+
+    # frustum cull (loose, refined by radius later)
+    in_view = (
+        (u > -max_radius)
+        & (u < W + max_radius)
+        & (v > -max_radius)
+        & (v < H + max_radius)
+    )
+    xyz_c, col, opa, s, q = (
+        xyz_c[in_view],
+        col[in_view],
+        opa[in_view],
+        s[in_view],
+        q[in_view],
+    )
+    u, v, iz = u[in_view], v[in_view], iz[in_view]
+    if len(xyz_c) == 0:
+        return np.full((H, W, 3), 255, np.uint8)
+
+    # --- 3D covariance in world space: R_gs S S^T R_gs^T ---
+    R_gs = _quat_to_rotmat(q)  # [N, 3, 3]
+    RS = R_gs * s[:, None, :]  # [N, 3, 3]
+    cov3d = RS @ RS.transpose(0, 2, 1)  # [N, 3, 3]
+
+    # covariance in camera space
+    cov_c = np.einsum("ij,njk,lk->nil", R_cw, cov3d, R_cw)  # [N, 3, 3]
+
+    # perspective Jacobian [N, 2, 3]
+    iz2 = iz**2
+    J = np.zeros((len(xyz_c), 2, 3), np.float32)
+    J[:, 0, 0] = f * iz
+    J[:, 0, 2] = -f * xyz_c[:, 0] * iz2
+    J[:, 1, 1] = f * iz
+    J[:, 1, 2] = -f * xyz_c[:, 1] * iz2
+
+    # 2D covariance [N, 2, 2]  +  low-pass filter (+0.3 per axis)
+    cov2d = np.einsum("nij,njk,nlk->nil", J, cov_c, J)
+    cov2d[:, 0, 0] += 0.3
+    cov2d[:, 1, 1] += 0.3
+
+    # 2D covariance inverse
+    det = cov2d[:, 0, 0] * cov2d[:, 1, 1] - cov2d[:, 0, 1] ** 2
+    inv_det = 1.0 / np.maximum(det, 1e-8)
+    ci = np.zeros_like(cov2d)
+    ci[:, 0, 0] = cov2d[:, 1, 1] * inv_det
+    ci[:, 1, 1] = cov2d[:, 0, 0] * inv_det
+    ci[:, 0, 1] = ci[:, 1, 0] = -cov2d[:, 0, 1] * inv_det
+
+    # per-Gaussian screen radius from largest eigenvalue
+    trace = cov2d[:, 0, 0] + cov2d[:, 1, 1]
+    disc = np.sqrt(
+        np.maximum(
+            0.0, (cov2d[:, 0, 0] - cov2d[:, 1, 1]) ** 2 / 4 + cov2d[:, 0, 1] ** 2
+        )
+    )
+    lam1 = trace / 2 + disc
+    radii = np.minimum(
+        max_radius, np.ceil(3.0 * np.sqrt(np.maximum(1e-8, lam1)))
+    ).astype(int)
+
+    # front-to-back sort
+    order = np.argsort(xyz_c[:, 2])
+    u, v, col, opa, ci, radii = (
+        u[order],
+        v[order],
+        col[order],
+        opa[order],
+        ci[order],
+        radii[order],
+    )
+
+    # --- alpha composite ---
+    img = np.zeros((H, W, 3), np.float32)
+    transm = np.ones((H, W), np.float32)
+
+    for i in range(len(u)):
+        ri = radii[i]
+        ui, vi = int(u[i] + 0.5), int(v[i] + 0.5)
+        x0, x1 = max(0, ui - ri), min(W, ui + ri + 1)
+        y0, y1 = max(0, vi - ri), min(H, vi + ri + 1)
+        if x0 >= x1 or y0 >= y1:
+            continue
+
+        dx = np.arange(x0, x1, dtype=np.float32) - u[i]  # [w]
+        dy = np.arange(y0, y1, dtype=np.float32) - v[i]  # [h]
+        a, b, d = ci[i, 0, 0], ci[i, 0, 1], ci[i, 1, 1]
+        power = -0.5 * (
+            a * dx[None, :] ** 2
+            + 2 * b * dx[None, :] * dy[:, None]
+            + d * dy[:, None] ** 2
+        )
+        alpha = np.minimum(0.99, opa[i] * np.exp(np.minimum(0.0, power)))
+        T = transm[y0:y1, x0:x1]
+        w = alpha * T
+        img[y0:y1, x0:x1] += w[..., None] * col[i]
+        transm[y0:y1, x0:x1] *= 1.0 - alpha
+
+    img += transm[..., None]  # white background
+    return np.clip(img * 255, 0, 255).astype(np.uint8)
+
+
+def render_gaussians_preview(gaussians, view_size=512):
+    """
+    Render 4 views (front / right / back / left) of the Gaussian Splatting
+    and save a combined PNG image alongside the PLY file.
+    """
+    # Activate Gaussian parameters (hidden → world-space values)
+
+    # Position: normalized internal coords → world space
+    xyz = (gaussians["xyz"] * AABB_SCALE + AABB_ORIGIN).astype(np.float32)
+
+    # Color: convert SH DC component (features_dc) to RGB [0, 1]
+    #   features_dc shape: [N, 1, 3]  (N Gaussians × DC term × RGB)
+    #   Only the DC term is used, so color is view-independent (no specular highlights)
+    #   _SH_C0 ≈ 0.282 is the DC basis scale; +0.5 removes the internal bias
+    colors = np.clip(_SH_C0 * gaussians["features_dc"][:, 0, :] + 0.5, 0.0, 1.0).astype(
+        np.float32
+    )
+
+    # Opacity: logit space → sigmoid → [0, 1]
+    opacity_bias = float(_logit(np.array(OPACITY_BIAS, dtype=np.float64)))
+    opacities = (
+        1.0 / (1.0 + np.exp(-(gaussians["opacity"][:, 0] + opacity_bias)))
+    ).astype(np.float32)
+
+    # Scale: softplus space → actual scale, with minimum kernel size enforced
+    scale_bias = float(_softplus_inverse(np.array(SCALING_BIAS, dtype=np.float64)))
+    scales = _softplus(gaussians["scaling"] + scale_bias)
+    scales = np.sqrt(scales**2 + MIN_KERNEL**2).astype(np.float32)
+
+    # Rotation: add unit quaternion bias [1,0,0,0] to the stored delta to recover quaternions
+    rots_bias = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    quats = (gaussians["rotation"] + rots_bias).astype(np.float32)
+
+    # 4 equidistant azimuth angles at moderate elevation
+    views = [
+        ("Front", 0, 20),
+        ("Right", 90, 20),
+        ("Back", 180, 20),
+        ("Left", 270, 20),
+    ]
+
+    H = W = view_size
+    rendered = []
+    for name, az, el in views:
+        logger.info(f"Rendering preview: {name} (az={az}, el={el})")
+        R, t = _gs_look_at(az, el)
+        img = _render_gs_view(xyz, colors, opacities, scales, quats, R, t, H, W)
+        # label
+        cv2.putText(
+            img,
+            name,
+            (8, 24),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (80, 80, 80),
+            2,
+            cv2.LINE_AA,
+        )
+        rendered.append(img)
+
+    # 2x2 grid
+    top = np.concatenate(rendered[:2], axis=1)
+    bot = np.concatenate(rendered[2:], axis=1)
+    preview = np.concatenate([top, bot], axis=0)
+
+    return preview
+
+
+# ---------------------------------------------------------------------------
+# Preprocessing helpers
+# ---------------------------------------------------------------------------
 
 
 def _crop(arr, top, left, height, width):
@@ -408,6 +672,34 @@ def recover_focal_shift(
     return optim_focal, optim_shift
 
 
+# ---------------------------------------------------------------------------
+# Noise generation
+# ---------------------------------------------------------------------------
+
+
+def _make_noise_numpy(rng, x_shape):
+    """Generate initial noise dict using numpy (default)."""
+    return {
+        k: rng.standard_normal(shape).astype(np.float32) for k, shape in x_shape.items()
+    }
+
+
+def _make_noise_torch(x_shape):
+    """Generate initial noise dict using torch.randn on CUDA (--torch-rng).
+
+    Seed must be set beforehand with torch.manual_seed() in inference().
+    Keys are iterated in sorted order to match optree.tree_map's traversal.
+    """
+    import torch
+
+    result = {
+        k: torch.randn(shape, device="cuda").cpu().numpy().astype(np.float32)
+        for k, shape in sorted(x_shape.items())
+    }
+    torch.cuda.empty_cache()
+    return result
+
+
 # ======================
 # Sparse structure helpers
 # ======================
@@ -570,24 +862,28 @@ def _t_schedule(steps, rescale_t):
     return t
 
 
-def run_ss_flow(net, ss_cond, rng):
+def run_ss_flow(net, ss_cond, rng=None):
     """
     Sparse Structure flow matching (MM-DiT, Euler solver).
 
     net      : OnnxRuntime / ailia session for ss_generator_step
     ss_cond  : [1, N_tok, 1024]  float32
-    rng      : np.random.Generator
+    rng      : np.random.Generator  (used when --torch-rng is not set)
     Returns  : dict with 'shape', 'rotation', 'scale', 'translation',
                          'translation_scale'
     """
     B = 1
-    x = {
-        "shape": rng.standard_normal((B, 4096, 8)).astype(np.float32),
-        "rotation": rng.standard_normal((B, 1, 6)).astype(np.float32),
-        "scale": rng.standard_normal((B, 1, 3)).astype(np.float32),
-        "translation": rng.standard_normal((B, 1, 3)).astype(np.float32),
-        "translation_scale": rng.standard_normal((B, 1, 1)).astype(np.float32),
+    x_shape = {
+        "shape": (B, 4096, 8),
+        "rotation": (B, 1, 6),
+        "scale": (B, 1, 3),
+        "translation": (B, 1, 3),
+        "translation_scale": (B, 1, 1),
     }
+    if rng is None:
+        x = _make_noise_torch(x_shape)
+    else:
+        x = _make_noise_numpy(rng, x_shape)
     zeros_cond = np.zeros_like(ss_cond)
     t_seq = _t_schedule(SS_STEPS, SS_RESCALE_T)
     keys = ["shape", "rotation", "scale", "translation", "translation_scale"]
@@ -624,11 +920,10 @@ def run_ss_flow(net, ss_cond, rng):
         x = {k: x[k] + vel[k] * dt for k in keys}
 
     net.unload()  # free memory
-
     return x
 
 
-def run_slat_flow(net, slat_cond, coords_64, coords_32, upsample_idx, rng):
+def run_slat_flow(net, slat_cond, coords_64, coords_32, upsample_idx, rng=None):
     """
     Structured Latent flow matching (sparse Euler solver).
 
@@ -637,11 +932,14 @@ def run_slat_flow(net, slat_cond, coords_64, coords_32, upsample_idx, rng):
     coords_64    : [N64, 4]          int32
     coords_32    : [N32, 4]          int32
     upsample_idx : [N64]             int64
-    rng          : np.random.Generator
+    rng          : np.random.Generator  (used when --torch-rng is not set)
     Returns      : [N64, 8]  float32  final SLAT feats
     """
     N64 = coords_64.shape[0]
-    feats = rng.standard_normal((N64, 8)).astype(np.float32)
+    if rng is None:
+        feats = _make_noise_torch({"feats": (N64, 8)})["feats"]
+    else:
+        feats = rng.standard_normal((N64, 8)).astype(np.float32)
     zeros_cond = np.zeros_like(slat_cond)
     t_seq = _t_schedule(SLAT_STEPS, SLAT_RESCALE_T)
 
@@ -686,7 +984,6 @@ def run_slat_flow(net, slat_cond, coords_64, coords_32, upsample_idx, rng):
         feats = feats + vel * dt
 
     net.unload()  # free memory
-
     return feats
 
 
@@ -931,13 +1228,19 @@ def decode_slat(models, slat, coords):
     return decode_feats_to_gaussian(raw_feats, out_coords)
 
 
-def inference(models, img, mask):
+def inference(models, img, mask, seed=42):
     """Run full SAM-3D-Objects pipeline for one image and mask."""
     img = img[:, :, ::-1]  # BGR -> RGB
     mask = mask.astype(np.uint8) * 255
     rgba_img = np.concatenate([img, mask[:, :, None]], axis=2)
 
-    rng = np.random.default_rng(args.seed)
+    if args.torch_rng:
+        import torch
+
+        torch.manual_seed(seed)
+        rng = None
+    else:
+        rng = np.random.default_rng(seed)
 
     logger.info("Computing pointmap ...")
     pointmap_dict = compute_pointmap(models["moge"], rgba_img)
@@ -956,6 +1259,8 @@ def inference(models, img, mask):
 
 
 def recognize_from_image(models):
+    seed = args.seed
+
     """Loop over all input images."""
     for image_path in args.input:
         logger.info(image_path)
@@ -970,7 +1275,7 @@ def recognize_from_image(models):
             total_time = 0
             for i in range(args.benchmark_count):
                 start = int(round(time.time() * 1000))
-                gaussians = inference(models, img, mask)
+                gaussians = inference(models, img, mask, seed=seed)
                 end = int(round(time.time() * 1000))
                 logger.info(f"\tailia processing estimation time {end - start} ms")
                 if i != 0:
@@ -979,11 +1284,17 @@ def recognize_from_image(models):
                 f"\taverage time estimation {total_time / (args.benchmark_count - 1)} ms"
             )
         else:
-            gaussians = inference(models, img, mask)
+            gaussians = inference(models, img, mask, seed=seed)
+
+        preview = render_gaussians_preview(gaussians)
+
+        savepath = get_savepath(args.savepath, image_path, ext=".png")
+        cv2.imwrite(savepath, cv2.cvtColor(preview, cv2.COLOR_RGB2BGR))
+        logger.info(f"Preview saved at : {savepath}")
 
         savepath = get_savepath(args.savepath, image_path, ext=".ply")
         save_ply(gaussians, savepath)
-        logger.info(f"saved at : {savepath}")
+        logger.info(f"PLY saved at : {savepath}")
 
 
 def main():
@@ -1017,11 +1328,27 @@ def main():
         # Use ONNX Runtime backend
         import onnxruntime
 
-        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        # kSameAsRequested: allocate exactly what is needed instead of the
+        # default kNextPowerOfTwo, which doubles every request (5.8 GB → 8 GB).
+        # enable_mem_pattern=False: skip static pre-allocation; mandatory for
+        # sparse/dynamic models whose tensor shapes vary with input size.
+        sess_options = onnxruntime.SessionOptions()
+        sess_options.enable_mem_pattern = False
+        providers = [
+            (
+                "CUDAExecutionProvider",
+                {"arena_extend_strategy": "kSameAsRequested"},
+            ),
+            "CPUExecutionProvider",
+        ]
 
         def make_ort(weight_path):
             return LazyModel(
-                lambda: onnxruntime.InferenceSession(weight_path, providers=providers),
+                lambda: onnxruntime.InferenceSession(
+                    weight_path,
+                    sess_options=sess_options,
+                    providers=providers,
+                ),
                 name=weight_path,
             )
 
