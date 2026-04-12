@@ -15,7 +15,7 @@ from tqdm import tqdm
 sys.path.append("../../util")
 from arg_utils import get_base_parser, get_savepath, update_parser
 from detector_utils import load_image
-from model_utils import check_and_download_models
+from model_utils import check_and_download_file, check_and_download_models
 from resize_utils import tv_resize
 
 logger = getLogger(__name__)
@@ -39,6 +39,8 @@ MODEL_SS_DEC = WEIGHT_SS_DEC + ".prototxt"
 MODEL_SL_COND = WEIGHT_SL_COND + ".prototxt"
 MODEL_SL_GEN = WEIGHT_SL_GEN + ".prototxt"
 MODEL_SL_DEC = WEIGHT_SL_DEC + ".prototxt"
+WEIGHT_SS_GEN_PB = "ss_generator_step_weights.pb"
+WEIGHT_SL_GEN_PB = "slat_generator_step_weights.pb"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sam-3d-objects/"
 
 IMAGE_PATH = "image.png"
@@ -1306,6 +1308,8 @@ def main():
     check_and_download_models(WEIGHT_SL_COND, MODEL_SL_COND, REMOTE_PATH)
     check_and_download_models(WEIGHT_SL_GEN, MODEL_SL_GEN, REMOTE_PATH)
     check_and_download_models(WEIGHT_SL_DEC, MODEL_SL_DEC, REMOTE_PATH)
+    check_and_download_file(WEIGHT_SS_GEN_PB, REMOTE_PATH)
+    check_and_download_file(WEIGHT_SL_GEN_PB, REMOTE_PATH)
 
     env_id = args.env_id
 
