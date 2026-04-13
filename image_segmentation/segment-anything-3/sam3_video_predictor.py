@@ -119,7 +119,6 @@ class SAM3VideoPredictor():
     def __init__(
         self,
         onnx,
-        normal,
         benchmark,
         fill_hole_area=0,
         # whether to apply non-overlapping constraints on the output object masks
@@ -131,7 +130,7 @@ class SAM3VideoPredictor():
         clear_non_cond_mem_for_multi_obj=False
     ):
         self.onnx = onnx
-        self.normal = normal
+        self.normal = True  # FIXME
         self.benchmark = benchmark
         self.fill_hole_area = fill_hole_area
         self.non_overlap_masks = non_overlap_masks

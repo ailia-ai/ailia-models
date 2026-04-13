@@ -1,4 +1,5 @@
 ﻿import os
+import re
 import sys
 import time
 import numpy as np
@@ -179,57 +180,57 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
 
 
 def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
-    raise NotImplementedError
-#     if args.video == 'demo':
-#         frame_names = [
-#             p for p in os.listdir(args.video)
-#             if os.path.splitext(p)[-1] in ['.jpg', '.jpeg', '.JPG', '.JPEG']
-#         ]
-#         frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
-#         input_point = np.array([[210, 350], [250, 220]], dtype=np.float32)
-#         input_label = np.array([1, 1], np.int32)
-#         input_box = None
-#         video_width = 960
-#         video_height = 540
-#     else:
-#         frame_names = None
-#         capture = webcamera_utils.get_capture(args.video)
-#         video_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-#         video_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-#         input_point, input_label, input_box = get_input_point()
-# 
-#     if args.savepath != SAVE_IMAGE_PATH:
-#         writer = webcamera_utils.get_writer(args.savepath, video_height, video_width)
-#     else:
-#         writer = None
-# 
-#     predictor = SAM3VideoPredictor(args.onnx, args.normal, args.benchmark)
-# 
-#     inference_state = predictor.init_state(args.num_mask_mem, args.max_obj_ptrs_in_encoder, args.version)
-#     predictor.reset_state(inference_state)
-# 
-#     frame_shown = False
-# 
-#     if args.benchmark:
-#         start = int(round(time.time() * 1000))
-# 
-#     frame_idx = 0
-#     while (True):
-#         if frame_names is None:
-#             ret, frame = capture.read()
-#         else:
-#             ret = True
-#             if frame_idx >= len(frame_names):
-#                 break
-#             frame = cv2.imread(os.path.join(args.video, frame_names[frame_idx]))
-#             video_height = frame.shape[0]
-#             video_width = frame.shape[1]
-# 
-#         if (cv2.waitKey(1) & 0xFF == ord('q')) or not ret:
-#             break
-#         if frame_shown and cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) == 0:
-#             break
-# 
+    if args.video == 'demo':
+        frame_names = [
+            p for p in os.listdir(args.video)
+            if re.match(r'^0+\.(jpg|jpeg)$', p, re.IGNORECASE) is not None
+        ]
+        frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
+        input_point = np.array([[210, 350], [250, 220]], dtype=np.float32)
+        input_label = np.array([1, 1], np.int32)
+        input_box = None
+        video_width = 960
+        video_height = 540
+    else:
+        frame_names = None
+        capture = webcamera_utils.get_capture(args.video)
+        video_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        video_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        input_point, input_label, input_box = get_input_point()
+
+    if args.savepath != SAVE_IMAGE_PATH:
+        writer = webcamera_utils.get_writer(args.savepath, video_height, video_width)
+    else:
+        writer = None
+
+    predictor = SAM3VideoPredictor(args.onnx, args.benchmark)
+
+    inference_state = predictor.init_state()
+    predictor.reset_state(inference_state)
+
+    frame_shown = False
+
+    if args.benchmark:
+        start = int(round(time.time() * 1000))
+
+    frame_idx = 0
+    while True:
+        if frame_names is None:
+            ret, frame = capture.read()
+        else:
+            ret = True
+            if frame_idx >= len(frame_names):
+                break
+            frame = cv2.imread(os.path.join(args.video, frame_names[frame_idx]))
+            video_height = frame.shape[0]
+            video_width = frame.shape[1]
+
+        if (cv2.waitKey(1) & 0xFF == ord('q')) or not ret:
+            break
+        if frame_shown and cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) == 0:
+            break
+
+        raise NotImplementedError
 #         image = preprocess_frame(frame, image_size=TARGET_SIZE)
 # 
 #         predictor.append_image(
