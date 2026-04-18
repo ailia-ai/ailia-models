@@ -482,9 +482,36 @@ def render_gaussians_preview(gaussians, view_size=512):
 # ---------------------------------------------------------------------------
 
 
-def _crop(arr, top, left, height, width):
-    """Numpy equivalent of torchvision.transforms.functional.crop."""
-    return arr[top : top + height, left : left + width]
+def _crop(arr, top, left, height, width, fill=0.0):
+    """Numpy equivalent of torchvision.transforms.functional.crop.
+
+    Out-of-bounds regions are filled with `fill` (torchvision pads with 0;
+    numpy negative-index wrapping would silently return wrong data).
+    """
+    H, W = arr.shape[:2]
+    bottom = top + height
+    right = left + width
+
+    if top >= 0 and left >= 0 and bottom <= H and right <= W:
+        return arr[top:bottom, left:right]
+
+    src_top = max(0, top)
+    src_left = max(0, left)
+    src_bottom = min(H, bottom)
+    src_right = min(W, right)
+
+    shape = (height, width) if arr.ndim == 2 else (height, width, arr.shape[2])
+    out = np.full(shape, fill, dtype=arr.dtype)
+
+    dst_top = src_top - top
+    dst_left = src_left - left
+    dst_bottom = dst_top + (src_bottom - src_top)
+    dst_right = dst_left + (src_right - src_left)
+
+    if src_bottom > src_top and src_right > src_left:
+        out[dst_top:dst_bottom, dst_left:dst_right] = arr[src_top:src_bottom, src_left:src_right]
+
+    return out
 
 
 def _pad_square(arr, fill=0.0):
@@ -1017,7 +1044,7 @@ def preprocess(rgba, pointmap):
     top, left, height, width = y1, x1, y2 - y1, x2 - x1
     rgb_crop = _crop(rgb_image, top, left, height, width)
     msk_crop = _crop(rgb_image_mask, top, left, height, width)
-    pm_crop = _crop(processed_pointmap, top, left, height, width)
+    pm_crop = _crop(processed_pointmap, top, left, height, width, fill=0.0)
 
     # Pad to square
     rgb_sq = _pad_square(rgb_crop, fill=0.0)
