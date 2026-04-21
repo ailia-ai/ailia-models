@@ -60,7 +60,6 @@ REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/segment-anything-3/'
 # ======================
 
 from sam3_image_predictor import SAM3ImagePredictor
-from sam3_video_predictor import SAM3VideoPredictor
 
 np.random.seed(3)
 
@@ -163,27 +162,24 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
                 onnx=args.onnx
             )
 
-        if args.benchmark:
-            return
+            sorted_ind = np.argsort(scores)[::-1]
+            scores = scores[sorted_ind]
+            masks = masks[sorted_ind]
+            boxes = boxes[sorted_ind]
 
-        sorted_ind = np.argsort(scores)[::-1]
-        scores = scores[sorted_ind]
-        masks = masks[sorted_ind]
-        boxes = boxes[sorted_ind]
-
-        savepath = get_savepath(args.savepath, image_path, ext='.png')
-        for mask in masks:
-            image = show_mask(mask, image)
-        image = show_box(input_box, image)
-        cv2.imwrite(savepath, image.astype(np.uint8))
-        logger.info(f'saved at : {savepath}')
+            savepath = get_savepath(args.savepath, image_path, ext='.png')
+            for mask in masks:
+                image = show_mask(mask, image)
+            image = show_box(input_box, image)
+            cv2.imwrite(savepath, image.astype(np.uint8))
+            logger.info(f'saved at : {savepath}')
 
 
 def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
     if args.video == 'demo':
         frame_names = [
             p for p in os.listdir(args.video)
-            if re.match(r'^0+\.(jpg|jpeg)$', p, re.IGNORECASE) is not None
+            if re.match(r'^\d+\.(jpg|jpeg)$', p, re.IGNORECASE) is not None
         ]
         frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
         input_point = np.array([[210, 350], [250, 220]], dtype=np.float32)
@@ -203,17 +199,17 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
     else:
         writer = None
 
-    predictor = SAM3VideoPredictor(args.onnx, args.benchmark)
+    image_predictor = SAM3ImagePredictor()
 
-    inference_state = predictor.init_state()
-    predictor.reset_state(inference_state)
-
-    frame_shown = False
+    input_box = get_input_point()
+    prompt = args.prompt
 
     if args.benchmark:
         start = int(round(time.time() * 1000))
 
+    frame_shown = False
     frame_idx = 0
+
     while True:
         if frame_names is None:
             ret, frame = capture.read()
@@ -227,46 +223,52 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
 
         if (cv2.waitKey(1) & 0xFF == ord('q')) or not ret:
             break
+
         if frame_shown and cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) == 0:
             break
 
-        raise NotImplementedError
-#         image = preprocess_frame(frame, image_size=TARGET_SIZE)
-# 
-#         predictor.append_image(
-#             inference_state,
-#             image,
-#             video_height,
-#             video_width,
-#             image_encoder)
-# 
-#         if frame_idx == 0:
-#             annotate_frame(input_point, input_label, input_box, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj)
-# 
-#         frame = process_frame(frame, frame_idx, predictor, inference_state, image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj)
-#         frame = frame.astype(np.uint8)
-# 
-#         if frame_idx == 0:
-#             frame = show_points(input_point.astype(np.int64), input_label.astype(np.int64), frame)
-#             frame = show_box(input_box, frame)
-# 
-#         cv2.imshow('frame', frame)
-#         if frame_names is not None:
-#             cv2.imwrite(f'video_{frame_idx}.png', frame)
-# 
-#         if writer is not None:
-#             writer.write(frame)
-# 
-#         frame_shown = True
-#         frame_idx = frame_idx + 1
-# 
-#     if args.benchmark:
-#         end = int(round(time.time() * 1000))
-#         estimation_time = (end - start)
-#         logger.info(f'\ttotal processing time {estimation_time} ms')
-# 
-#     if writer is not None:
-#         writer.release()
+        orig_hw = [frame.shape[0], frame.shape[1]]
+        frame_np = preprocess_frame(frame, image_size=TARGET_SIZE)
+
+        features = image_predictor.set_image(frame_np, image_encoder, args.onnx)
+        scores, masks, boxes = image_predictor.predict(
+            orig_hw=orig_hw,
+            features=features,
+            prompt=prompt,
+            box=input_box,
+            prompt_encoder=prompt_encoder,
+            mask_decoder=mask_decoder,
+            onnx=args.onnx
+        )
+
+        if not args.benchmark:
+            sorted_ind = np.argsort(scores)[::-1]
+            scores = scores[sorted_ind]
+            masks = masks[sorted_ind]
+            boxes = boxes[sorted_ind]
+
+            for mask in masks:
+                frame = show_mask(mask, frame)
+            frame = show_box(input_box, frame)
+
+            cv2.imshow('frame', frame)
+            frame_shown = True
+
+            if frame_names is not None:
+                cv2.imwrite(f'video_{frame_idx}.png', frame)
+
+            if writer is not None:
+                writer.write(frame)
+
+        frame_idx = frame_idx + 1
+
+    if args.benchmark:
+        end = int(round(time.time() * 1000))
+        estimation_time = (end - start)
+        logger.info(f'\ttotal processing time {estimation_time} ms')
+
+    if writer is not None:
+        writer.release()
 
 
 def main():
