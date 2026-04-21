@@ -91,7 +91,7 @@ def show_box(box, image):
     return image
 
 
-def get_input_point():
+def get_input_box():
     box = args.box
     if box:
         input_box = np.array(box)
@@ -119,7 +119,7 @@ def preprocess_frame(image, image_size):
 def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
     image_predictor = SAM3ImagePredictor()
 
-    input_box = get_input_point()
+    input_box = get_input_box()
     prompt = args.prompt
 
     for image_path in args.input:
@@ -182,17 +182,13 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
             if re.match(r'^\d+\.(jpg|jpeg)$', p, re.IGNORECASE) is not None
         ]
         frame_names.sort(key=lambda p: int(os.path.splitext(p)[0]))
-        input_point = np.array([[210, 350], [250, 220]], dtype=np.float32)
-        input_label = np.array([1, 1], np.int32)
-        input_box = None
         video_width = 960
         video_height = 540
     else:
         frame_names = None
         capture = webcamera_utils.get_capture(args.video)
-        video_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         video_width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-        input_point, input_label, input_box = get_input_point()
+        video_height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     if args.savepath != SAVE_IMAGE_PATH:
         writer = webcamera_utils.get_writer(args.savepath, video_height, video_width)
@@ -201,7 +197,7 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
 
     image_predictor = SAM3ImagePredictor()
 
-    input_box = get_input_point()
+    input_box = get_input_box()
     prompt = args.prompt
 
     if args.benchmark:
@@ -218,8 +214,6 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder):
             if frame_idx >= len(frame_names):
                 break
             frame = cv2.imread(os.path.join(args.video, frame_names[frame_idx]))
-            video_height = frame.shape[0]
-            video_width = frame.shape[1]
 
         if (cv2.waitKey(1) & 0xFF == ord('q')) or not ret:
             break
