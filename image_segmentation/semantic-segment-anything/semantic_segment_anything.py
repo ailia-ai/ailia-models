@@ -8,6 +8,7 @@ import ailia
 import cv2
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 sys.path.append("../../util")
 from arg_utils import get_base_parser, get_savepath, update_parser
@@ -88,41 +89,6 @@ def build_point_grid(n_per_side):
     return np.stack([grid_x.ravel(), grid_y.ravel()], axis=-1)
 
 
-def mask_to_full_image(mask_256, crop_box, new_h, new_w, im_h, im_w):
-    """Convert 256×256 SAM logit mask to a boolean mask in full image space.
-
-    Replicates SAM's postprocess_masks (two-step bilinear):
-      1. 256×256 → SAM_TARGET×SAM_TARGET
-      2. crop padding → [new_h, new_w]
-      3. resize → crop region size in original image
-    """
-    x0, y0, x1, y1 = crop_box
-    crop_h_orig = y1 - y0
-    crop_w_orig = x1 - x0
-
-    # Step 1: upsample 256×256 → 1024×1024
-    mask_1024 = np.array(
-        Image.fromarray(mask_256.astype(np.float32)).resize(
-            (SAM_TARGET, SAM_TARGET), Image.BILINEAR
-        )
-    )
-
-    # Step 2: remove padding → [new_h, new_w]
-    mask_1024 = mask_1024[:new_h, :new_w]
-
-    # Step 3: resize to crop region in original image
-    mask_crop = np.array(
-        Image.fromarray(mask_1024.astype(np.float32)).resize(
-            (crop_w_orig, crop_h_orig), Image.BILINEAR
-        )
-    )
-
-    # Place in full image
-    full = np.zeros((im_h, im_w), dtype=np.float32)
-    full[y0:y1, x0:x1] = mask_crop
-    return full
-
-
 def calculate_stability_score(masks_logits, mask_threshold, offset):
     """Ratio of high-confidence pixels to any-positive pixels."""
     pos_strong = (masks_logits > (mask_threshold + offset)).sum((-2, -1))
@@ -137,6 +103,44 @@ def is_box_near_crop_edge(boxes, crop_box, orig_box, atol=20.0):
     near_crop = np.abs(boxes - crop_edge[None]) <= atol
     near_orig = np.abs(boxes - orig_edge[None]) <= atol
     return np.any(near_crop & ~near_orig, axis=1)
+
+
+def masks_to_boxes(masks):
+    """Convert list of boolean (H,W) masks to (N,4) XYXY boxes."""
+    boxes = np.zeros((len(masks), 4), dtype=np.float32)
+    for i, mask in enumerate(masks):
+        ys, xs = np.where(mask)
+        if len(xs):
+            boxes[i] = [xs.min(), ys.min(), xs.max(), ys.max()]
+    return boxes
+
+
+def box_nms(boxes, scores, iou_threshold):
+    """Greedy box-based NMS, returns kept indices (sorted by score desc)."""
+    if len(boxes) == 0:
+        return []
+    x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+    order = np.argsort(scores)[::-1]
+    kept = []
+    suppressed = np.zeros(len(boxes), dtype=bool)
+    for i in order:
+        if suppressed[i]:
+            continue
+        kept.append(int(i))
+        ix1, iy1, ix2, iy2 = x1[i], y1[i], x2[i], y2[i]
+        inter_x1 = np.maximum(ix1, x1[order])
+        inter_y1 = np.maximum(iy1, y1[order])
+        inter_x2 = np.minimum(ix2, x2[order])
+        inter_y2 = np.minimum(iy2, y2[order])
+        inter_w = np.maximum(0, inter_x2 - inter_x1 + 1)
+        inter_h = np.maximum(0, inter_y2 - inter_y1 + 1)
+        inter = inter_w * inter_h
+        iou = inter / (areas[i] + areas[order] - inter + 1e-6)
+        suppress_mask = iou > iou_threshold
+        suppress_mask[0] = False  # don't suppress self (order[0] == i)
+        suppressed[order[suppress_mask]] = True
+    return kept
 
 
 # ======================
@@ -187,7 +191,7 @@ def run_sam_encoder(models, image):
 
 def process_crop(models, img_rgb, crop_box, point_grid, im_h, im_w):
     """
-    Run SAM encoder + decoder on one crop. Returns (bin_masks, scores).
+    Run SAM encoder + decoder on one crop. Returns (bin_masks, scores, boxes).
     Each mask is boolean (im_h, im_w) in full-image coordinates.
     """
     x0, y0, x1, y1 = crop_box
@@ -201,11 +205,12 @@ def process_crop(models, img_rgb, crop_box, point_grid, im_h, im_w):
     pts_sam[:, 1] = point_grid[:, 1] * new_h  # y in encoder input space
 
     dec = models["sam_dec"]
-    masks = []
-    scores = []
+    mask_list = []
+    score_list = []
+    box_list = []
 
     BATCH_SIZE = 64
-    for i in range(0, len(pts_sam), BATCH_SIZE):
+    for i in tqdm(range(0, len(pts_sam), BATCH_SIZE), desc="Processing batches"):
         batch_pts = pts_sam[i : i + BATCH_SIZE]  # (B, 2)
         B = len(batch_pts)
         coords = batch_pts[:, None, :].astype(np.float32)  # (B, 1, 2)
@@ -213,7 +218,16 @@ def process_crop(models, img_rgb, crop_box, point_grid, im_h, im_w):
         emb = np.repeat(image_embedding, B, axis=0)  # (B, C, H, W)
 
         if not args.onnx:
-            output = dec.predict([emb, coords, labels])
+            output = dec.predict(
+                [
+                    emb,
+                    coords,
+                    labels,
+                    np.array(new_h, dtype=np.int64),
+                    np.array(new_w, dtype=np.int64),
+                    np.array(crop_box, dtype=np.int64),
+                ]
+            )
         else:
             output = dec.run(
                 None,
@@ -221,49 +235,66 @@ def process_crop(models, img_rgb, crop_box, point_grid, im_h, im_w):
                     "image_embedding": emb,
                     "point_coords": coords,
                     "point_labels": labels,
+                    "pp_new_h": np.array(new_h, dtype=np.int64),
+                    "pp_new_w": np.array(new_w, dtype=np.int64),
+                    "pp_crop_box": np.array(crop_box, dtype=np.int64),
                 },
             )
-        batch_masks, batch_iou_preds = output  # (B,3,256,256), (B,3)
+        batch_masks, batch_iou_preds = output  # (B*3, crop_h, crop_w), (B, 3)
 
-        flat_logits = batch_masks.reshape(
+        masks = batch_masks.reshape(
             -1, batch_masks.shape[-2], batch_masks.shape[-1]
-        )  # (B*3, 256, 256)
-        flat_scores = batch_iou_preds.reshape(-1)  # (B*3,)
-
-        full_logits = np.stack(
-            [
-                mask_to_full_image(m, crop_box, new_h, new_w, im_h, im_w)
-                for m in flat_logits
-            ]
-        )  # (B*3, im_h, im_w)
+        )  # (B*3, crop_h, crop_w)
+        iou_preds = batch_iou_preds.reshape(-1)  # (B*3,)
 
         # Filter by predicted IoU
-        keep_mask = flat_scores > PRED_IOU_THRESH
-        full_logits = full_logits[keep_mask]
-        flat_scores = flat_scores[keep_mask]
+        keep_mask = iou_preds > PRED_IOU_THRESH
+        masks = masks[keep_mask]
+        iou_preds = iou_preds[keep_mask]
+        if len(masks) == 0:
+            continue
 
         # Calculate stability score
-        data_stab = calculate_stability_score(full_logits, 0.0, STABILITY_SCORE_OFFSET)
-        keep_mask = data_stab >= STABILITY_SCORE_THRESH
-        full_logits = full_logits[keep_mask]
-        flat_scores = flat_scores[keep_mask]
+        stability_score = calculate_stability_score(masks, 0.0, STABILITY_SCORE_OFFSET)
+        keep_mask = stability_score >= STABILITY_SCORE_THRESH
+        masks = masks[keep_mask]
+        iou_preds = iou_preds[keep_mask]
 
         # Threshold masks and calculate boxes
-        batch_masks = full_logits > 0
+        x0, y0, x1, y1 = crop_box
+        crop_bool = masks > 0  # (M, crop_h, crop_w)
+        boxes_crop = masks_to_boxes(crop_bool)  # (M, 4) in crop coords
 
-        # Filter boxes that touch crop boundaries (but not image boundaries)
-        boxes = masks_to_boxes(batch_masks)
+        # Filter boxes that touch crop boundaries
+        boxes = boxes_crop + np.array([x0, y0, x0, y0], dtype=boxes_crop.dtype)
         keep_mask = ~is_box_near_crop_edge(boxes, crop_box, [0, 0, im_w, im_h])
-        masks.extend(batch_masks[keep_mask])
-        scores.extend(flat_scores[keep_mask].tolist())
+        crop_bool = crop_bool[keep_mask]
+        boxes = boxes[keep_mask]
+        iou_preds = iou_preds[keep_mask]
 
-    masks = np.array(masks)  # (N, im_h, im_w)
-    scores = np.array(scores)  # (N,)
+        # Upscale crop masks into full image space
+        full_masks = np.zeros((len(crop_bool), im_h, im_w), dtype=bool)
+        full_masks[:, y0:y1, x0:x1] = crop_bool
+
+        mask_list.extend(full_masks)
+        score_list.extend(iou_preds)
+        box_list.extend(boxes)
+
+    masks = np.array(mask_list)  # (N, im_h, im_w)
+    scores = np.array(score_list)  # (N,)
+    boxes = np.array(box_list)  # (N, 4)
 
     if len(masks) == 0:
-        return masks, scores
+        return masks, scores, boxes
 
-    return masks, scores
+    # NMS
+    if len(masks) > 1:
+        kept_idx = box_nms(boxes, scores, BOX_NMS_THRESH)
+        masks = masks[kept_idx]
+        scores = scores[kept_idx]
+        boxes = boxes[kept_idx]
+
+    return masks, scores, boxes
 
 
 def generate_all_masks(models, img_rgb):
@@ -280,13 +311,23 @@ def generate_all_masks(models, img_rgb):
 
     all_masks = []
     all_scores = []
+    all_boxes = []
     for crop_box, layer_idx in zip(crop_boxes, layer_idxs):
         logger.info(f"  Crop {crop_box}, layer {layer_idx}")
-        masks, scores = process_crop(
+        masks, scores, boxes = process_crop(
             models, img_rgb, crop_box, point_grids[layer_idx], im_h, im_w
         )
         all_masks.extend(masks)
         all_scores.extend(scores)
+        all_boxes.extend(boxes)
+
+    if len(all_masks) == 0:
+        return [], np.array([]), np.array([])
+
+    all_scores = np.array(all_scores)
+    all_boxes = np.array(all_boxes)
+
+    return all_masks, all_scores, all_boxes
 
 
 # ======================
@@ -296,7 +337,7 @@ def generate_all_masks(models, img_rgb):
 
 def predict(models, img):
     logger.info("Generating SAM masks...")
-    masks, scores = generate_all_masks(models, img)
+    masks, scores, boxes = generate_all_masks(models, img)
     logger.info(f"{len(masks)} masks after filtering")
 
 
