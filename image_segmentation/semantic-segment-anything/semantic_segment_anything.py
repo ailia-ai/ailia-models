@@ -105,6 +105,53 @@ def is_box_near_crop_edge(boxes, crop_box, orig_box, atol=20.0):
     return np.any(near_crop & ~near_orig, axis=1)
 
 
+def remove_small_regions(mask, area_thresh, mode):
+    """Remove small disconnected regions and holes in a mask (requires cv2)."""
+    import cv2
+
+    assert mode in ["holes", "islands"]
+    correct_holes = mode == "holes"
+    working_mask = (correct_holes ^ mask).astype(np.uint8)
+    n_labels, regions, stats, _ = cv2.connectedComponentsWithStats(working_mask, 8)
+    sizes = stats[:, -1][1:]  # row 0 is background label
+    small_regions = [i + 1 for i, s in enumerate(sizes) if s < area_thresh]
+    if len(small_regions) == 0:
+        return mask, False
+    fill_labels = [0] + small_regions
+    if not correct_holes:
+        fill_labels = [i for i in range(n_labels) if i not in fill_labels]
+        if len(fill_labels) == 0:
+            fill_labels = [int(np.argmax(sizes)) + 1]
+    mask = np.isin(regions, fill_labels)
+    return mask, True
+
+
+def postprocess_small_regions(masks, scores, boxes, min_area, nms_thresh):
+    """Remove small disconnected regions/holes, then re-NMS to drop new duplicates."""
+    if len(masks) == 0:
+        return masks, scores, boxes
+
+    new_masks = []
+    nms_scores = []
+    for mask in masks:
+        mask, changed = remove_small_regions(mask, min_area, mode="holes")
+        unchanged = not changed
+        mask, changed = remove_small_regions(mask, min_area, mode="islands")
+        unchanged = unchanged and not changed
+        new_masks.append(mask)
+        # prefer masks that needed no postprocessing
+        nms_scores.append(1.0 if unchanged else 0.0)
+
+    new_boxes = masks_to_boxes(new_masks)
+    nms_scores = np.array(nms_scores)
+    kept_idx = box_nms(new_boxes, nms_scores, nms_thresh)
+
+    masks = [new_masks[i] for i in kept_idx]
+    scores = scores[kept_idx]
+    boxes = new_boxes[kept_idx]
+    return masks, scores, boxes
+
+
 def masks_to_boxes(masks):
     """Convert list of boolean (H,W) masks to (N,4) XYXY boxes."""
     boxes = np.zeros((len(masks), 4), dtype=np.float32)
@@ -312,6 +359,7 @@ def generate_all_masks(models, img_rgb):
     all_masks = []
     all_scores = []
     all_boxes = []
+    all_crop_boxes = []
     for crop_box, layer_idx in zip(crop_boxes, layer_idxs):
         logger.info(f"  Crop {crop_box}, layer {layer_idx}")
         masks, scores, boxes = process_crop(
@@ -320,12 +368,25 @@ def generate_all_masks(models, img_rgb):
         all_masks.extend(masks)
         all_scores.extend(scores)
         all_boxes.extend(boxes)
+        all_crop_boxes.extend([crop_box] * len(masks))
 
     if len(all_masks) == 0:
         return [], np.array([]), np.array([])
 
     all_scores = np.array(all_scores)
     all_boxes = np.array(all_boxes)
+
+    # Remove duplicate masks between crops
+    if len(crop_boxes) > 1 and len(all_masks) > 0:
+        crop_boxes_arr = np.array(all_crop_boxes, dtype=np.float32)
+        crop_areas = (crop_boxes_arr[:, 2] - crop_boxes_arr[:, 0]) * (
+            crop_boxes_arr[:, 3] - crop_boxes_arr[:, 1]
+        )
+        crop_scores = 1.0 / np.maximum(crop_areas, 1.0)
+        kept_idx = box_nms(all_boxes, crop_scores, CROP_NMS_THRESH)
+        all_masks = [all_masks[i] for i in kept_idx]
+        all_scores = all_scores[kept_idx]
+        all_boxes = all_boxes[kept_idx]
 
     return all_masks, all_scores, all_boxes
 
@@ -338,6 +399,13 @@ def generate_all_masks(models, img_rgb):
 def predict(models, img):
     logger.info("Generating SAM masks...")
     masks, scores, boxes = generate_all_masks(models, img)
+    masks, scores, boxes = postprocess_small_regions(
+        masks,
+        scores,
+        boxes,
+        MIN_MASK_REGION_AREA,
+        max(BOX_NMS_THRESH, CROP_NMS_THRESH),
+    )
     logger.info(f"{len(masks)} masks after filtering")
 
 
