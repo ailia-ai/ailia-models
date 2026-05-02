@@ -36,6 +36,57 @@ REMOTE_PATH = "https://storage.googleapis.com/ailia-models/semantic-segment-anyt
 IMAGE_PATH = "demo.png"
 SAVE_IMAGE_PATH = "output.png"
 
+SAM_TARGET = 1024
+
+# SAM auto-mask generation parameters
+POINTS_PER_SIDE = 64
+PRED_IOU_THRESH = 0.86
+STABILITY_SCORE_THRESH = 0.92
+STABILITY_SCORE_OFFSET = 1.0
+CROP_N_LAYERS = 1
+CROP_N_POINTS_DOWNSCALE_FACTOR = 2
+MIN_MASK_REGION_AREA = 100
+BOX_NMS_THRESH = 0.7
+CROP_NMS_THRESH = 0.7
+
+# Segformer native training resolution per dataset
+SEGFORMER_SIZE = {"ade20k": (640, 640), "cityscapes": (1024, 1024)}
+
+# fmt: off
+ADE20K_CLASSES = [
+    'wall', 'building', 'sky', 'floor', 'tree', 'ceiling', 'road', 'bed',
+    'windowpane', 'grass', 'cabinet', 'sidewalk', 'person', 'earth', 'door',
+    'table', 'mountain', 'plant', 'curtain', 'chair', 'car', 'water',
+    'painting', 'sofa', 'shelf', 'house', 'sea', 'mirror', 'rug', 'field',
+    'armchair', 'seat', 'fence', 'desk', 'rock', 'wardrobe', 'lamp',
+    'bathtub', 'railing', 'cushion', 'base', 'box', 'column', 'signboard',
+    'chest of drawers', 'counter', 'sand', 'sink', 'skyscraper', 'fireplace',
+    'refrigerator', 'grandstand', 'path', 'stairs', 'runway', 'case',
+    'pool table', 'pillow', 'screen door', 'stairway', 'river', 'bridge',
+    'bookcase', 'blind', 'coffee table', 'toilet', 'flower', 'book',
+    'hill', 'bench', 'countertop', 'stove', 'palm', 'kitchen island',
+    'computer', 'swivel chair', 'boat', 'bar', 'arcade machine', 'hovel',
+    'bus', 'towel', 'light', 'truck', 'tower', 'chandelier', 'awning',
+    'streetlight', 'booth', 'television receiver', 'airplane', 'dirt track',
+    'apparel', 'pole', 'land', 'bannister', 'escalator', 'ottoman',
+    'bottle', 'buffet', 'poster', 'stage', 'van', 'ship', 'fountain',
+    'conveyer belt', 'canopy', 'washer', 'plaything', 'swimming pool',
+    'stool', 'barrel', 'basket', 'waterfall', 'tent', 'bag', 'minibike',
+    'cradle', 'oven', 'ball', 'food', 'step', 'tank', 'trade name',
+    'microwave', 'pot', 'animal', 'bicycle', 'lake', 'dishwasher',
+    'screen', 'blanket', 'sculpture', 'hood', 'sconce', 'vase',
+    'traffic light', 'tray', 'ashcan', 'fan', 'pier', 'crt screen',
+    'plate', 'monitor', 'bulletin board', 'shower', 'radiator', 'glass',
+    'clock', 'flag',
+]
+
+CITYSCAPES_CLASSES = [
+    'road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+    'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky',
+    'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle', 'bicycle',
+]
+# fmt: on
+
 # ======================
 # Argument Parser Config
 # ======================
@@ -219,6 +270,78 @@ def preprocess_sam(img_rgb):
 
 
 # ======================
+# Segformer preprocessing
+# ======================
+
+
+def preprocess_segformer(img_rgb, model_type):
+    """Resize with PIL BILINEAR (matching SegformerFeatureExtractor) and normalize."""
+    target_h, target_w = SEGFORMER_SIZE[model_type]
+    img = np.array(
+        Image.fromarray(img_rgb).resize((target_w, target_h), Image.BILINEAR)
+    )
+    img = normalize_image(img, "ImageNet")
+    img = img.transpose(2, 0, 1)[None].astype(np.float32)
+    return img
+
+
+def resize_logits_align_corners(logits, out_h, out_w):
+    """
+    Upsample (C, in_h, in_w) logits to (C, out_h, out_w) using bilinear
+    interpolation with align_corners=True, matching:
+        F.interpolate(logits, size=(h,w), mode='bilinear', align_corners=True)
+    """
+    c, in_h, in_w = logits.shape
+    # align_corners=True coordinate mapping: i * (in-1)/(out-1)
+    y = np.arange(out_h, dtype=np.float32) * ((in_h - 1) / max(out_h - 1, 1))
+    x = np.arange(out_w, dtype=np.float32) * ((in_w - 1) / max(out_w - 1, 1))
+    y0 = np.floor(y).astype(np.int64).clip(0, in_h - 1)
+    x0 = np.floor(x).astype(np.int64).clip(0, in_w - 1)
+    y1 = (y0 + 1).clip(0, in_h - 1)
+    x1 = (x0 + 1).clip(0, in_w - 1)
+    wy = (y - y0).astype(np.float32)  # (out_h,)
+    wx = (x - x0).astype(np.float32)  # (out_w,)
+    # weights: (out_h, out_w)
+    wa = (1 - wy)[:, None] * (1 - wx)[None, :]
+    wb = (1 - wy)[:, None] * wx[None, :]
+    wc = wy[:, None] * (1 - wx)[None, :]
+    wd = wy[:, None] * wx[None, :]
+    out = (
+        logits[:, y0[:, None], x0[None, :]] * wa
+        + logits[:, y0[:, None], x1[None, :]] * wb
+        + logits[:, y1[:, None], x0[None, :]] * wc
+        + logits[:, y1[:, None], x1[None, :]] * wd
+    )
+    return out
+
+
+# ======================
+# Segformer inference
+# ======================
+
+
+def run_segformer(models, img):
+    """Returns (H, W) class index map at original image resolution."""
+    im_h, im_w = img.shape[:2]
+    img_tensor = preprocess_segformer(img, args.model_type)
+
+    net = models["segformer"]
+    if not args.onnx:
+        output = net.predict([img_tensor])
+    else:
+        output = net.run(None, {"pixel_values": img_tensor})
+    logits = output[0]
+    logits = logits[0]  # (C, logit_h, logit_w)
+
+    # Upsample logits to original size BEFORE argmax (matching segformer.py:
+    #   F.interpolate(logits, size=(h,w), mode='bilinear', align_corners=True))
+    logits_up = resize_logits_align_corners(logits, im_h, im_w)
+    class_ids = np.argmax(logits_up, axis=0).astype(np.uint8)
+
+    return class_ids
+
+
+# ======================
 # SAM inference
 # ======================
 
@@ -397,6 +520,14 @@ def generate_all_masks(models, img_rgb):
 
 
 def predict(models, img):
+    class_names = ADE20K_CLASSES if args.model_type == "ade20k" else CITYSCAPES_CLASSES
+
+    logger.info("Running Segformer...")
+    class_ids = run_segformer(models, img)  # (H, W)
+
+    # Start semantic mask from Segformer result
+    semantc_mask = class_ids.copy().astype(np.int32)
+
     logger.info("Generating SAM masks...")
     masks, scores, boxes = generate_all_masks(models, img)
     masks, scores, boxes = postprocess_small_regions(
@@ -407,6 +538,26 @@ def predict(models, img):
         max(BOX_NMS_THRESH, CROP_NMS_THRESH),
     )
     logger.info(f"{len(masks)} masks after filtering")
+
+    # Sort by area descending (largest first)
+    if masks:
+        areas = np.array([m.sum() for m in masks])
+        order = np.argsort(areas)[::-1]
+        masks = [masks[i] for i in order]
+
+    # Vote class per SAM mask and update semantic_mask
+    for mask in masks:
+        if not mask.any():
+            continue
+        propose_classes = class_ids[mask].astype(np.int32)
+        unique_classes = np.unique(propose_classes)
+        if len(unique_classes) == 1:
+            semantc_mask[mask] = unique_classes[0]
+        else:
+            top1 = int(np.bincount(propose_classes).argmax())
+            semantc_mask[mask] = top1
+
+    return semantc_mask, class_names
 
 
 def recognize_from_image(models):
