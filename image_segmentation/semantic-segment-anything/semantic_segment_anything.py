@@ -104,6 +104,134 @@ args = update_parser(parser)
 
 
 # ======================
+# Visualization
+# ======================
+
+
+def draw_result(img_bgr, semantc_mask, class_names):
+    """Replicate mmdet imshow_det_bboxes for semantic masks.
+
+    Matches the original pipeline.py call:
+        imshow_det_bboxes(img, bboxes=None, labels=np.arange(N),
+                          segms=np.stack(bitmasks), class_names=names,
+                          font_size=25, show=False, out_file=...)
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.collections import PatchCollection
+    from matplotlib.patches import Polygon
+
+    EPS = 1e-2
+
+    # Build per-class bitmasks in torch.unique order (sorted ascending)
+    unique_class_ids = np.unique(semantc_mask)
+    N = len(unique_class_ids)
+
+    semantic_bitmasks = []
+    semantic_class_names_local = []
+    for class_id in unique_class_ids:
+        semantic_bitmasks.append((semantc_mask == class_id).astype(np.uint8))
+        semantic_class_names_local.append(class_names[int(class_id)])
+
+    # mask colors: get_palette(None, N) → np.random.seed(42), randint(0,256,(N,3))
+    state = np.random.get_state()
+    np.random.seed(42)
+    colors = np.random.randint(0, 256, size=(N, 3)).astype(np.uint8)
+    np.random.set_state(state)
+
+    # text color: get_palette('green', N) → mmcv.color_val('green')=(0,255,0) BGR
+    # [::-1] → (0,255,0) RGB, palette_val divides by 255 → (0, 1.0, 0)
+    text_color_mpl = (0.0, 1.0, 0.0)
+
+    # Convert BGR→RGB (imshow_det_bboxes calls mmcv.bgr2rgb at start)
+    img_rgb = img_bgr[:, :, ::-1].copy().astype(np.uint8)
+    height, width = img_rgb.shape[:2]
+
+    # draw_masks: alpha=0.8, with_edge=True
+    # taken_colors = set([0, 0, 0]) = {0} in Python (a set with one int)
+    # tuple(color_mask) is never in {0}, so color bias never fires
+    taken_colors = {0}
+    polygons = []
+    for i, mask in enumerate(semantic_bitmasks):
+        # bitmap_to_polygon equivalent
+        contours, _ = cv2.findContours(
+            np.ascontiguousarray(mask), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
+        )
+        for c in contours:
+            pts = c.reshape(-1, 2)
+            if len(pts) >= 2:
+                polygons.append(Polygon(pts))
+
+        color_mask = colors[i].copy()
+        while tuple(color_mask.tolist()) in taken_colors:
+            bias = np.random.randint(-30, 31, size=3)
+            color_mask = np.clip(color_mask.astype(np.int32) + bias, 0, 255).astype(
+                np.uint8
+            )
+        taken_colors.add(tuple(color_mask.tolist()))
+
+        mask_bool = mask.astype(bool)
+        img_rgb[mask_bool] = np.clip(
+            img_rgb[mask_bool] * 0.2 + color_mask * 0.8, 0, 255
+        ).astype(np.uint8)
+
+    # Create matplotlib figure (same sizing as imshow_det_bboxes)
+    fig = plt.figure("", frameon=False)
+    plt.title("")
+    canvas = fig.canvas
+    dpi = fig.get_dpi()
+    fig.set_size_inches((width + EPS) / dpi, (height + EPS) / dpi)
+    plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+    ax = plt.gca()
+    ax.axis("off")
+
+    # White contour edges (PatchCollection with edgecolors='w', alpha=0.8)
+    if polygons:
+        p = PatchCollection(
+            polygons, facecolor="none", edgecolors="w", linewidths=1, alpha=0.8
+        )
+        ax.add_collection(p)
+
+    # Text labels: centroid of largest connected component, adaptive font size
+    for i, (mask, name) in enumerate(
+        zip(semantic_bitmasks, semantic_class_names_local)
+    ):
+        _, _, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+        if len(stats) < 2:
+            continue
+        largest_id = int(np.argmax(stats[1:, -1])) + 1
+        pos = centroids[largest_id]  # (x, y)
+        area = float(stats[largest_id, -1])
+        scale = float(np.clip(0.5 + (area - 800) / (30000 - 800), 0.5, 1.0))
+
+        ax.text(
+            pos[0],
+            pos[1],
+            name,
+            bbox={"facecolor": "black", "alpha": 0.8, "pad": 0.7, "edgecolor": "none"},
+            color=text_color_mpl,
+            fontsize=25 * scale,
+            verticalalignment="top",
+            horizontalalignment="center",
+        )
+
+    plt.imshow(img_rgb)
+
+    stream, _ = canvas.print_to_buffer()
+    buffer = np.frombuffer(stream, dtype="uint8")
+    if sys.platform == "darwin":
+        width, height = canvas.get_width_height(physical=True)
+    img_rgba = buffer.reshape(height, width, 4)
+    rgb, _ = np.split(img_rgba, [3], axis=2)
+    result_bgr = rgb.astype(np.uint8)[:, :, ::-1].copy()
+
+    plt.close()
+    return result_bgr
+
+
+# ======================
 # Utilities
 # ======================
 
@@ -573,7 +701,7 @@ def recognize_from_image(models):
             total_time = 0
             for i in range(args.benchmark_count):
                 start = int(round(time.time() * 1000))
-                predict(models, img)
+                semantc_mask, class_names = predict(models, img)
                 end = int(round(time.time() * 1000))
                 t = end - start
                 logger.info(f"\tailia processing estimation time {t} ms")
@@ -583,7 +711,13 @@ def recognize_from_image(models):
                 f"\taverage time estimation {total_time / (args.benchmark_count - 1)} ms"
             )
         else:
-            predict(models, img)
+            semantc_mask, class_names = predict(models, img)
+
+        res_img = draw_result(img, semantc_mask, class_names)
+
+        savepath = get_savepath(args.savepath, image_path, ext=".png")
+        logger.info(f"saved at : {savepath}")
+        cv2.imwrite(savepath, res_img)
 
     logger.info("Script finished successfully.")
 
