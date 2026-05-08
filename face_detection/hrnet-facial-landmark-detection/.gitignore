@@ -1,0 +1,8 @@
+*.onnx
+*.onnx.prototxt
+*.json
+*.npy
+
+.venv/
+__pycache__/
+.claude
