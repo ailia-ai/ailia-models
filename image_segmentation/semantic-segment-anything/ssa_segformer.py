@@ -1,4 +1,3 @@
-import gc
 import itertools
 import math
 import sys
@@ -14,12 +13,10 @@ from tqdm import tqdm
 sys.path.append("../../util")
 from arg_utils import get_base_parser, get_savepath, update_parser
 from detector_utils import load_image
-from math_utils import sigmoid, softmax
-from model_utils import check_and_download_file, check_and_download_models
 from image_utils import normalize_image
+from model_utils import check_and_download_file, check_and_download_models
 
 logger = getLogger(__name__)
-
 
 # ======================
 # Parameters
@@ -30,20 +27,10 @@ MODEL_SAM_ENC_PATH = "sam_image_encoder.onnx.prototxt"
 DATA_SAM_ENC_PATH = "sam_image_encoder_weights.pb"
 WEIGHT_SAM_DEC_PATH = "sam_mask_decoder.onnx"
 MODEL_SAM_DEC_PATH = "sam_mask_decoder.onnx.prototxt"
-WEIGHT_CLIP_VIS_PATH = "clip_vision_encoder.onnx"
-MODEL_CLIP_VIS_PATH = "clip_vision_encoder.onnx.prototxt"
-WEIGHT_CLIP_TXT_PATH = "clip_text_encoder.onnx"
-MODEL_CLIP_TXT_PATH = "clip_text_encoder.onnx.prototxt"
-WEIGHT_ONEFORMER_ADE20K_PATH = "oneformer_ade20k.onnx"
-MODEL_ONEFORMER_ADE20K_PATH = "oneformer_ade20k.onnx.prototxt"
-WEIGHT_ONEFORMER_COCO_PATH = "oneformer_coco.onnx"
-MODEL_ONEFORMER_COCO_PATH = "oneformer_coco.onnx.prototxt"
-WEIGHT_CLIPSEG_PATH = "clipseg.onnx"
-MODEL_CLIPSEG_PATH = "clipseg.onnx.prototxt"
-WEIGHT_BLIP_VIS_PATH = "blip_vision_encoder.onnx"
-MODEL_BLIP_VIS_PATH = "blip_vision_encoder.onnx.prototxt"
-WEIGHT_BLIP_DEC_PATH = "blip_text_decoder.onnx"
-MODEL_BLIP_DEC_PATH = "blip_text_decoder.onnx.prototxt"
+WEIGHT_SEG_ADE20K_PATH = "segformer_ade20k.onnx"
+MODEL_SEG_ADE20K_PATH = "segformer_ade20k.onnx.prototxt"
+WEIGHT_SEG_CITY_PATH = "segformer_cityscapes.onnx"
+MODEL_SEG_CITY_PATH = "segformer_cityscapes.onnx.prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/semantic-segment-anything/"
 
 IMAGE_PATH = "demo.png"
@@ -54,39 +41,18 @@ SAM_PIXEL_MEAN = np.array([123.675, 116.28, 103.53], dtype=np.float32)
 SAM_PIXEL_STD = np.array([58.395, 57.12, 57.375], dtype=np.float32)
 
 # SAM auto-mask generation parameters
-POINTS_PER_SIDE = 32
-PRED_IOU_THRESH = 0.88
-STABILITY_SCORE_THRESH = 0.95
+POINTS_PER_SIDE = 64
+PRED_IOU_THRESH = 0.86
+STABILITY_SCORE_THRESH = 0.92
 STABILITY_SCORE_OFFSET = 1.0
-CROP_N_LAYERS = 0
-CROP_N_POINTS_DOWNSCALE_FACTOR = 1
-MIN_MASK_REGION_AREA = 0
+CROP_N_LAYERS = 1
+CROP_N_POINTS_DOWNSCALE_FACTOR = 2
+MIN_MASK_REGION_AREA = 100
 BOX_NMS_THRESH = 0.7
 CROP_NMS_THRESH = 0.7
 
-# OneFormer native training resolution per dataset
-ONEFORMER_SHORT_EDGE = 800
-ONEFORMER_MAX_SIZE = 1333
-
-# Crop scales (matching semantic_annotation_pipeline)
-SCALE_SMALL = 1.2
-SCALE_LARGE = 1.6  # for BLIP
-SCALE_HUGE = 1.6  # for CLIPSeg
-
-# BLIP generation token IDs (blip-image-captioning-large)
-BLIP_BOS_TOKEN_ID = 30522
-BLIP_SEP_TOKEN_ID = 102  # used as eos in generation
-BLIP_MAX_NEW_TOKENS = 20
-
-# Top-K class candidates from each OneFormer model per mask
-TOP_K_PER_MODEL = 1
-
-# Number of CLIP top candidates passed to CLIPSeg
-CLIP_TOP_K = 3
-
-# CLIP normalization constants
-CLIP_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
-CLIP_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
+# Segformer native training resolution per dataset
+SEGFORMER_SIZE = {"ade20k": (640, 640), "cityscapes": (1024, 1024)}
 
 # fmt: off
 ADE20K_CLASSES = [
@@ -116,29 +82,10 @@ ADE20K_CLASSES = [
     'clock', 'flag',
 ]
 
-# COCO panoptic classes (refined_id2label, indices 0-132)
-COCO_CLASSES = [
-    'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train',
-    'truck', 'boat', 'traffic light', 'fire hydrant', 'stop sign',
-    'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse', 'sheep',
-    'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella',
-    'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard',
-    'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
-    'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork',
-    'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 'orange',
-    'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
-    'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv',
-    'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave',
-    'oven', 'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase',
-    'scissors', 'teddy bear', 'hair drier', 'toothbrush', 'banner',
-    'blanket', 'bridge', 'cardboard', 'counter', 'curtain', 'door',
-    'floor-wood', 'flower', 'fruit', 'gravel', 'house', 'light', 'mirror',
-    'net', 'pillow', 'platform', 'playingfield', 'railroad', 'river',
-    'road', 'roof', 'sand', 'sea', 'shelf', 'snow', 'stairs', 'tent',
-    'towel', 'wall-brick', 'wall-stone', 'wall-tile', 'wall', 'water',
-    'window-blind', 'window', 'tree', 'fence', 'ceiling', 'sky', 'cabinet',
-    'table', 'floor', 'pavement', 'mountain', 'grass', 'dirt', 'paper',
-    'food', 'building', 'rock', 'wall', 'rug',
+CITYSCAPES_CLASSES = [
+    'road', 'sidewalk', 'building', 'wall', 'fence', 'pole',
+    'traffic light', 'traffic sign', 'vegetation', 'terrain', 'sky',
+    'person', 'rider', 'car', 'truck', 'bus', 'train', 'motorcycle', 'bicycle',
 ]
 # fmt: on
 
@@ -147,39 +94,15 @@ COCO_CLASSES = [
 # ======================
 
 parser = get_base_parser("Semantic Segment Anything", IMAGE_PATH, SAVE_IMAGE_PATH)
+parser.add_argument(
+    "-m",
+    "--model_type",
+    default="ade20k",
+    choices=("ade20k", "cityscapes"),
+    help="Segformer dataset to use for semantic labels.",
+)
 parser.add_argument("--onnx", action="store_true", help="Execute onnxruntime version.")
 args = update_parser(parser)
-
-
-# ======================
-# LazyModel
-# ======================
-
-
-class LazyModel:
-    """Defers model loading until the first predict/run call."""
-
-    def __init__(self, loader_fn, name=""):
-        self._loader_fn = loader_fn
-        self._name = name
-        self._net = None
-
-    def load(self):
-        if self._net is None:
-            logger.info(f"Loading model: {self._name}")
-            self._net = self._loader_fn()
-        return self._net
-
-    def unload(self):
-        if self._net is not None:
-            self._net = None
-            gc.collect()
-
-    def predict(self, *args, **kwargs):
-        return self.load().predict(*args, **kwargs)
-
-    def run(self, *args, **kwargs):
-        return self.load().run(*args, **kwargs)
 
 
 # ======================
@@ -311,32 +234,27 @@ def draw_result(img_bgr, semantc_mask, class_names):
 
 
 # ======================
-# SAM utilities
+# Utilities
 # ======================
 
 
-def generate_crop_boxes(im_size, n_layers, overlap_ratio):
-    crop_boxes, layer_idxs = [], []
-    im_h, im_w = im_size
+def generate_crop_boxes(im_h, im_w, n_layers, overlap_ratio=512 / 1500):
+    """Replicates SAM amg.generate_crop_boxes."""
+    crop_boxes = [[0, 0, im_w, im_h]]
+    layer_idxs = [0]
     short_side = min(im_h, im_w)
 
-    crop_boxes.append([0, 0, im_w, im_h])
-    layer_idxs.append(0)
-
-    def crop_len(orig_len, n_crops, overlap):
-        return int(math.ceil((overlap * (n_crops - 1) + orig_len) / n_crops))
-
     for i_layer in range(n_layers):
-        n_crops_per_side = 2 ** (i_layer + 1)
-        overlap = int(overlap_ratio * short_side * (2 / n_crops_per_side))
+        n_crops = 2 ** (i_layer + 1)
+        overlap = int(overlap_ratio * short_side * (2.0 / n_crops))
 
-        crop_w = crop_len(im_w, n_crops_per_side, overlap)
-        crop_h = crop_len(im_h, n_crops_per_side, overlap)
+        crop_w = math.ceil((overlap * (n_crops - 1) + im_w) / n_crops)
+        crop_h = math.ceil((overlap * (n_crops - 1) + im_h) / n_crops)
 
-        crop_box_x0 = [int((crop_w - overlap) * i) for i in range(n_crops_per_side)]
-        crop_box_y0 = [int((crop_h - overlap) * i) for i in range(n_crops_per_side)]
+        x0s = [int((crop_w - overlap) * i) for i in range(n_crops)]
+        y0s = [int((crop_h - overlap) * i) for i in range(n_crops)]
 
-        for x0, y0 in itertools.product(crop_box_x0, crop_box_y0):
+        for x0, y0 in itertools.product(x0s, y0s):
             box = [x0, y0, min(x0 + crop_w, im_w), min(y0 + crop_h, im_h)]
             crop_boxes.append(box)
             layer_idxs.append(i_layer + 1)
@@ -370,11 +288,13 @@ def is_box_near_crop_edge(boxes, crop_box, orig_box, atol=20.0):
 
 def remove_small_regions(mask, area_thresh, mode):
     """Remove small disconnected regions and holes in a mask (requires cv2)."""
+    import cv2
+
     assert mode in ["holes", "islands"]
     correct_holes = mode == "holes"
     working_mask = (correct_holes ^ mask).astype(np.uint8)
     n_labels, regions, stats, _ = cv2.connectedComponentsWithStats(working_mask, 8)
-    sizes = stats[:, -1][1:]
+    sizes = stats[:, -1][1:]  # row 0 is background label
     small_regions = [i + 1 for i, s in enumerate(sizes) if s < area_thresh]
     if len(small_regions) == 0:
         return mask, False
@@ -446,13 +366,13 @@ def box_nms(boxes, scores, iou_threshold):
         inter = inter_w * inter_h
         iou = inter / (areas[i] + areas[order] - inter + 1e-6)
         suppress_mask = iou > iou_threshold
-        suppress_mask[0] = False
+        suppress_mask[0] = False  # don't suppress self (order[0] == i)
         suppressed[order[suppress_mask]] = True
     return kept
 
 
 # ======================
-# SAM preprocessing / inference
+# SAM preprocessing helpers
 # ======================
 
 
@@ -464,6 +384,7 @@ def get_preprocess_shape(h, w, long_side):
 
 
 def preprocess_sam(img):
+    """Resize, normalize and pad image for SAM encoder. Returns (tensor, new_h, new_w)."""
     im_h, im_w = img.shape[:2]
     new_h, new_w = get_preprocess_shape(im_h, im_w, SAM_TARGET)
 
@@ -480,6 +401,81 @@ def preprocess_sam(img):
     return img, new_h, new_w
 
 
+# ======================
+# Segformer preprocessing
+# ======================
+
+
+def preprocess_segformer(img, model_type):
+    """Resize with PIL BILINEAR (matching SegformerFeatureExtractor) and normalize."""
+    target_h, target_w = SEGFORMER_SIZE[model_type]
+    img = np.array(Image.fromarray(img).resize((target_w, target_h), Image.BILINEAR))
+    img = normalize_image(img, "ImageNet")
+    img = img.transpose(2, 0, 1)[None].astype(np.float32)
+    return img
+
+
+def resize_logits_align_corners(logits, out_h, out_w):
+    """
+    Upsample (C, in_h, in_w) logits to (C, out_h, out_w) using bilinear
+    interpolation with align_corners=True, matching:
+        F.interpolate(logits, size=(h,w), mode='bilinear', align_corners=True)
+    """
+    c, in_h, in_w = logits.shape
+    # align_corners=True coordinate mapping: i * (in-1)/(out-1)
+    y = np.arange(out_h, dtype=np.float32) * ((in_h - 1) / max(out_h - 1, 1))
+    x = np.arange(out_w, dtype=np.float32) * ((in_w - 1) / max(out_w - 1, 1))
+    y0 = np.floor(y).astype(np.int64).clip(0, in_h - 1)
+    x0 = np.floor(x).astype(np.int64).clip(0, in_w - 1)
+    y1 = (y0 + 1).clip(0, in_h - 1)
+    x1 = (x0 + 1).clip(0, in_w - 1)
+    wy = (y - y0).astype(np.float32)  # (out_h,)
+    wx = (x - x0).astype(np.float32)  # (out_w,)
+    # weights: (out_h, out_w)
+    wa = (1 - wy)[:, None] * (1 - wx)[None, :]
+    wb = (1 - wy)[:, None] * wx[None, :]
+    wc = wy[:, None] * (1 - wx)[None, :]
+    wd = wy[:, None] * wx[None, :]
+    out = (
+        logits[:, y0[:, None], x0[None, :]] * wa
+        + logits[:, y0[:, None], x1[None, :]] * wb
+        + logits[:, y1[:, None], x0[None, :]] * wc
+        + logits[:, y1[:, None], x1[None, :]] * wd
+    )
+    return out
+
+
+# ======================
+# Segformer inference
+# ======================
+
+
+def run_segformer(models, img):
+    """Returns (H, W) class index map at original image resolution."""
+    im_h, im_w = img.shape[:2]
+    img_tensor = preprocess_segformer(img, args.model_type)
+
+    net = models["segformer"]
+    if not args.onnx:
+        output = net.predict([img_tensor])
+    else:
+        output = net.run(None, {"pixel_values": img_tensor})
+    logits = output[0]
+    logits = logits[0]  # (C, logit_h, logit_w)
+
+    # Upsample logits to original size BEFORE argmax (matching segformer.py:
+    #   F.interpolate(logits, size=(h,w), mode='bilinear', align_corners=True))
+    logits_up = resize_logits_align_corners(logits, im_h, im_w)
+    class_ids = np.argmax(logits_up, axis=0).astype(np.uint8)
+
+    return class_ids
+
+
+# ======================
+# SAM inference
+# ======================
+
+
 def run_sam_encoder(models, image):
     input_image, new_h, new_w = preprocess_sam(image)
 
@@ -494,14 +490,19 @@ def run_sam_encoder(models, image):
 
 
 def process_crop(models, img, crop_box, point_grid, im_h, im_w):
+    """
+    Run SAM encoder + decoder on one crop. Returns (bin_masks, scores, boxes).
+    Each mask is boolean (im_h, im_w) in full-image coordinates.
+    """
     x0, y0, x1, y1 = crop_box
     crop_img = img[y0:y1, x0:x1]
 
     image_embedding, new_h, new_w = run_sam_encoder(models, crop_img)
 
+    # Scale normalized [0,1] grid to encoder input space
     pts_sam = np.zeros_like(point_grid)
-    pts_sam[:, 0] = point_grid[:, 0] * new_w
-    pts_sam[:, 1] = point_grid[:, 1] * new_h
+    pts_sam[:, 0] = point_grid[:, 0] * new_w  # x in encoder input space
+    pts_sam[:, 1] = point_grid[:, 1] * new_h  # y in encoder input space
 
     dec = models["sam_dec"]
     mask_list = []
@@ -510,11 +511,11 @@ def process_crop(models, img, crop_box, point_grid, im_h, im_w):
 
     BATCH_SIZE = 64
     for i in tqdm(range(0, len(pts_sam), BATCH_SIZE), desc="Processing batches"):
-        batch_pts = pts_sam[i : i + BATCH_SIZE]
+        batch_pts = pts_sam[i : i + BATCH_SIZE]  # (B, 2)
         B = len(batch_pts)
-        coords = batch_pts[:, None, :].astype(np.float32)
-        labels = np.ones((B, 1), dtype=np.float32)
-        emb = np.repeat(image_embedding, B, axis=0)
+        coords = batch_pts[:, None, :].astype(np.float32)  # (B, 1, 2)
+        labels = np.ones((B, 1), dtype=np.float32)  # (B, 1) foreground
+        emb = np.repeat(image_embedding, B, axis=0)  # (B, C, H, W)
 
         if not args.onnx:
             output = dec.predict(
@@ -539,10 +540,12 @@ def process_crop(models, img, crop_box, point_grid, im_h, im_w):
                     "pp_crop_box": np.array(crop_box, dtype=np.int64),
                 },
             )
-        batch_masks, batch_iou_preds = output
+        batch_masks, batch_iou_preds = output  # (B*3, crop_h, crop_w), (B, 3)
 
-        masks = batch_masks.reshape(-1, batch_masks.shape[-2], batch_masks.shape[-1])
-        iou_preds = batch_iou_preds.reshape(-1)
+        masks = batch_masks.reshape(
+            -1, batch_masks.shape[-2], batch_masks.shape[-1]
+        )  # (B*3, crop_h, crop_w)
+        iou_preds = batch_iou_preds.reshape(-1)  # (B*3,)
 
         # Filter by predicted IoU
         keep_mask = iou_preds > PRED_IOU_THRESH
@@ -559,8 +562,8 @@ def process_crop(models, img, crop_box, point_grid, im_h, im_w):
 
         # Threshold masks and calculate boxes
         x0, y0, x1, y1 = crop_box
-        crop_bool = masks > 0
-        boxes_crop = masks_to_boxes(crop_bool)
+        crop_bool = masks > 0  # (M, crop_h, crop_w)
+        boxes_crop = masks_to_boxes(crop_bool)  # (M, 4) in crop coords
 
         # Filter boxes that touch crop boundaries
         boxes = boxes_crop + np.array([x0, y0, x0, y0], dtype=boxes_crop.dtype)
@@ -577,9 +580,9 @@ def process_crop(models, img, crop_box, point_grid, im_h, im_w):
         score_list.extend(iou_preds)
         box_list.extend(boxes)
 
-    masks = np.array(mask_list)
-    scores = np.array(score_list)
-    boxes = np.array(box_list)
+    masks = np.array(mask_list)  # (N, im_h, im_w)
+    scores = np.array(score_list)  # (N,)
+    boxes = np.array(box_list)  # (N, 4)
 
     if len(masks) == 0:
         return masks, scores, boxes
@@ -595,11 +598,10 @@ def process_crop(models, img, crop_box, point_grid, im_h, im_w):
 
 
 def generate_all_masks(models, img):
+    """Full automatic mask generation matching SAM's SamAutomaticMaskGenerator."""
     im_h, im_w = img.shape[:2]
 
-    crop_boxes, layer_idxs = generate_crop_boxes(
-        (im_h, im_w), CROP_N_LAYERS, 512 / 1500
-    )
+    crop_boxes, layer_idxs = generate_crop_boxes(im_h, im_w, CROP_N_LAYERS)
 
     # Build point grids for all layers
     point_grids = [
@@ -643,111 +645,49 @@ def generate_all_masks(models, img):
 
 
 # ======================
-# OneFormer preprocessing / inference
-# ======================
-
-
-def preprocess_oneformer(img):
-    im_h, im_w = img.shape[:2]
-    scale = ONEFORMER_SHORT_EDGE / min(im_h, im_w)
-    new_h = int(round(im_h * scale))
-    new_w = int(round(im_w * scale))
-    if max(new_h, new_w) > ONEFORMER_MAX_SIZE:
-        scale = ONEFORMER_MAX_SIZE / max(new_h, new_w)
-        new_h = int(round(new_h * scale))
-        new_w = int(round(new_w * scale))
-    img = np.array(Image.fromarray(img).resize((new_w, new_h), Image.BILINEAR))
-    img = normalize_image(img, "ImageNet")
-    return img.transpose(2, 0, 1)[None].astype(np.float32)
-
-
-def resize_bilinear(feat, out_h, out_w):
-    """Bilinear resize (C, in_h, in_w) -> (C, out_h, out_w), align_corners=False."""
-    c, in_h, in_w = feat.shape
-    y = (np.arange(out_h, dtype=np.float32) + 0.5) * in_h / out_h - 0.5
-    x = (np.arange(out_w, dtype=np.float32) + 0.5) * in_w / out_w - 0.5
-    y = np.clip(y, 0.0, in_h - 1.0)
-    x = np.clip(x, 0.0, in_w - 1.0)
-    y0 = np.floor(y).astype(np.int64).clip(0, in_h - 1)
-    x0 = np.floor(x).astype(np.int64).clip(0, in_w - 1)
-    y1 = (y0 + 1).clip(0, in_h - 1)
-    x1 = (x0 + 1).clip(0, in_w - 1)
-    wy = (y - y0).astype(np.float32)
-    wx = (x - x0).astype(np.float32)
-    wa = (1 - wy)[:, None] * (1 - wx)[None, :]
-    wb = (1 - wy)[:, None] * wx[None, :]
-    wc = wy[:, None] * (1 - wx)[None, :]
-    wd = wy[:, None] * wx[None, :]
-    return (
-        feat[:, y0[:, None], x0[None, :]] * wa
-        + feat[:, y0[:, None], x1[None, :]] * wb
-        + feat[:, y1[:, None], x0[None, :]] * wc
-        + feat[:, y1[:, None], x1[None, :]] * wd
-    )
-
-
-def oneformer_postprocess(
-    class_queries_logits, masks_queries_logits, target_h, target_w
-):
-    """OneFormer outputs -> (H, W) class ID map."""
-    # Remove null class (last entry), matching transformers post_process_semantic_segmentation
-    masks_classes = softmax(class_queries_logits, axis=-1)[..., :-1]  # (1, Q, C)
-    masks_probs = sigmoid(masks_queries_logits)  # (1, Q, H', W')
-    segmentation = np.einsum(
-        "bqc,bqhw->bchw", masks_classes, masks_probs
-    )  # (1, C, H', W')
-    seg_up = resize_bilinear(segmentation[0], target_h, target_w)  # (C, H, W)
-    return np.argmax(seg_up, axis=0).astype(np.int32)
-
-
-def run_oneformer(net, img):
-    im_h, im_w = img.shape[:2]
-    img_tensor = preprocess_oneformer(img)
-
-    if not args.onnx:
-        output = net.predict([img_tensor])
-    else:
-        output = net.run(None, {"pixel_values": img_tensor})
-    class_queries_logits, masks_queries_logits = output
-
-    return oneformer_postprocess(class_queries_logits, masks_queries_logits, im_h, im_w)
-
-
-# ======================
-# Main predict function  (semantic_annotation_pipeline equivalent)
+# Main
 # ======================
 
 
 def predict(models, img):
-    # --- SAM: generate masks -----------------------------------------------
     logger.info("Generating SAM masks...")
     masks, scores, boxes = generate_all_masks(models, img)
     masks, scores, boxes = postprocess_small_regions(
-        masks, scores, boxes, MIN_MASK_REGION_AREA, max(BOX_NMS_THRESH, CROP_NMS_THRESH)
+        masks,
+        scores,
+        boxes,
+        MIN_MASK_REGION_AREA,
+        max(BOX_NMS_THRESH, CROP_NMS_THRESH),
     )
-    models["sam_enc"].unload()
-    models["sam_dec"].unload()
     logger.info(f"{len(masks)} masks after filtering")
 
-    if not masks:
-        return [], []
+    class_names = ADE20K_CLASSES if args.model_type == "ade20k" else CITYSCAPES_CLASSES
+
+    logger.info("Running Segformer...")
+    class_ids = run_segformer(models, img)  # (H, W)
+
+    # Start semantic mask from Segformer result
+    semantc_mask = class_ids.copy().astype(np.int32)
 
     # Sort by area descending (largest first)
-    areas = np.array([m.sum() for m in masks])
-    order = np.argsort(areas)[::-1]
-    masks = [masks[i] for i in order]
-    boxes = boxes[order]
+    if masks:
+        areas = np.array([m.sum() for m in masks])
+        order = np.argsort(areas)[::-1]
+        masks = [masks[i] for i in order]
 
-    # --- OneFormer: full-image semantic class maps --------------------------
-    logger.info("Running OneFormer COCO...")
-    net = models["oneformer_coco"]
-    coco_ids = run_oneformer(net, img)  # (H, W), values 0-132
-    models["oneformer_coco"].unload()
+    # Vote class per SAM mask and update semantic_mask
+    for mask in masks:
+        if not mask.any():
+            continue
+        propose_classes = class_ids[mask].astype(np.int32)
+        unique_classes = np.unique(propose_classes)
+        if len(unique_classes) == 1:
+            semantc_mask[mask] = unique_classes[0]
+        else:
+            top1 = int(np.bincount(propose_classes).argmax())
+            semantc_mask[mask] = top1
 
-    logger.info("Running OneFormer ADE20K...")
-    net = models["oneformer_ade20k"]
-    ade20k_ids = run_oneformer(net, img)  # (H, W), values 0-149
-    models["oneformer_ade20k"].unload()
+    return semantc_mask, class_names
 
 
 def recognize_from_image(models):
@@ -788,17 +728,15 @@ def main():
     check_and_download_models(WEIGHT_SAM_ENC_PATH, MODEL_SAM_ENC_PATH, REMOTE_PATH)
     check_and_download_file(DATA_SAM_ENC_PATH, REMOTE_PATH)
     check_and_download_models(WEIGHT_SAM_DEC_PATH, MODEL_SAM_DEC_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_CLIP_VIS_PATH, MODEL_CLIP_VIS_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_CLIP_TXT_PATH, MODEL_CLIP_TXT_PATH, REMOTE_PATH)
-    check_and_download_models(
-        WEIGHT_ONEFORMER_ADE20K_PATH, MODEL_ONEFORMER_ADE20K_PATH, REMOTE_PATH
-    )
-    check_and_download_models(
-        WEIGHT_ONEFORMER_COCO_PATH, MODEL_ONEFORMER_COCO_PATH, REMOTE_PATH
-    )
-    check_and_download_models(WEIGHT_CLIPSEG_PATH, MODEL_CLIPSEG_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_BLIP_VIS_PATH, MODEL_BLIP_VIS_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_BLIP_DEC_PATH, MODEL_BLIP_DEC_PATH, REMOTE_PATH)
+
+    if args.model_type == "ade20k":
+        check_and_download_models(
+            WEIGHT_SEG_ADE20K_PATH, MODEL_SEG_ADE20K_PATH, REMOTE_PATH
+        )
+    else:
+        check_and_download_models(
+            WEIGHT_SEG_CITY_PATH, MODEL_SEG_CITY_PATH, REMOTE_PATH
+        )
 
     env_id = args.env_id
 
@@ -809,80 +747,51 @@ def main():
             reduce_interstage=False,
             reuse_interstage=True,
         )
-
-        def _net(model_path, weight_path):
-            return ailia.Net(
-                model_path, weight_path, env_id=env_id, memory_mode=memory_mode
+        sam_enc = ailia.Net(
+            MODEL_SAM_ENC_PATH,
+            WEIGHT_SAM_ENC_PATH,
+            env_id=env_id,
+            memory_mode=memory_mode,
+        )
+        sam_dec = ailia.Net(
+            MODEL_SAM_DEC_PATH,
+            WEIGHT_SAM_DEC_PATH,
+            env_id=env_id,
+            memory_mode=memory_mode,
+        )
+        if args.model_type == "ade20k":
+            segformer = ailia.Net(
+                MODEL_SEG_ADE20K_PATH,
+                WEIGHT_SEG_ADE20K_PATH,
+                env_id=env_id,
+                memory_mode=memory_mode,
             )
-
-        sam_enc = LazyModel(
-            lambda: _net(MODEL_SAM_ENC_PATH, WEIGHT_SAM_ENC_PATH), "sam_enc"
-        )
-        sam_dec = LazyModel(
-            lambda: _net(MODEL_SAM_DEC_PATH, WEIGHT_SAM_DEC_PATH), "sam_dec"
-        )
-        clip_vis = LazyModel(
-            lambda: _net(MODEL_CLIP_VIS_PATH, WEIGHT_CLIP_VIS_PATH), "clip_vis"
-        )
-        clip_txt = LazyModel(
-            lambda: _net(MODEL_CLIP_TXT_PATH, WEIGHT_CLIP_TXT_PATH), "clip_txt"
-        )
-        oneformer_ade20k = LazyModel(
-            lambda: _net(MODEL_ONEFORMER_ADE20K_PATH, WEIGHT_ONEFORMER_ADE20K_PATH),
-            "oneformer_ade20k",
-        )
-        oneformer_coco = LazyModel(
-            lambda: _net(MODEL_ONEFORMER_COCO_PATH, WEIGHT_ONEFORMER_COCO_PATH),
-            "oneformer_coco",
-        )
-        clipseg = LazyModel(
-            lambda: _net(MODEL_CLIPSEG_PATH, WEIGHT_CLIPSEG_PATH), "clipseg"
-        )
-        blip_vis = LazyModel(
-            lambda: _net(MODEL_BLIP_VIS_PATH, WEIGHT_BLIP_VIS_PATH), "blip_vis"
-        )
-        blip_dec = LazyModel(
-            lambda: _net(MODEL_BLIP_DEC_PATH, WEIGHT_BLIP_DEC_PATH), "blip_dec"
-        )
+        else:
+            segformer = ailia.Net(
+                MODEL_SEG_CITY_PATH,
+                WEIGHT_SEG_CITY_PATH,
+                env_id=env_id,
+                memory_mode=memory_mode,
+            )
     else:
         import onnxruntime
 
-        sess_options = onnxruntime.SessionOptions()
-        sess_options.enable_mem_pattern = False
-        providers = [
-            ("CUDAExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
-            "CPUExecutionProvider",
-        ]
-
-        def _sess(path):
-            return onnxruntime.InferenceSession(
-                path, sess_options=sess_options, providers=providers
+        providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        sam_enc = onnxruntime.InferenceSession(WEIGHT_SAM_ENC_PATH, providers=providers)
+        sam_dec = onnxruntime.InferenceSession(WEIGHT_SAM_DEC_PATH, providers=providers)
+        if args.model_type == "ade20k":
+            segformer = onnxruntime.InferenceSession(
+                WEIGHT_SEG_ADE20K_PATH, providers=providers
             )
-
-        sam_enc = LazyModel(lambda: _sess(WEIGHT_SAM_ENC_PATH), "sam_enc")
-        sam_dec = LazyModel(lambda: _sess(WEIGHT_SAM_DEC_PATH), "sam_dec")
-        clip_vis = LazyModel(lambda: _sess(WEIGHT_CLIP_VIS_PATH), "clip_vis")
-        clip_txt = LazyModel(lambda: _sess(WEIGHT_CLIP_TXT_PATH), "clip_txt")
-        oneformer_ade20k = LazyModel(
-            lambda: _sess(WEIGHT_ONEFORMER_ADE20K_PATH), "oneformer_ade20k"
-        )
-        oneformer_coco = LazyModel(
-            lambda: _sess(WEIGHT_ONEFORMER_COCO_PATH), "oneformer_coco"
-        )
-        clipseg = LazyModel(lambda: _sess(WEIGHT_CLIPSEG_PATH), "clipseg")
-        blip_vis = LazyModel(lambda: _sess(WEIGHT_BLIP_VIS_PATH), "blip_vis")
-        blip_dec = LazyModel(lambda: _sess(WEIGHT_BLIP_DEC_PATH), "blip_dec")
+        else:
+            segformer = onnxruntime.InferenceSession(
+                WEIGHT_SEG_CITY_PATH, providers=providers
+            )
 
     models = {
         "sam_enc": sam_enc,
         "sam_dec": sam_dec,
-        "clip_vis": clip_vis,
-        "clip_txt": clip_txt,
-        "oneformer_ade20k": oneformer_ade20k,
-        "oneformer_coco": oneformer_coco,
-        "clipseg": clipseg,
-        "blip_vis": blip_vis,
-        "blip_dec": blip_dec,
+        "segformer": segformer,
     }
 
     recognize_from_image(models)
