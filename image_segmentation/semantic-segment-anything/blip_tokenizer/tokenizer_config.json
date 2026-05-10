@@ -1,0 +1,20 @@
+{
+  "cls_token": "[CLS]",
+  "do_basic_tokenize": true,
+  "do_lower_case": true,
+  "mask_token": "[MASK]",
+  "model_input_names": [
+    "input_ids",
+    "attention_mask"
+  ],
+  "model_max_length": 512,
+  "never_split": null,
+  "pad_token": "[PAD]",
+  "processor_class": "BlipProcessor",
+  "sep_token": "[SEP]",
+  "special_tokens_map_file": null,
+  "strip_accents": null,
+  "tokenize_chinese_chars": true,
+  "tokenizer_class": "BertTokenizer",
+  "unk_token": "[UNK]"
+}

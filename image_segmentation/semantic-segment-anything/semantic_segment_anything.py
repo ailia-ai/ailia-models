@@ -8,17 +8,21 @@ from logging import getLogger
 import ailia
 import cv2
 import numpy as np
+import spacy
 from PIL import Image
 from tqdm import tqdm
+from transformers import BertTokenizerFast, CLIPTokenizerFast
 
 sys.path.append("../../util")
 from arg_utils import get_base_parser, get_savepath, update_parser
 from detector_utils import load_image
+from image_utils import normalize_image
 from math_utils import sigmoid, softmax
 from model_utils import check_and_download_file, check_and_download_models
-from image_utils import normalize_image
 
 logger = getLogger(__name__)
+
+_nlp = spacy.load("en_core_web_sm")
 
 
 # ======================
@@ -187,14 +191,8 @@ class LazyModel:
 # ======================
 
 
-def draw_result(img_bgr, semantc_mask, class_names):
-    """Replicate mmdet imshow_det_bboxes for semantic masks.
-
-    Matches the original pipeline.py call:
-        imshow_det_bboxes(img, bboxes=None, labels=np.arange(N),
-                          segms=np.stack(bitmasks), class_names=names,
-                          font_size=25, show=False, out_file=...)
-    """
+def draw_result(img_bgr, masks, class_names):
+    """Draw per-mask results matching mmdet imshow_det_bboxes behavior."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -204,40 +202,22 @@ def draw_result(img_bgr, semantc_mask, class_names):
 
     EPS = 1e-2
 
-    # Build per-class bitmasks in torch.unique order (sorted ascending)
-    unique_class_ids = np.unique(semantc_mask)
-    N = len(unique_class_ids)
+    N = len(masks)
+    img_rgb = img_bgr[:, :, ::-1].copy().astype(np.uint8)
+    height, width = img_rgb.shape[:2]
 
-    semantic_bitmasks = []
-    semantic_class_names_local = []
-    for class_id in unique_class_ids:
-        semantic_bitmasks.append((semantc_mask == class_id).astype(np.uint8))
-        semantic_class_names_local.append(class_names[int(class_id)])
-
-    # mask colors: get_palette(None, N) → np.random.seed(42), randint(0,256,(N,3))
     state = np.random.get_state()
     np.random.seed(42)
     colors = np.random.randint(0, 256, size=(N, 3)).astype(np.uint8)
     np.random.set_state(state)
 
-    # text color: get_palette('green', N) → mmcv.color_val('green')=(0,255,0) BGR
-    # [::-1] → (0,255,0) RGB, palette_val divides by 255 → (0, 1.0, 0)
     text_color_mpl = (0.0, 1.0, 0.0)
 
-    # Convert BGR→RGB (imshow_det_bboxes calls mmcv.bgr2rgb at start)
-    img_rgb = img_bgr[:, :, ::-1].copy().astype(np.uint8)
-    height, width = img_rgb.shape[:2]
-
-    # draw_masks: alpha=0.8, with_edge=True
-    # taken_colors = set([0, 0, 0]) = {0} in Python (a set with one int)
-    # tuple(color_mask) is never in {0}, so color bias never fires
-    taken_colors = {0}
+    taken_colors = set([0, 0, 0])
     polygons = []
-    for i, mask in enumerate(semantic_bitmasks):
-        # bitmap_to_polygon equivalent
-        contours, _ = cv2.findContours(
-            np.ascontiguousarray(mask), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
-        )
+    for i, mask in enumerate(masks):
+        mask_u8 = np.ascontiguousarray(mask.astype(np.uint8))
+        contours, _ = cv2.findContours(mask_u8, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
         for c in contours:
             pts = c.reshape(-1, 2)
             if len(pts) >= 2:
@@ -273,15 +253,15 @@ def draw_result(img_bgr, semantc_mask, class_names):
         )
         ax.add_collection(p)
 
-    # Text labels: centroid of largest connected component, adaptive font size
-    for i, (mask, name) in enumerate(
-        zip(semantic_bitmasks, semantic_class_names_local)
-    ):
-        _, _, stats, centroids = cv2.connectedComponentsWithStats(mask, connectivity=8)
+    for mask, name in zip(masks, class_names):
+        mask_u8 = mask.astype(np.uint8)
+        _, _, stats, centroids = cv2.connectedComponentsWithStats(
+            mask_u8, connectivity=8
+        )
         if len(stats) < 2:
             continue
         largest_id = int(np.argmax(stats[1:, -1])) + 1
-        pos = centroids[largest_id]  # (x, y)
+        pos = centroids[largest_id]
         area = float(stats[largest_id, -1])
         scale = float(np.clip(0.5 + (area - 800) / (30000 - 800), 0.5, 1.0))
 
@@ -504,6 +484,8 @@ def process_crop(models, img, crop_box, point_grid, im_h, im_w):
     pts_sam[:, 1] = point_grid[:, 1] * new_h
 
     dec = models["sam_dec"]
+    dec.load()
+
     mask_list = []
     score_list = []
     box_list = []
@@ -714,6 +696,188 @@ def run_oneformer(net, img):
 
 
 # ======================
+# CLIP text tokenizer
+# ======================
+
+
+def clip_tokenize(models, texts):
+    tok = models["clip_tokenizer"]
+    enc = tok(
+        texts,
+        return_tensors="np",
+        padding=True,
+        truncation=True,
+        max_length=77,
+    )
+    return enc["input_ids"].astype(np.int64), enc["attention_mask"].astype(np.int64)
+
+
+# ======================
+# CLIP vision / text inference
+# ======================
+
+
+def preprocess_clip_image(img):
+    img = Image.fromarray(img).resize((224, 224), Image.BICUBIC)
+    img = np.array(img, dtype=np.float32) / 255.0
+    img = (img - CLIP_MEAN) / CLIP_STD
+    return img.transpose(2, 0, 1)[None].astype(np.float32)
+
+
+def run_clip_text(models, texts):
+    """Encode list of texts -> (N, D) L2-normalised embeddings."""
+    input_ids, attention_mask = clip_tokenize(models, texts)
+    net = models["clip_txt"]
+    if not args.onnx:
+        output = net.predict([input_ids, attention_mask])
+    else:
+        output = net.run(
+            None, {"input_ids": input_ids, "attention_mask": attention_mask}
+        )
+    return output[0]  # (N, D)
+
+
+def run_clip_vision(models, img):
+    """Encode image patch -> (D,) L2-normalised embedding."""
+    img_tensor = preprocess_clip_image(img)
+    net = models["clip_vis"]
+    if not args.onnx:
+        output = net.predict([img_tensor])
+    else:
+        output = net.run(None, {"pixel_values": img_tensor})
+    return output[0][0]  # (D,)
+
+
+# ======================
+# CLIPSeg inference
+# ======================
+
+
+def preprocess_clipseg_image(img_np, n_classes):
+    """Resize to 512x512, normalise with CLIP stats -> (n, 3, 512, 512)."""
+    img = cv2.resize(img_np, (512, 512), interpolation=cv2.INTER_LINEAR)
+    img = img.astype(np.float32) / 255.0
+    img = (img - CLIP_MEAN) / CLIP_STD
+    tile = img.transpose(2, 0, 1)  # (3, 512, 512)
+    return np.repeat(tile[None], n_classes, axis=0).astype(np.float32)
+
+
+def clipseg_segmentation(models, img_crop, class_names):
+    """Run CLIPSeg on a crop for each class_name -> (N, H, W) logits (crop size)."""
+    h, w = img_crop.shape[:2]
+    n = len(class_names)
+    input_ids, attention_mask = clip_tokenize(models, class_names)
+    pixel_values = preprocess_clipseg_image(img_crop, n)
+
+    net = models["clipseg"]
+    if not args.onnx:
+        output = net.predict([input_ids, attention_mask, pixel_values])
+    else:
+        output = net.run(
+            None,
+            {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "pixel_values": pixel_values,
+            },
+        )
+    logits = output[0]  # (N, H', W')
+    return resize_bilinear(logits, h, w)  # (N, H, W)
+
+
+# ======================
+# BLIP inference
+# ======================
+
+
+def preprocess_blip_image(img_bgr_np):
+    """(H,W,3) uint8 BGR -> (1,3,384,384) float32 with CLIP/BLIP normalisation.
+    NOTE: passes BGR as-is (no channel swap) to match original pipeline.py behavior,
+    where mmcv BGR patches are fed directly to BlipProcessor without RGB conversion."""
+    img = Image.fromarray(img_bgr_np).resize((384, 384), Image.BICUBIC)
+    img = np.array(img, dtype=np.float32) / 255.0
+    img = (img - CLIP_MEAN) / CLIP_STD
+    return img.transpose(2, 0, 1)[None].astype(np.float32)
+
+
+def get_noun_phrases(text):
+    return [chunk.text for chunk in _nlp(text).noun_chunks]
+
+
+def open_vocabulary_classification_blip(models, pixel_values):
+    """Greedy decode a caption from pixel_values (1,3,384,384) using BLIP ONNX."""
+    vis_net = models["blip_vis"]
+    if not args.onnx:
+        image_embeds = vis_net.predict([pixel_values])[0]
+    else:
+        image_embeds = vis_net.run(None, {"pixel_values": pixel_values})[0]
+
+    img_seq_len = image_embeds.shape[1]
+    encoder_attention_mask = np.ones((1, img_seq_len), dtype=np.int64)
+
+    dec_net = models["blip_dec"]
+    input_ids = np.array([[BLIP_BOS_TOKEN_ID]], dtype=np.int64)
+
+    for _ in range(BLIP_MAX_NEW_TOKENS):
+        attention_mask = np.ones_like(input_ids, dtype=np.int64)
+        if not args.onnx:
+            logits = dec_net.predict(
+                [input_ids, attention_mask, image_embeds, encoder_attention_mask]
+            )[0]
+        else:
+            logits = dec_net.run(
+                None,
+                {
+                    "input_ids": input_ids,
+                    "attention_mask": attention_mask,
+                    "encoder_hidden_states": image_embeds,
+                    "encoder_attention_mask": encoder_attention_mask,
+                },
+            )[0]
+        next_token = int(np.argmax(logits[0, -1, :]))
+        if next_token == BLIP_SEP_TOKEN_ID:
+            break
+        input_ids = np.concatenate(
+            [input_ids, np.array([[next_token]], dtype=np.int64)], axis=1
+        )
+
+    tokenizer = models["blip_tokenizer"]
+    caption = tokenizer.decode(input_ids[0].tolist(), skip_special_tokens=True)
+    return get_noun_phrases(caption)
+
+
+# ======================
+# Crop utility
+# ======================
+
+
+def imcrop_scale(img, bbox_xyxy, scale):
+    """Crop img at bbox (x1,y1,x2,y2) expanded by scale. Matches mmcv.imcrop."""
+    x1, y1, x2, y2 = (
+        int(bbox_xyxy[0]),
+        int(bbox_xyxy[1]),
+        int(bbox_xyxy[2]),
+        int(bbox_xyxy[3]),
+    )
+    w = float(x2 - x1 + 1)
+    h = float(y2 - y1 + 1)
+    dw = w * (scale - 1) * 0.5
+    dh = h * (scale - 1) * 0.5
+    nx1 = int(x1 - dw)
+    ny1 = int(y1 - dh)
+    nx2 = int(x2 + dw)
+    ny2 = int(y2 + dh)
+    nx1 = max(0, min(img.shape[1] - 1, nx1))
+    ny1 = max(0, min(img.shape[0] - 1, ny1))
+    nx2 = max(0, min(img.shape[1] - 1, nx2))
+    ny2 = max(0, min(img.shape[0] - 1, ny2))
+    patch = img[ny1 : ny2 + 1, nx1 : nx2 + 1]
+    if patch.size == 0:
+        return img[0:1, 0:1]
+    return patch
+
+
+# ======================
 # Main predict function  (semantic_annotation_pipeline equivalent)
 # ======================
 
@@ -748,6 +912,123 @@ def predict(models, img):
     net = models["oneformer_ade20k"]
     ade20k_ids = run_oneformer(net, img)  # (H, W), values 0-149
     models["oneformer_ade20k"].unload()
+
+    # --- Pre-encode all class names with CLIP text encoder -----------------
+    logger.info("Encoding class names with CLIP text encoder...")
+    all_classes = list(dict.fromkeys(ADE20K_CLASSES + COCO_CLASSES))  # deduped
+    BATCH = 64
+    text_embs_list = []
+    for i in range(0, len(all_classes), BATCH):
+        text_embs_list.append(run_clip_text(models, all_classes[i : i + BATCH]))
+    all_text_embs = np.concatenate(text_embs_list, axis=0)  # (N_all, D)
+    # Build name->embedding cache; clip_txt stays loaded for novel BLIP nouns
+    name_to_emb = {n: all_text_embs[i] for i, n in enumerate(all_classes)}
+
+    # --- Per-mask annotation -----------------------------------------------
+    logger.info("Annotating masks with CLIP + CLIPSeg...")
+    models["blip_vis"].load()
+    models["blip_dec"].load()
+    models["clip_vis"].load()
+    models["clipseg"].load()
+    mask_class_names = []
+
+    for mask, box in tqdm(zip(masks, boxes), total=len(masks), desc="Annotating"):
+        if not mask.any():
+            mask_class_names.append("background")
+            continue
+
+        # Top-k candidates from each OneFormer model within this mask
+        ade20k_votes = np.bincount(
+            ade20k_ids[mask].astype(np.int32), minlength=len(ADE20K_CLASSES)
+        )
+        coco_votes = np.bincount(
+            coco_ids[mask].astype(np.int32), minlength=len(COCO_CLASSES)
+        )
+        ade20k_top = np.argsort(ade20k_votes)[::-1][:TOP_K_PER_MODEL]
+        coco_top = np.argsort(coco_votes)[::-1][:TOP_K_PER_MODEL]
+
+        local_candidates = list(
+            dict.fromkeys(
+                [ADE20K_CLASSES[i] for i in ade20k_top]
+                + [COCO_CLASSES[i] for i in coco_top if i < len(COCO_CLASSES)]
+            )
+        )
+
+        # BLIP: add open-vocabulary candidates from image captioning
+        patch_large = imcrop_scale(img, box.tolist(), SCALE_LARGE)
+        if patch_large.size > 0:
+            try:
+                pv = preprocess_blip_image(patch_large)
+                blip_nouns = open_vocabulary_classification_blip(models, pv)
+                local_candidates = list(dict.fromkeys(local_candidates + blip_nouns))
+            except Exception:
+                pass
+
+        if not local_candidates:
+            mask_class_names.append("background")
+            continue
+
+        # CLIP: rank local candidates using a small crop
+        patch_small = imcrop_scale(img, box.tolist(), SCALE_SMALL)
+        if patch_small.size == 0:
+            mask_class_names.append(local_candidates[0])
+            continue
+
+        img_emb = run_clip_vision(models, patch_small)  # (D,)
+
+        # Encode any novel candidates (e.g. BLIP noun phrases) not pre-encoded
+        novel = [n for n in local_candidates if n not in name_to_emb]
+        if novel:
+            novel_embs = run_clip_text(models, novel)
+            for n, e in zip(novel, novel_embs):
+                name_to_emb[n] = e
+
+        local_embs = np.stack([name_to_emb[n] for n in local_candidates], axis=0)
+        sims = img_emb @ local_embs.T  # (len(local),)
+        n_top = min(CLIP_TOP_K, len(local_candidates))
+        top_k_classes = [local_candidates[i] for i in np.argsort(sims)[::-1][:n_top]]
+
+        if len(top_k_classes) == 1:
+            mask_class_names.append(top_k_classes[0])
+            continue
+
+        # CLIPSeg: segment a larger crop, vote within the valid mask region
+        patch_huge = imcrop_scale(img, box.tolist(), SCALE_HUGE)
+        if patch_huge.size == 0:
+            mask_class_names.append(top_k_classes[0])
+            continue
+
+        # Crop the boolean mask to the same region as patch_huge
+        valid_mask_huge = imcrop_scale(
+            mask.astype(np.uint8), box.tolist(), SCALE_HUGE
+        ).astype(bool)
+
+        logits = clipseg_segmentation(models, patch_huge, top_k_classes)  # (k, h, w)
+
+        # Align valid_mask_huge to logits spatial size if needed
+        lh, lw = logits.shape[1], logits.shape[2]
+        if valid_mask_huge.shape != (lh, lw):
+            valid_mask_huge = np.array(
+                Image.fromarray(valid_mask_huge.astype(np.uint8)).resize(
+                    (lw, lh), Image.NEAREST
+                )
+            ).astype(bool)
+
+        pred_ids = np.argmax(logits, axis=0)  # (h, w)
+        valid_preds = pred_ids[valid_mask_huge]
+        if len(valid_preds) == 0:
+            mask_class_names.append(top_k_classes[0])
+            continue
+
+        winner = int(
+            np.bincount(
+                valid_preds.astype(np.int32), minlength=len(top_k_classes)
+            ).argmax()
+        )
+        mask_class_names.append(top_k_classes[winner])
+
+    models["clip_txt"].unload()
+    return masks, mask_class_names
 
 
 def recognize_from_image(models):
@@ -873,6 +1154,9 @@ def main():
         blip_vis = LazyModel(lambda: _sess(WEIGHT_BLIP_VIS_PATH), "blip_vis")
         blip_dec = LazyModel(lambda: _sess(WEIGHT_BLIP_DEC_PATH), "blip_dec")
 
+    blip_tokenizer = BertTokenizerFast.from_pretrained("./blip_tokenizer")
+    clip_tokenizer = CLIPTokenizerFast.from_pretrained("./clip_tokenizer")
+
     models = {
         "sam_enc": sam_enc,
         "sam_dec": sam_dec,
@@ -883,6 +1167,8 @@ def main():
         "clipseg": clipseg,
         "blip_vis": blip_vis,
         "blip_dec": blip_dec,
+        "blip_tokenizer": blip_tokenizer,
+        "clip_tokenizer": clip_tokenizer,
     }
 
     recognize_from_image(models)
