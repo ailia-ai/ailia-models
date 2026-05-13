@@ -1,6 +1,7 @@
 import gc
 import itertools
 import math
+import os
 import sys
 import time
 from logging import getLogger
@@ -20,6 +21,14 @@ from image_utils import normalize_image
 from math_utils import sigmoid, softmax
 from model_utils import check_and_download_file, check_and_download_models
 
+CLIP_BACKEND = "builtin"  # "builtin" | "local"
+
+if CLIP_BACKEND == "builtin":
+    import clip_inference_builtin as clip_inference
+else:
+    import clip_inference_local as clip_inference
+
+
 logger = getLogger(__name__)
 
 _nlp = spacy.load("en_core_web_sm")
@@ -34,10 +43,10 @@ MODEL_SAM_ENC_PATH = "sam_image_encoder.onnx.prototxt"
 DATA_SAM_ENC_PATH = "sam_image_encoder_weights.pb"
 WEIGHT_SAM_DEC_PATH = "sam_mask_decoder.onnx"
 MODEL_SAM_DEC_PATH = "sam_mask_decoder.onnx.prototxt"
-WEIGHT_CLIP_VIS_PATH = "clip_vision_encoder.onnx"
-MODEL_CLIP_VIS_PATH = "clip_vision_encoder.onnx.prototxt"
-WEIGHT_CLIP_TXT_PATH = "clip_text_encoder.onnx"
-MODEL_CLIP_TXT_PATH = "clip_text_encoder.onnx.prototxt"
+WEIGHT_CLIP_VIS_PATH = clip_inference.VIS_WEIGHT
+MODEL_CLIP_VIS_PATH = clip_inference.VIS_MODEL
+WEIGHT_CLIP_TXT_PATH = clip_inference.TXT_WEIGHT
+MODEL_CLIP_TXT_PATH = clip_inference.TXT_MODEL
 WEIGHT_ONEFORMER_ADE20K_PATH = "oneformer_ade20k.onnx"
 MODEL_ONEFORMER_ADE20K_PATH = "oneformer_ade20k.onnx.prototxt"
 WEIGHT_ONEFORMER_COCO_PATH = "oneformer_coco.onnx"
@@ -49,8 +58,9 @@ MODEL_BLIP_VIS_PATH = "blip_vision_encoder.onnx.prototxt"
 WEIGHT_BLIP_DEC_PATH = "blip_text_decoder.onnx"
 MODEL_BLIP_DEC_PATH = "blip_text_decoder.onnx.prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/semantic-segment-anything/"
+CLIP_REMOTE_PATH = clip_inference.REMOTE_PATH
 
-IMAGE_PATH = "demo.png"
+IMAGE_PATH = "sa_10013862.jpg"
 SAVE_IMAGE_PATH = "output.png"
 
 SAM_TARGET = 1024
@@ -726,26 +736,15 @@ def preprocess_clip_image(img):
 
 def run_clip_text(models, texts):
     """Encode list of texts -> (N, D) L2-normalised embeddings."""
-    input_ids, attention_mask = clip_tokenize(models, texts)
-    net = models["clip_txt"]
-    if not args.onnx:
-        output = net.predict([input_ids, attention_mask])
-    else:
-        output = net.run(
-            None, {"input_ids": input_ids, "attention_mask": attention_mask}
-        )
-    return output[0]  # (N, D)
+    return clip_inference.run_text(
+        models["clip_txt"], texts, args.onnx, models.get("clip_tokenizer")
+    )
 
 
 def run_clip_vision(models, img):
     """Encode image patch -> (D,) L2-normalised embedding."""
     img_tensor = preprocess_clip_image(img)
-    net = models["clip_vis"]
-    if not args.onnx:
-        output = net.predict([img_tensor])
-    else:
-        output = net.run(None, {"pixel_values": img_tensor})
-    return output[0][0]  # (D,)
+    return clip_inference.run_vision(models["clip_vis"], img_tensor, args.onnx)
 
 
 # ======================
@@ -1069,8 +1068,12 @@ def main():
     check_and_download_models(WEIGHT_SAM_ENC_PATH, MODEL_SAM_ENC_PATH, REMOTE_PATH)
     check_and_download_file(DATA_SAM_ENC_PATH, REMOTE_PATH)
     check_and_download_models(WEIGHT_SAM_DEC_PATH, MODEL_SAM_DEC_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_CLIP_VIS_PATH, MODEL_CLIP_VIS_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_CLIP_TXT_PATH, MODEL_CLIP_TXT_PATH, REMOTE_PATH)
+    check_and_download_models(
+        WEIGHT_CLIP_VIS_PATH, MODEL_CLIP_VIS_PATH, CLIP_REMOTE_PATH
+    )
+    check_and_download_models(
+        WEIGHT_CLIP_TXT_PATH, MODEL_CLIP_TXT_PATH, CLIP_REMOTE_PATH
+    )
     check_and_download_models(
         WEIGHT_ONEFORMER_ADE20K_PATH, MODEL_ONEFORMER_ADE20K_PATH, REMOTE_PATH
     )
