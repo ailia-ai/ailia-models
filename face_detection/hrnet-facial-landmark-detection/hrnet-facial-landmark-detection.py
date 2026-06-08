@@ -24,7 +24,7 @@ logger = getLogger(__name__)
 
 WEIGHT_DETECTOR_PATH = 'face-detection-adas-0001.onnx'
 MODEL_DETECTOR_PATH = 'face-detection-adas-0001.onnx.prototxt'
-REMOTE_DETECTOR_PATH = 'https://storage.googleapis.com/ailia-models/face-detection-adas/'
+REMOTE_DETECTOR_PATH = ''
 
 WEIGHT_WFLW_PATH = 'hrnet_w18_wflw_256x256.onnx'
 MODEL_WFLW_PATH = 'hrnet_w18_wflw_256x256.onnx.prototxt'
@@ -34,11 +34,13 @@ WEIGHT_COFW_PATH = 'hrnet_w18_cofw_256x256.onnx'
 MODEL_COFW_PATH = 'hrnet_w18_cofw_256x256.onnx.prototxt'
 WEIGHT_300W_PATH = 'hrnet_w18_300w_256x256.onnx'
 MODEL_300W_PATH = 'hrnet_w18_300w_256x256.onnx.prototxt'
-REMOTE_LANDMARK_PATH = 'https://storage.googleapis.com/ailia-models/hrnet-facial-landmark-detection/'
+REMOTE_LANDMARK_PATH = ''
 
 IMAGE_PATH = 'input.jpg'
 SAVE_IMAGE_PATH = 'output.png'
 
+# face detector input: 384×672; 
+# landmark model input: 256×256 (same as original repo)
 DETECTOR_HEIGHT = 384
 DETECTOR_WIDTH = 672
 LANDMARK_SIZE = 256

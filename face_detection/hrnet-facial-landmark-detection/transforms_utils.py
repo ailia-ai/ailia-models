@@ -1,3 +1,6 @@
+# Affine transform utilities: crop/resize face regions to model input size,
+# and map heatmap coordinates back to original image space.
+
 import cv2
 import numpy as np
 

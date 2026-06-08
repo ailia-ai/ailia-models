@@ -1,3 +1,6 @@
+# Visualization and JSON export: draw face bboxes, landmark points, and
+# contours (eyes, mouth, etc.) on the image, and save results to JSON.
+
 import json
 
 import cv2

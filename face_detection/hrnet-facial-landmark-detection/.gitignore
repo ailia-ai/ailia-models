@@ -1,8 +1,17 @@
+# checkpoint files
 *.onnx
 *.onnx.prototxt
+
+# output files
+output.png
+*.jpg
+*.png
 *.json
+
+# model files
 *.npy
 
+# virtual environment
 .venv/
 __pycache__/
 .claude
