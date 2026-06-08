@@ -3,7 +3,6 @@
 *.onnx.prototxt
 
 # output files
-output.png
 *.jpg
 *.png
 *.json

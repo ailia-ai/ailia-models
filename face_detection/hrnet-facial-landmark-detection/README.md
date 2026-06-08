@@ -2,14 +2,14 @@
 
 ## Input
 
-![Input](input.jpg)
+<img src="input.jpg" width="60%">
 
 - Landmark model input shape: (n, 3, 256, 256)
 - Face detector input shape: (1, 3, 384, 672)
 
 ## Output
 
-![Output](output.png)
+<img src="output.png" width="60%">
 
 - WFLW model: heatmap shape (n, 98, 64, 64) → 98 landmark coordinates
 - AFLW model: heatmap shape (n, 19, 64, 64) → 19 landmark coordinates
