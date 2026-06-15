@@ -234,7 +234,7 @@ If you would like to try on your computer:
 | [<img src="depth_estimation/depth_anything/output.png" width=256px>](depth_estimation/depth_anything/) |[depth_anything](depth_estimation/depth_anything)| [DepthAnything](https://github.com/LiheYoung/Depth-Anything) | Pytorch | 1.2.9 and later | Jan 2024 | |
 | [<img src="depth_estimation/depth_anything_v2/output.png" width=256px>](depth_estimation/depth_anything_v2/) |[depth_anything_v2](depth_estimation/depth_anything_v2)| [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) | Pytorch | 1.2.16 and later | Jun 2024 | |
 | [<img src="depth_estimation/depth_pro/output.png" width=256px>](depth_estimation/depth_pro/) |[depth_pro](depth_estimation/depth_pro)| [Depth Pro: Sharp Monocular Metric Depth in Less Than a Second](https://github.com/apple/ml-depth-pro) | Pytorch | 1.2.12 and later | Oct 2024 | |
-| [<img src="depth_estimation/depth_anything_v3/output.png" width=256px>](depth_estimation/depth_anything_v3/) |[depth_anything_v3](depth_estimation/depth_anything_v3)| [Depth Anything V3](https://github.com/ByteDance-Seed/Depth-Anything-3) | Pytorch | 1.6.0 and later | Nov 2025 | |
+| [<img src="depth_estimation/depth_anything_v3/output.png" width=256px>](depth_estimation/depth_anything_v3/) |[depth_anything_v3](depth_estimation/depth_anything_v3)| [Depth Anything V3](https://github.com/ByteDance-Seed/Depth-Anything-3) | Pytorch | 1.2.16 and later | Nov 2025 | |
 
 ## Diffusion
 
@@ -518,7 +518,7 @@ If you would like to try on your computer:
 | [<img src="image_segmentation/edge_sam/output.png" width=128px>](image_segmentation/edge_sam/) | [edge_sam](/image_segmentation/edge_sam/) | [EdgeSAM](https://github.com/chongzhou96/EdgeSAM) | Pytorch | 1.2.10 and later | Dec 2023 | |
 | [<img src="image_segmentation/segment-anything-2/output.png" width=128px>](image_segmentation/segment-anything-2/) | [segment-anything-2](/image_segmentation/segment-anything-2/) | [Segment Anything 2](https://github.com/facebookresearch/segment-anything-2) | Pytorch | 1.2.16 and later | Jul 2024 | [EN](https://tech.ailia.ai/en/segmentanything2-segmentation-model-for-arbitrary-objects-in-videos-7565a325924c/) [JP](https://tech.ailia.ai/segmentanyhing2-%E5%8B%95%E7%94%BB%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9F%E4%BB%BB%E6%84%8F%E7%89%A9%E4%BD%93%E3%81%AE%E3%82%BB%E3%82%B0%E3%83%A1%E3%83%B3%E3%83%86%E3%83%BC%E3%82%B7%E3%83%A7%E3%83%B3%E3%83%A2%E3%83%87%E3%83%AB-425ff2ae14a4/) |
 | [<img src="image_segmentation/yolov11-seg/output.png" width=128px>](image_segmentation/yolov11-seg/) | [yolov11-seg](/image_segmentation/yolov11-seg/) | [Ultralytics YOLO11](https://github.com/ultralytics/ultralytics) | Pytorch | 1.2.14.1 and later | Sep 2024 |  |
-| [<img src="image_segmentation/segment-anything-3.1/output/text_prompt.png" width=128px>](image_segmentation/segment-anything-3.1/) | [segment-anything-3.1](/image_segmentation/segment-anything-3.1/) | [Segment Anything 3](https://github.com/facebookresearch/sam3) | Pytorch | 1.2.16 and later | May 2026 |  |
+| [<img src="image_segmentation/segment-anything-3.1/output/text_prompt.png" width=128px>](image_segmentation/segment-anything-3.1/) | [segment-anything-3.1](/image_segmentation/segment-anything-3.1/) | [Segment Anything 3](https://github.com/facebookresearch/sam3) | Pytorch | 1.6.0 and later | May 2026 |  |
 
 ## Landmark classification
 
