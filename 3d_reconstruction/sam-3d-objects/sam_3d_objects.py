@@ -1344,7 +1344,7 @@ def main():
         # Use ailia backend (lazy-loaded)
         def make_ailia(model_path, weight_path):
             return LazyModel(
-                lambda: ailia.Net(model_path, weight_path, env_id=env_id),
+                lambda: ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=ailia.get_memory_mode(True, True, False, True)),
                 name=weight_path,
             )
 
