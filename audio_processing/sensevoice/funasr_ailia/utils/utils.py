@@ -80,7 +80,8 @@ class AiliaInferSession:
         import ailia
         self.session = ailia.Net(weight=model_file, env_id=env_id, memory_mode=11)
         self.profile = profile
-        self.session.set_profile_mode(True)
+        if self.profile:
+            self.session.set_profile_mode(ailia.PROFILE_AVERAGE)
 
     def __call__(self, input_content: List[Union[np.ndarray, np.ndarray]], run_options = None) -> np.ndarray:
         return self.session.run(input_content)

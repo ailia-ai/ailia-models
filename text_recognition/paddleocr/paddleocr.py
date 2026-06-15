@@ -506,9 +506,9 @@ class DBPostProcess(object):
         # calculate circle coordinates
         pitch = 10
         x_upper = np.cos(np.arange(1, 0, (-1 / pitch)) * np.pi) * distance
-        y_upper = -np.sqrt(distance ** 2 - x_upper ** 2)
+        y_upper = -np.sqrt(np.maximum(distance ** 2 - x_upper ** 2, 0.0))
         x_lower = np.cos(np.arange(0, 1, (1 / pitch)) * np.pi) * distance
-        y_lower = np.sqrt(distance ** 2 - x_lower ** 2)
+        y_lower = np.sqrt(np.maximum(distance ** 2 - x_lower ** 2, 0.0))
         x = np.concatenate([x_upper, x_lower])
         y = np.concatenate([y_upper, y_lower])
         circle = np.concatenate([x[:, np.newaxis], y[:, np.newaxis]], axis=1)

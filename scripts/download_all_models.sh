@@ -50,6 +50,7 @@ cd ../../audio_processing/cosyvoice2/; python3 cosyvoice2.py ${OPTION}
 cd ../../audio_processing/sensevoice/; python3 sensevoice.py ${OPTION}
 cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
 cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
+cd ../../autonomous_driving/segformer; python3 segformer.py ${OPTION}
 #cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}
 cd ../../background_ramoval/deep-image-matting; python3 deep-image-matting.py ${OPTION}
 cd ../../background_ramoval/u2net; python3 u2net.py ${OPTION}
@@ -237,6 +238,7 @@ cd ../../image_segmentation/mobile_sam; python3 mobile_sam.py ${OPTION}
 cd ../../image_segmentation/yolov8-seg; python3 yolov8-seg.py ${OPTION}
 cd ../../image_segmentation/yolov11-seg; python3 yolov11-seg.py ${OPTION}
 cd ../../image_segmentation/edge_sam; python3 edge_sam.py ${OPTION}
+cd ../../image_segmentation/segment-anything-3.1; python3 segment_anything_3_1.py ${OPTION}
 cd ../../landmark_classification/landmarks_classifier_asia; python3 landmarks_classifier_asia.py ${OPTION}
 cd ../../landmark_classification/places365; python3 places365.py ${OPTION}
 cd ../../line_segment_detection/mlsd; python3 mlsd.py ${OPTION}
@@ -396,6 +398,8 @@ cd ../../text_recognition/ndlocr_text_recognition; python3 ndlocr_text_recogniti
 cd ../../text_recognition/donut; python3 donut.py ${OPTION}
 cd ../../time_series_forecasting/informer2020; python3 informer2020.py ${OPTION}
 cd ../../time_series_forecasting/timesfm; python3 timesfm.py ${OPTION}
+cd ../../time_series_forecasting/moirai; python3 moirai.py ${OPTION}
+cd ../../time_series_forecasting/chronos2; python3 chronos2.py ${OPTION}
 cd ../../vehicle_recognition/vehicle-attributes-recognition-barrier; python3 vehicle-attributes-recognition-barrier.py ${OPTION}
 cd ../../vehicle_recognition/vehicle-license-plate-detection-barrier; python3 vehicle-license-plate-detection-barrier.py ${OPTION}
 cd ../../vision_language_model/llava; python3 llava.py ${OPTION}
