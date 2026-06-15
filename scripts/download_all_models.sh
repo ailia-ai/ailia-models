@@ -407,3 +407,4 @@ cd ../../vision_language_model/florence2; python3 florence2.py ${OPTION}
 cd ../../vision_language_model/qwen2_vl; python3 qwen2_vl.py ${OPTION}
 cd ../../vision_language_model/llava-jp; python3 llava-jp.py ${OPTION}
 cd ../../vision_language_model/mobilevlm; python3 mobilevlm.py ${OPTION}
+cd ../../3d_reconstruction/sam-3d-objects; python3 sam_3d_objects.py ${OPTION}
