@@ -1,0 +1,4 @@
+h5py
+casadi==3.6.7
+nuscenes-devkit==1.1.11
+pyquaternion==0.9.9

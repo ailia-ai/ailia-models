@@ -42,6 +42,14 @@ $ python3 sensevoice.py --disable_ailia_audio
 pip3 install kaldi_native_fbank
 ```
 
+By adding the `--quantize` option, you can use int4 or int8 quantized models.
+```bash
+$ python3 sensevoice.py --quantize int4
+$ python3 sensevoice.py --quantize int8
+```
+
+The quantized models are exported using `export/export_quantized.py`.
+
 ## Reference
 
 - [SenseVoice](https://github.com/FunAudioLLM/SenseVoice)

@@ -1,0 +1,682 @@
+{
+  "replace_blob": {
+    "/h/layers.0/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.1/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.2/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.3/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.4/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.5/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.6/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.7/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.8/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.9/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.10/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.11/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.12/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.13/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.14/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.15/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.16/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.17/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.18/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.19/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.20/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.21/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.22/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.23/self_attn/Div_1_output_0": "opt.attention_coef",
+    "/h/layers.0/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.1/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.2/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.3/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.4/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.5/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.6/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.7/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.8/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.9/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.10/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.11/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.12/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.13/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.14/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.15/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.16/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.17/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.18/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.19/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.20/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.21/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.22/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.23/self_attn/Gather_output_0": "opt.kv_lastdim_size",
+    "/h/layers.0/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.1/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.2/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.3/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.4/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.5/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.6/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.7/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.8/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.9/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.10/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.11/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.12/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.13/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.14/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.15/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.16/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.17/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.18/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.19/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.20/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.21/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.22/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.23/self_attn/Concat_13_output_0": "opt.attention_last_reshape",
+    "/h/layers.0/self_attn/Transpose_6_output_0": "/h/layers.0/self_attn/MatMul_2_output_0",
+    "/h/layers.1/self_attn/Transpose_6_output_0": "/h/layers.1/self_attn/MatMul_2_output_0",
+    "/h/layers.2/self_attn/Transpose_6_output_0": "/h/layers.2/self_attn/MatMul_2_output_0",
+    "/h/layers.3/self_attn/Transpose_6_output_0": "/h/layers.3/self_attn/MatMul_2_output_0",
+    "/h/layers.4/self_attn/Transpose_6_output_0": "/h/layers.4/self_attn/MatMul_2_output_0",
+    "/h/layers.5/self_attn/Transpose_6_output_0": "/h/layers.5/self_attn/MatMul_2_output_0",
+    "/h/layers.6/self_attn/Transpose_6_output_0": "/h/layers.6/self_attn/MatMul_2_output_0",
+    "/h/layers.7/self_attn/Transpose_6_output_0": "/h/layers.7/self_attn/MatMul_2_output_0",
+    "/h/layers.8/self_attn/Transpose_6_output_0": "/h/layers.8/self_attn/MatMul_2_output_0",
+    "/h/layers.9/self_attn/Transpose_6_output_0": "/h/layers.9/self_attn/MatMul_2_output_0",
+    "/h/layers.10/self_attn/Transpose_6_output_0": "/h/layers.10/self_attn/MatMul_2_output_0",
+    "/h/layers.11/self_attn/Transpose_6_output_0": "/h/layers.11/self_attn/MatMul_2_output_0",
+    "/h/layers.12/self_attn/Transpose_6_output_0": "/h/layers.12/self_attn/MatMul_2_output_0",
+    "/h/layers.13/self_attn/Transpose_6_output_0": "/h/layers.13/self_attn/MatMul_2_output_0",
+    "/h/layers.14/self_attn/Transpose_6_output_0": "/h/layers.14/self_attn/MatMul_2_output_0",
+    "/h/layers.15/self_attn/Transpose_6_output_0": "/h/layers.15/self_attn/MatMul_2_output_0",
+    "/h/layers.16/self_attn/Transpose_6_output_0": "/h/layers.16/self_attn/MatMul_2_output_0",
+    "/h/layers.17/self_attn/Transpose_6_output_0": "/h/layers.17/self_attn/MatMul_2_output_0",
+    "/h/layers.18/self_attn/Transpose_6_output_0": "/h/layers.18/self_attn/MatMul_2_output_0",
+    "/h/layers.19/self_attn/Transpose_6_output_0": "/h/layers.19/self_attn/MatMul_2_output_0",
+    "/h/layers.20/self_attn/Transpose_6_output_0": "/h/layers.20/self_attn/MatMul_2_output_0",
+    "/h/layers.21/self_attn/Transpose_6_output_0": "/h/layers.21/self_attn/MatMul_2_output_0",
+    "/h/layers.22/self_attn/Transpose_6_output_0": "/h/layers.22/self_attn/MatMul_2_output_0",
+    "/h/layers.23/self_attn/Transpose_6_output_0": "/h/layers.23/self_attn/MatMul_2_output_0",
+    "/h/layers.0/self_attn/Transpose_7_output_0": "/h/layers.0/self_attn/Reshape_12_output_0",
+    "/h/layers.1/self_attn/Transpose_7_output_0": "/h/layers.1/self_attn/Reshape_12_output_0",
+    "/h/layers.2/self_attn/Transpose_7_output_0": "/h/layers.2/self_attn/Reshape_12_output_0",
+    "/h/layers.3/self_attn/Transpose_7_output_0": "/h/layers.3/self_attn/Reshape_12_output_0",
+    "/h/layers.4/self_attn/Transpose_7_output_0": "/h/layers.4/self_attn/Reshape_12_output_0",
+    "/h/layers.5/self_attn/Transpose_7_output_0": "/h/layers.5/self_attn/Reshape_12_output_0",
+    "/h/layers.6/self_attn/Transpose_7_output_0": "/h/layers.6/self_attn/Reshape_12_output_0",
+    "/h/layers.7/self_attn/Transpose_7_output_0": "/h/layers.7/self_attn/Reshape_12_output_0",
+    "/h/layers.8/self_attn/Transpose_7_output_0": "/h/layers.8/self_attn/Reshape_12_output_0",
+    "/h/layers.9/self_attn/Transpose_7_output_0": "/h/layers.9/self_attn/Reshape_12_output_0",
+    "/h/layers.10/self_attn/Transpose_7_output_0": "/h/layers.10/self_attn/Reshape_12_output_0",
+    "/h/layers.11/self_attn/Transpose_7_output_0": "/h/layers.11/self_attn/Reshape_12_output_0",
+    "/h/layers.12/self_attn/Transpose_7_output_0": "/h/layers.12/self_attn/Reshape_12_output_0",
+    "/h/layers.13/self_attn/Transpose_7_output_0": "/h/layers.13/self_attn/Reshape_12_output_0",
+    "/h/layers.14/self_attn/Transpose_7_output_0": "/h/layers.14/self_attn/Reshape_12_output_0",
+    "/h/layers.15/self_attn/Transpose_7_output_0": "/h/layers.15/self_attn/Reshape_12_output_0",
+    "/h/layers.16/self_attn/Transpose_7_output_0": "/h/layers.16/self_attn/Reshape_12_output_0",
+    "/h/layers.17/self_attn/Transpose_7_output_0": "/h/layers.17/self_attn/Reshape_12_output_0",
+    "/h/layers.18/self_attn/Transpose_7_output_0": "/h/layers.18/self_attn/Reshape_12_output_0",
+    "/h/layers.19/self_attn/Transpose_7_output_0": "/h/layers.19/self_attn/Reshape_12_output_0",
+    "/h/layers.20/self_attn/Transpose_7_output_0": "/h/layers.20/self_attn/Reshape_12_output_0",
+    "/h/layers.21/self_attn/Transpose_7_output_0": "/h/layers.21/self_attn/Reshape_12_output_0",
+    "/h/layers.22/self_attn/Transpose_7_output_0": "/h/layers.22/self_attn/Reshape_12_output_0",
+    "/h/layers.23/self_attn/Transpose_7_output_0": "/h/layers.23/self_attn/Reshape_12_output_0",
+    "/h/layers.0/self_attn/Unsqueeze_1_output_0": "/h/layers.0/self_attn/Reshape_2_output_0",
+    "/h/layers.1/self_attn/Unsqueeze_1_output_0": "/h/layers.1/self_attn/Reshape_2_output_0",
+    "/h/layers.2/self_attn/Unsqueeze_1_output_0": "/h/layers.2/self_attn/Reshape_2_output_0",
+    "/h/layers.3/self_attn/Unsqueeze_1_output_0": "/h/layers.3/self_attn/Reshape_2_output_0",
+    "/h/layers.4/self_attn/Unsqueeze_1_output_0": "/h/layers.4/self_attn/Reshape_2_output_0",
+    "/h/layers.5/self_attn/Unsqueeze_1_output_0": "/h/layers.5/self_attn/Reshape_2_output_0",
+    "/h/layers.6/self_attn/Unsqueeze_1_output_0": "/h/layers.6/self_attn/Reshape_2_output_0",
+    "/h/layers.7/self_attn/Unsqueeze_1_output_0": "/h/layers.7/self_attn/Reshape_2_output_0",
+    "/h/layers.8/self_attn/Unsqueeze_1_output_0": "/h/layers.8/self_attn/Reshape_2_output_0",
+    "/h/layers.9/self_attn/Unsqueeze_1_output_0": "/h/layers.9/self_attn/Reshape_2_output_0",
+    "/h/layers.10/self_attn/Unsqueeze_1_output_0": "/h/layers.10/self_attn/Reshape_2_output_0",
+    "/h/layers.11/self_attn/Unsqueeze_1_output_0": "/h/layers.11/self_attn/Reshape_2_output_0",
+    "/h/layers.12/self_attn/Unsqueeze_1_output_0": "/h/layers.12/self_attn/Reshape_2_output_0",
+    "/h/layers.13/self_attn/Unsqueeze_1_output_0": "/h/layers.13/self_attn/Reshape_2_output_0",
+    "/h/layers.14/self_attn/Unsqueeze_1_output_0": "/h/layers.14/self_attn/Reshape_2_output_0",
+    "/h/layers.15/self_attn/Unsqueeze_1_output_0": "/h/layers.15/self_attn/Reshape_2_output_0",
+    "/h/layers.16/self_attn/Unsqueeze_1_output_0": "/h/layers.16/self_attn/Reshape_2_output_0",
+    "/h/layers.17/self_attn/Unsqueeze_1_output_0": "/h/layers.17/self_attn/Reshape_2_output_0",
+    "/h/layers.18/self_attn/Unsqueeze_1_output_0": "/h/layers.18/self_attn/Reshape_2_output_0",
+    "/h/layers.19/self_attn/Unsqueeze_1_output_0": "/h/layers.19/self_attn/Reshape_2_output_0",
+    "/h/layers.20/self_attn/Unsqueeze_1_output_0": "/h/layers.20/self_attn/Reshape_2_output_0",
+    "/h/layers.21/self_attn/Unsqueeze_1_output_0": "/h/layers.21/self_attn/Reshape_2_output_0",
+    "/h/layers.22/self_attn/Unsqueeze_1_output_0": "/h/layers.22/self_attn/Reshape_2_output_0",
+    "/h/layers.23/self_attn/Unsqueeze_1_output_0": "/h/layers.23/self_attn/Reshape_2_output_0",
+    "/h/layers.0/self_attn/Add_2_output_0": "/h/layers.0/self_attn/MatMul_1_output_0",
+    "/h/layers.1/self_attn/Add_2_output_0": "/h/layers.1/self_attn/MatMul_1_output_0",
+    "/h/layers.2/self_attn/Add_2_output_0": "/h/layers.2/self_attn/MatMul_1_output_0",
+    "/h/layers.3/self_attn/Add_2_output_0": "/h/layers.3/self_attn/MatMul_1_output_0",
+    "/h/layers.4/self_attn/Add_2_output_0": "/h/layers.4/self_attn/MatMul_1_output_0",
+    "/h/layers.5/self_attn/Add_2_output_0": "/h/layers.5/self_attn/MatMul_1_output_0",
+    "/h/layers.6/self_attn/Add_2_output_0": "/h/layers.6/self_attn/MatMul_1_output_0",
+    "/h/layers.7/self_attn/Add_2_output_0": "/h/layers.7/self_attn/MatMul_1_output_0",
+    "/h/layers.8/self_attn/Add_2_output_0": "/h/layers.8/self_attn/MatMul_1_output_0",
+    "/h/layers.9/self_attn/Add_2_output_0": "/h/layers.9/self_attn/MatMul_1_output_0",
+    "/h/layers.10/self_attn/Add_2_output_0": "/h/layers.10/self_attn/MatMul_1_output_0",
+    "/h/layers.11/self_attn/Add_2_output_0": "/h/layers.11/self_attn/MatMul_1_output_0",
+    "/h/layers.12/self_attn/Add_2_output_0": "/h/layers.12/self_attn/MatMul_1_output_0",
+    "/h/layers.13/self_attn/Add_2_output_0": "/h/layers.13/self_attn/MatMul_1_output_0",
+    "/h/layers.14/self_attn/Add_2_output_0": "/h/layers.14/self_attn/MatMul_1_output_0",
+    "/h/layers.15/self_attn/Add_2_output_0": "/h/layers.15/self_attn/MatMul_1_output_0",
+    "/h/layers.16/self_attn/Add_2_output_0": "/h/layers.16/self_attn/MatMul_1_output_0",
+    "/h/layers.17/self_attn/Add_2_output_0": "/h/layers.17/self_attn/MatMul_1_output_0",
+    "/h/layers.18/self_attn/Add_2_output_0": "/h/layers.18/self_attn/MatMul_1_output_0",
+    "/h/layers.19/self_attn/Add_2_output_0": "/h/layers.19/self_attn/MatMul_1_output_0",
+    "/h/layers.20/self_attn/Add_2_output_0": "/h/layers.20/self_attn/MatMul_1_output_0",
+    "/h/layers.21/self_attn/Add_2_output_0": "/h/layers.21/self_attn/MatMul_1_output_0",
+    "/h/layers.22/self_attn/Add_2_output_0": "/h/layers.22/self_attn/MatMul_1_output_0",
+    "/h/layers.23/self_attn/Add_2_output_0": "/h/layers.23/self_attn/MatMul_1_output_0"
+  },
+  "remove_node": [
+    "/h/layers.0/self_attn/Transpose_6_output_0",
+    "/h/layers.1/self_attn/Transpose_6_output_0",
+    "/h/layers.2/self_attn/Transpose_6_output_0",
+    "/h/layers.3/self_attn/Transpose_6_output_0",
+    "/h/layers.4/self_attn/Transpose_6_output_0",
+    "/h/layers.5/self_attn/Transpose_6_output_0",
+    "/h/layers.6/self_attn/Transpose_6_output_0",
+    "/h/layers.7/self_attn/Transpose_6_output_0",
+    "/h/layers.8/self_attn/Transpose_6_output_0",
+    "/h/layers.9/self_attn/Transpose_6_output_0",
+    "/h/layers.10/self_attn/Transpose_6_output_0",
+    "/h/layers.11/self_attn/Transpose_6_output_0",
+    "/h/layers.12/self_attn/Transpose_6_output_0",
+    "/h/layers.13/self_attn/Transpose_6_output_0",
+    "/h/layers.14/self_attn/Transpose_6_output_0",
+    "/h/layers.15/self_attn/Transpose_6_output_0",
+    "/h/layers.16/self_attn/Transpose_6_output_0",
+    "/h/layers.17/self_attn/Transpose_6_output_0",
+    "/h/layers.18/self_attn/Transpose_6_output_0",
+    "/h/layers.19/self_attn/Transpose_6_output_0",
+    "/h/layers.20/self_attn/Transpose_6_output_0",
+    "/h/layers.21/self_attn/Transpose_6_output_0",
+    "/h/layers.22/self_attn/Transpose_6_output_0",
+    "/h/layers.23/self_attn/Transpose_6_output_0",
+    "/h/layers.0/self_attn/Transpose_7_output_0",
+    "/h/layers.1/self_attn/Transpose_7_output_0",
+    "/h/layers.2/self_attn/Transpose_7_output_0",
+    "/h/layers.3/self_attn/Transpose_7_output_0",
+    "/h/layers.4/self_attn/Transpose_7_output_0",
+    "/h/layers.5/self_attn/Transpose_7_output_0",
+    "/h/layers.6/self_attn/Transpose_7_output_0",
+    "/h/layers.7/self_attn/Transpose_7_output_0",
+    "/h/layers.8/self_attn/Transpose_7_output_0",
+    "/h/layers.9/self_attn/Transpose_7_output_0",
+    "/h/layers.10/self_attn/Transpose_7_output_0",
+    "/h/layers.11/self_attn/Transpose_7_output_0",
+    "/h/layers.12/self_attn/Transpose_7_output_0",
+    "/h/layers.13/self_attn/Transpose_7_output_0",
+    "/h/layers.14/self_attn/Transpose_7_output_0",
+    "/h/layers.15/self_attn/Transpose_7_output_0",
+    "/h/layers.16/self_attn/Transpose_7_output_0",
+    "/h/layers.17/self_attn/Transpose_7_output_0",
+    "/h/layers.18/self_attn/Transpose_7_output_0",
+    "/h/layers.19/self_attn/Transpose_7_output_0",
+    "/h/layers.20/self_attn/Transpose_7_output_0",
+    "/h/layers.21/self_attn/Transpose_7_output_0",
+    "/h/layers.22/self_attn/Transpose_7_output_0",
+    "/h/layers.23/self_attn/Transpose_7_output_0",
+    "/ar_audio_position/Unsqueeze_1_output_0",
+    "/ar_audio_position/Unsqueeze_output_0",
+    "/ar_audio_position/Sin_output_0",
+    "/ar_audio_position/Cos_output_0",
+    "/h/layers.0/self_attn/Shape_output_0",
+    "/h/layers.1/self_attn/Shape_output_0",
+    "/h/layers.2/self_attn/Shape_output_0",
+    "/h/layers.3/self_attn/Shape_output_0",
+    "/h/layers.4/self_attn/Shape_output_0",
+    "/h/layers.5/self_attn/Shape_output_0",
+    "/h/layers.6/self_attn/Shape_output_0",
+    "/h/layers.7/self_attn/Shape_output_0",
+    "/h/layers.8/self_attn/Shape_output_0",
+    "/h/layers.9/self_attn/Shape_output_0",
+    "/h/layers.10/self_attn/Shape_output_0",
+    "/h/layers.11/self_attn/Shape_output_0",
+    "/h/layers.12/self_attn/Shape_output_0",
+    "/h/layers.13/self_attn/Shape_output_0",
+    "/h/layers.14/self_attn/Shape_output_0",
+    "/h/layers.15/self_attn/Shape_output_0",
+    "/h/layers.16/self_attn/Shape_output_0",
+    "/h/layers.17/self_attn/Shape_output_0",
+    "/h/layers.18/self_attn/Shape_output_0",
+    "/h/layers.19/self_attn/Shape_output_0",
+    "/h/layers.20/self_attn/Shape_output_0",
+    "/h/layers.21/self_attn/Shape_output_0",
+    "/h/layers.22/self_attn/Shape_output_0",
+    "/h/layers.23/self_attn/Shape_output_0",
+    "/h/layers.0/self_attn/Shape_3_output_0",
+    "/h/layers.1/self_attn/Shape_3_output_0",
+    "/h/layers.2/self_attn/Shape_3_output_0",
+    "/h/layers.3/self_attn/Shape_3_output_0",
+    "/h/layers.4/self_attn/Shape_3_output_0",
+    "/h/layers.5/self_attn/Shape_3_output_0",
+    "/h/layers.6/self_attn/Shape_3_output_0",
+    "/h/layers.7/self_attn/Shape_3_output_0",
+    "/h/layers.8/self_attn/Shape_3_output_0",
+    "/h/layers.9/self_attn/Shape_3_output_0",
+    "/h/layers.10/self_attn/Shape_3_output_0",
+    "/h/layers.11/self_attn/Shape_3_output_0",
+    "/h/layers.12/self_attn/Shape_3_output_0",
+    "/h/layers.13/self_attn/Shape_3_output_0",
+    "/h/layers.14/self_attn/Shape_3_output_0",
+    "/h/layers.15/self_attn/Shape_3_output_0",
+    "/h/layers.16/self_attn/Shape_3_output_0",
+    "/h/layers.17/self_attn/Shape_3_output_0",
+    "/h/layers.18/self_attn/Shape_3_output_0",
+    "/h/layers.19/self_attn/Shape_3_output_0",
+    "/h/layers.20/self_attn/Shape_3_output_0",
+    "/h/layers.21/self_attn/Shape_3_output_0",
+    "/h/layers.22/self_attn/Shape_3_output_0",
+    "/h/layers.23/self_attn/Shape_3_output_0",
+    "/h/layers.0/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.1/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.2/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.3/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.4/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.5/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.6/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.7/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.8/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.9/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.10/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.11/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.12/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.13/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.14/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.15/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.16/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.17/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.18/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.19/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.20/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.21/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.22/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.23/self_attn/Unsqueeze_1_output_0",
+    "/h/layers.0/self_attn/Add_2_output_0",
+    "/h/layers.1/self_attn/Add_2_output_0",
+    "/h/layers.2/self_attn/Add_2_output_0",
+    "/h/layers.3/self_attn/Add_2_output_0",
+    "/h/layers.4/self_attn/Add_2_output_0",
+    "/h/layers.5/self_attn/Add_2_output_0",
+    "/h/layers.6/self_attn/Add_2_output_0",
+    "/h/layers.7/self_attn/Add_2_output_0",
+    "/h/layers.8/self_attn/Add_2_output_0",
+    "/h/layers.9/self_attn/Add_2_output_0",
+    "/h/layers.10/self_attn/Add_2_output_0",
+    "/h/layers.11/self_attn/Add_2_output_0",
+    "/h/layers.12/self_attn/Add_2_output_0",
+    "/h/layers.13/self_attn/Add_2_output_0",
+    "/h/layers.14/self_attn/Add_2_output_0",
+    "/h/layers.15/self_attn/Add_2_output_0",
+    "/h/layers.16/self_attn/Add_2_output_0",
+    "/h/layers.17/self_attn/Add_2_output_0",
+    "/h/layers.18/self_attn/Add_2_output_0",
+    "/h/layers.19/self_attn/Add_2_output_0",
+    "/h/layers.20/self_attn/Add_2_output_0",
+    "/h/layers.21/self_attn/Add_2_output_0",
+    "/h/layers.22/self_attn/Add_2_output_0",
+    "/h/layers.23/self_attn/Add_2_output_0"
+  ],
+  "insert_node": {
+    "/ar_audio_position/Range_output_0": {
+      "input": ["/ar_audio_position/Range_output_0", "opt.ar_audio_position.base_shape"],
+      "output": ["opt.ar_audio_position.prepare_sin_cos_0"],
+      "op_type": "Reshape"
+    },
+    "opt.ar_audio_position.prepare_sin_cos_0": {
+      "input": ["/ar_audio_position/Constant_6_output_0", "opt.ar_audio_position.coef_shape"],
+      "output": ["opt.ar_audio_position.prepare_sin_cos_1"],
+      "op_type": "Reshape"
+    },
+    "opt.ar_audio_position.prepare_sin_cos_1": {
+      "input": ["opt.ar_audio_position.prepare_sin_cos_0", "opt.ar_audio_position.prepare_sin_cos_1"],
+      "output": ["opt.ar_audio_position.prepare_sin_cos_2"],
+      "op_type": "Mul"
+    },
+    "opt.ar_audio_position.prepare_sin_cos_2": {
+      "input": ["opt.ar_audio_position.prepare_sin_cos_2"],
+      "output": ["opt.ar_audio_position.sin"],
+      "op_type": "Sin"
+    },
+    "opt.ar_audio_position.sin": {
+      "input": ["opt.ar_audio_position.prepare_sin_cos_2"],
+      "output": ["opt.ar_audio_position.cos"],
+      "op_type": "Cos"
+    },
+    "opt.ar_audio_position.cos": {
+      "input": ["opt.ar_audio_position.sin", "opt.ar_audio_position.cos"],
+      "output": ["opt.ar_audio_position.concat"],
+      "op_type": "Concat",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "opt.ar_audio_position.concat": {
+      "input": ["opt.ar_audio_position.concat", "opt.ar_audio_position.output_shape"],
+      "output": ["/ar_audio_position/Unsqueeze_6_output_0"],
+      "op_type": "Reshape"
+    },
+    "/h/layers.0/self_attn/Add_output_0": {
+      "input": ["/h/layers.0/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.0/self_attn/Gather_1_output_0",
+        "/h/layers.0/self_attn/Gather_2_output_0",
+        "/h/layers.0/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.1/self_attn/Add_output_0": {
+      "input": ["/h/layers.1/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.1/self_attn/Gather_1_output_0",
+        "/h/layers.1/self_attn/Gather_2_output_0",
+        "/h/layers.1/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.2/self_attn/Add_output_0": {
+      "input": ["/h/layers.2/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.2/self_attn/Gather_1_output_0",
+        "/h/layers.2/self_attn/Gather_2_output_0",
+        "/h/layers.2/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.3/self_attn/Add_output_0": {
+      "input": ["/h/layers.3/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.3/self_attn/Gather_1_output_0",
+        "/h/layers.3/self_attn/Gather_2_output_0",
+        "/h/layers.3/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.4/self_attn/Add_output_0": {
+      "input": ["/h/layers.4/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.4/self_attn/Gather_1_output_0",
+        "/h/layers.4/self_attn/Gather_2_output_0",
+        "/h/layers.4/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.5/self_attn/Add_output_0": {
+      "input": ["/h/layers.5/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.5/self_attn/Gather_1_output_0",
+        "/h/layers.5/self_attn/Gather_2_output_0",
+        "/h/layers.5/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.6/self_attn/Add_output_0": {
+      "input": ["/h/layers.6/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.6/self_attn/Gather_1_output_0",
+        "/h/layers.6/self_attn/Gather_2_output_0",
+        "/h/layers.6/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.7/self_attn/Add_output_0": {
+      "input": ["/h/layers.7/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.7/self_attn/Gather_1_output_0",
+        "/h/layers.7/self_attn/Gather_2_output_0",
+        "/h/layers.7/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.8/self_attn/Add_output_0": {
+      "input": ["/h/layers.8/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.8/self_attn/Gather_1_output_0",
+        "/h/layers.8/self_attn/Gather_2_output_0",
+        "/h/layers.8/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.9/self_attn/Add_output_0": {
+      "input": ["/h/layers.9/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.9/self_attn/Gather_1_output_0",
+        "/h/layers.9/self_attn/Gather_2_output_0",
+        "/h/layers.9/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.10/self_attn/Add_output_0": {
+      "input": ["/h/layers.10/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.10/self_attn/Gather_1_output_0",
+        "/h/layers.10/self_attn/Gather_2_output_0",
+        "/h/layers.10/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.11/self_attn/Add_output_0": {
+      "input": ["/h/layers.11/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.11/self_attn/Gather_1_output_0",
+        "/h/layers.11/self_attn/Gather_2_output_0",
+        "/h/layers.11/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.12/self_attn/Add_output_0": {
+      "input": ["/h/layers.12/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.12/self_attn/Gather_1_output_0",
+        "/h/layers.12/self_attn/Gather_2_output_0",
+        "/h/layers.12/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.13/self_attn/Add_output_0": {
+      "input": ["/h/layers.13/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.13/self_attn/Gather_1_output_0",
+        "/h/layers.13/self_attn/Gather_2_output_0",
+        "/h/layers.13/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.14/self_attn/Add_output_0": {
+      "input": ["/h/layers.14/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.14/self_attn/Gather_1_output_0",
+        "/h/layers.14/self_attn/Gather_2_output_0",
+        "/h/layers.14/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.15/self_attn/Add_output_0": {
+      "input": ["/h/layers.15/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.15/self_attn/Gather_1_output_0",
+        "/h/layers.15/self_attn/Gather_2_output_0",
+        "/h/layers.15/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.16/self_attn/Add_output_0": {
+      "input": ["/h/layers.16/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.16/self_attn/Gather_1_output_0",
+        "/h/layers.16/self_attn/Gather_2_output_0",
+        "/h/layers.16/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.17/self_attn/Add_output_0": {
+      "input": ["/h/layers.17/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.17/self_attn/Gather_1_output_0",
+        "/h/layers.17/self_attn/Gather_2_output_0",
+        "/h/layers.17/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.18/self_attn/Add_output_0": {
+      "input": ["/h/layers.18/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.18/self_attn/Gather_1_output_0",
+        "/h/layers.18/self_attn/Gather_2_output_0",
+        "/h/layers.18/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.19/self_attn/Add_output_0": {
+      "input": ["/h/layers.19/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.19/self_attn/Gather_1_output_0",
+        "/h/layers.19/self_attn/Gather_2_output_0",
+        "/h/layers.19/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.20/self_attn/Add_output_0": {
+      "input": ["/h/layers.20/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.20/self_attn/Gather_1_output_0",
+        "/h/layers.20/self_attn/Gather_2_output_0",
+        "/h/layers.20/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.21/self_attn/Add_output_0": {
+      "input": ["/h/layers.21/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.21/self_attn/Gather_1_output_0",
+        "/h/layers.21/self_attn/Gather_2_output_0",
+        "/h/layers.21/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.22/self_attn/Add_output_0": {
+      "input": ["/h/layers.22/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.22/self_attn/Gather_1_output_0",
+        "/h/layers.22/self_attn/Gather_2_output_0",
+        "/h/layers.22/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    },
+    "/h/layers.23/self_attn/Add_output_0": {
+      "input": ["/h/layers.23/self_attn/Add_output_0"],
+      "output": [
+        "/h/layers.23/self_attn/Gather_1_output_0",
+        "/h/layers.23/self_attn/Gather_2_output_0",
+        "/h/layers.23/self_attn/Gather_3_output_0"
+      ],
+      "op_type": "Split",
+      "attribute": {
+        "axis": -1
+      }
+    }
+  },
+  "initializer": [
+    {
+      "name": "opt.ar_audio_position.base_shape",
+      "value": [-1,1,1],
+      "dtype": "int64"
+    },
+    {
+      "name": "opt.ar_audio_position.coef_shape",
+      "value": [1,256,1],
+      "dtype": "int64"
+    },
+    {
+      "name": "opt.ar_audio_position.output_shape",
+      "value": [1,-1,512],
+      "dtype": "int64"
+    },
+    {
+      "name": "opt.attention_coef",
+      "value": 0.176776695,
+      "dtype": "float32"
+    },
+    { 
+      "name": "opt.kv_lastdim_size",
+      "value": 512,
+      "dtype": "int64"
+    },
+    {
+      "name": "opt.attention_last_reshape",
+      "value": [-1,1,512],
+      "dtype": "int64"
+    }
+  ]
+}

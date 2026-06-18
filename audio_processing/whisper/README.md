@@ -62,6 +62,14 @@ $ python3 whisper.py -V
 3. return to 1 again after displaying the forecast results
 4. type ``Ctrl+c`` if you want to exit
 
+By adding the `--quantize` option with the turbo model, you can use int4 or int8 quantized models.
+```bash
+$ python3 whisper.py --model_type turbo --quantize int4
+$ python3 whisper.py --model_type turbo --quantize int8
+```
+
+The quantized models are exported using `export/export_turbo_quantized.py`.
+
 ## Reference
 
 - [Whisper](https://github.com/openai/whisper)

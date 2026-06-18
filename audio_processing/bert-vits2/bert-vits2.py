@@ -18,6 +18,22 @@ from clap_feature_extraction import feature_extractor
 from logging import getLogger   # noqa: E402
 logger = getLogger(__name__)
 
+
+class BenchmarkWrapper:
+    def __init__(self, net, name):
+        self.net = net
+        self.name = name
+
+    def predict(self, *args, **kwargs):
+        start = int(round(time.time() * 1000))
+        result = self.net.predict(*args, **kwargs)
+        end = int(round(time.time() * 1000))
+        logger.info("\t{} predict time {} ms".format(self.name, end - start))
+        return result
+
+    def __getattr__(self, name):
+        return getattr(self.net, name)
+
 from scipy.io.wavfile import write
 
 
@@ -321,9 +337,17 @@ def main():
         check_and_download_models(
             PATHS[m], MODEL_PATHS[m], REMOTE_PATH
         )
-        models[m] = ailia.Net(MODEL_PATHS[m], PATHS[m], args.env_id)
-    
+        net = ailia.Net(MODEL_PATHS[m], PATHS[m], args.env_id)
+        if args.benchmark:
+            net = BenchmarkWrapper(net, m)
+        models[m] = net
+
+    if args.benchmark:
+        start = int(round(time.time() * 1000))
     infer(models)
+    if args.benchmark:
+        end = int(round(time.time() * 1000))
+        logger.info("\ttotal processing time {} ms".format(end-start))
 
     logger.info('Script finished successfully.')
 

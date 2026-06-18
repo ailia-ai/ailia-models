@@ -41,6 +41,7 @@ cd ../../audio_processing/reazon_speech2/; python3 reazon_speech2.py ${OPTION}
 cd ../../audio_processing/gpt-sovits/; python3 gpt-sovits.py ${OPTION}
 cd ../../audio_processing/gpt-sovits-v2/; python3 gpt-sovits-v2.py ${OPTION}
 cd ../../audio_processing/gpt-sovits-v3/; python3 gpt-sovits-v3.py ${OPTION}
+cd ../../audio_processing/gpt-sovits-v2-pro/; python3 gpt-sovits-v2-pro.py ${OPTION}
 cd ../../audio_processing/bert-vits2/; python3 bert-vits2.py ${OPTION}
 cd ../../audio_processing/dtln/; python3 dtln.py ${OPTION}
 cd ../../audio_processing/pytorch_wavenet/; python3 pytorch_wavenet.py ${OPTION}
@@ -48,6 +49,9 @@ cd ../../audio_processing/audiosep/; python3 audiosep.py ${OPTION}
 cd ../../audio_processing/cosyvoice2/; python3 cosyvoice2.py ${OPTION}
 cd ../../audio_processing/sensevoice/; python3 sensevoice.py ${OPTION}
 cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
+cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
+cd ../../autonomous_driving/segformer; python3 segformer.py ${OPTION}
+#cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}
 cd ../../background_ramoval/deep-image-matting; python3 deep-image-matting.py ${OPTION}
 cd ../../background_ramoval/u2net; python3 u2net.py ${OPTION}
 cd ../../background_ramoval/u2net; python3 u2net.py -a small ${OPTION}
@@ -91,6 +95,9 @@ cd ../../depth_estimation/hitnet; python3 hitnet.py ${OPTION}
 cd ../../depth_estimation/crestereo; python3 crestereo.py ${OPTION}
 cd ../../depth_estimation/mobilestereonet; python3 mobilestereonet.py ${OPTION}
 cd ../../depth_estimation/depth_anything; python3 depth_anything.py ${OPTION}
+cd ../../depth_estimation/depth_anything_v2; python3 depth_anything_v2.py ${OPTION}
+cd ../../depth_estimation/depth_anything_v3; python3 depth_anything_v3.py ${OPTION}
+cd ../../depth_estimation/depth_pro; python3 depth_pro.py ${OPTION}
 cd ../../face_detection/blazeface; python3 blazeface.py ${OPTION}
 cd ../../face_detection/zoe_depth; python3 zoe_depth ${OPTION}
 cd ../../face_detection/dbface; python3 dbface.py ${OPTION}
@@ -231,6 +238,7 @@ cd ../../image_segmentation/mobile_sam; python3 mobile_sam.py ${OPTION}
 cd ../../image_segmentation/yolov8-seg; python3 yolov8-seg.py ${OPTION}
 cd ../../image_segmentation/yolov11-seg; python3 yolov11-seg.py ${OPTION}
 cd ../../image_segmentation/edge_sam; python3 edge_sam.py ${OPTION}
+cd ../../image_segmentation/segment-anything-3.1; python3 segment_anything_3_1.py ${OPTION}
 cd ../../landmark_classification/landmarks_classifier_asia; python3 landmarks_classifier_asia.py ${OPTION}
 cd ../../landmark_classification/places365; python3 places365.py ${OPTION}
 cd ../../line_segment_detection/mlsd; python3 mlsd.py ${OPTION}
@@ -261,12 +269,14 @@ cd ../../natural_language_processing/glucose; python3 glucose.py ${OPTION}
 cd ../../natural_language_processing/cross_encoder_mmarco; python3 cross_encoder_mmarco.py ${OPTION}
 cd ../../natural_language_processing/soundchoice-g2p; python3 soundchoice-g2p.py ${OPTION}
 cd ../../natural_language_processing/g2p_en; python3 g2p_en.py ${OPTION}
+cd ../../natural_language_processing/g2pw; python3 g2pw.py ${OPTION}
 cd ../../natural_language_processing/t5_base_japanese_ner; pyhton3 t5_base_japanese_ner.py ${OPTION}
 cd ../../natural_language_processing/japanese-reranker-cross-encoder; python3 japanese-reranker-cross-encoder.py ${OPTION}
 cd ../../natural_language_processing/bert_ner_japanese; python3 bert_ner_japanese.py ${OPTION}
 cd ../../natural_language_processing/multilingual-minilmv2; python3 multilingual-minilmv2.py ${OPTION}
 cd ../../natural_language_processing/ruri-v3; python3 ruri-v3.py ${OPTION}
 cd ../../natural_language_processing/embeddinggemma; python3 embeddinggemma.py ${OPTION}
+cd ../../natural_language_processing/qwen3-embedding; python3 qwen3-embedding.py ${OPTION}
 cd ../../network_intrusion_detection/bert-network-packet-flow-header-payload; python3 bert-network-packet-flow-header-payload.py ${OPTION}
 cd ../../network_intrusion_detection/falcon-adapter-network-packet; python3 falcon-adapter-network-packet.py ${OPTION}
 cd ../../neural_rendering/nerf; python3 nerf.py ${OPTION}
@@ -314,6 +324,7 @@ cd ../../object_detection/qrcode_wechatqrode; python3 qrcode_wechatqrode.py ${OP
 cd ../../object_detection/layout_parsing; python3 layout_parsing.py ${OPTION}
 cd ../../object_detection/damo_yolo; python3 damo_yolo.py ${OPTION}
 cd ../../object_detection/groundingdino; python3 groundingdino.py ${OPTION}
+cd ../../object_detection/detr; python3 detr.py ${OPTION}
 cd ../../object_detection_3d/3d_bbox; python3 3d_bbox.py ${OPTION}
 cd ../../object_detection_3d/3d-object-detection.pytorch; python3 3d-object-detection.pytorch.py ${OPTION}
 cd ../../object_detection_3d/mediapipe_objectron; python3 mediapipe_objectron.py ${OPTION}
@@ -389,6 +400,8 @@ cd ../../text_recognition/ndlocr_text_recognition; python3 ndlocr_text_recogniti
 cd ../../text_recognition/donut; python3 donut.py ${OPTION}
 cd ../../time_series_forecasting/informer2020; python3 informer2020.py ${OPTION}
 cd ../../time_series_forecasting/timesfm; python3 timesfm.py ${OPTION}
+cd ../../time_series_forecasting/moirai; python3 moirai.py ${OPTION}
+cd ../../time_series_forecasting/chronos2; python3 chronos2.py ${OPTION}
 cd ../../vehicle_recognition/vehicle-attributes-recognition-barrier; python3 vehicle-attributes-recognition-barrier.py ${OPTION}
 cd ../../vehicle_recognition/vehicle-license-plate-detection-barrier; python3 vehicle-license-plate-detection-barrier.py ${OPTION}
 cd ../../vision_language_model/llava; python3 llava.py ${OPTION}

@@ -11,10 +11,16 @@ from typing import Optional
 from typing import Tuple
 
 class SAM2ImagePredictor:
-    def trunc_normal(self, size, std=0.02, a=-2, b=2):
-        values = np.random.normal(loc=0., scale=std, size=size)
-        values = np.clip(values, a*std, b*std)
-        return values
+    def __init__(self, legacy=False, version="2", model_type="hiera_l"):
+        self.legacy = legacy
+        self.no_mem_embed = self._load_no_mem_embed(version, model_type)
+
+    def _load_no_mem_embed(self, version, model_type):
+        """Load pretrained no_mem_embed from npz file."""
+        npz_path = os.path.join(os.path.dirname(__file__), "pretrained_weights.npz")
+        key = f"v{version}_{model_type}_no_mem_embed".replace("+", "plus")
+        data = np.load(npz_path)
+        return data[key].astype(np.float32)  # (1, 1, 256)
 
     def set_image(self, image, image_encoder, onnx):
         image = np.expand_dims(image, axis=0).astype(np.float32)
@@ -30,9 +36,7 @@ class SAM2ImagePredictor:
 
         _, vision_feats, _, _ = self._prepare_backbone_features(backbone_out)
         # Add no_mem_embed, which is added to the lowest rest feat. map during training on videos
-        hidden_dim = 256
-        no_mem_embed = self.trunc_normal((1, 1, hidden_dim), std=0.02).astype(np.float32)
-        vision_feats[-1] = vision_feats[-1] + no_mem_embed
+        vision_feats[-1] = vision_feats[-1] + self.no_mem_embed
 
         bb_feat_sizes = [
             (256, 256),
@@ -113,7 +117,7 @@ class SAM2ImagePredictor:
                 box, orig_hw=orig_hw
             )  # Bx2x2
         if mask_logits is not None:
-            mask_input = mask_input.astype(np.float32)
+            mask_input = mask_logits.astype(np.float32)
             if len(mask_input.shape) == 3:
                 mask_input = mask_input[None, :, :, :]
         return mask_input, unnorm_coords, labels, unnorm_box
@@ -150,7 +154,10 @@ class SAM2ImagePredictor:
                 concat_points = (box_coords, box_labels.astype(np.int32))
 
         if mask_input is None:
-            mask_input_dummy = np.zeros((1, 256, 256), dtype=np.float32)
+            if self.legacy:
+                mask_input_dummy = np.zeros((1, 256, 256), dtype=np.float32)
+            else:
+                mask_input_dummy = np.zeros((1, 1, 256, 256), dtype=np.float32)
             masks_enable = np.array([0], dtype=np.int32)
         else:
             mask_input_dummy = mask_input
@@ -240,3 +247,97 @@ class SAM2ImagePredictor:
         interpolated_masks = np.array(interpolated_masks)
 
         return interpolated_masks
+
+    def predict_batch(
+        self,
+        features,
+        orig_hw,
+        point_coords_batch,
+        prompt_encoder=None,
+        mask_decoder=None,
+        onnx=False
+    ):
+        """
+        Predict masks for a batch of single-point prompts.
+
+        Parameters
+        ----------
+        point_coords_batch : np.ndarray
+            [B, 2] array of point coordinates in pixel space.
+
+        Returns
+        -------
+        all_masks : np.ndarray [B*3, H, W] binary masks
+        all_ious : np.ndarray [B*3] IoU predictions
+        all_low_res_masks : np.ndarray [B*3, 256, 256] low-res logits
+        all_points : np.ndarray [B*3, 2] repeated point coordinates
+        """
+        B = point_coords_batch.shape[0]
+
+        # Transform coordinates to model space
+        coords = self.transform_coords(point_coords_batch, orig_hw)  # [B, 2]
+        coords = coords[:, None, :].astype(np.float32)  # [B, 1, 2]
+        labels = np.ones((B, 1), dtype=np.int32)  # all positive points
+
+        # Mask dummy for batch
+        if self.legacy:
+            mask_input = np.zeros((B, 256, 256), dtype=np.float32)
+        else:
+            mask_input = np.zeros((B, 1, 256, 256), dtype=np.float32)
+        masks_enable = np.array([0], dtype=np.int32)
+
+        # Run prompt encoder (batch)
+        if onnx:
+            sparse_embeddings, dense_embeddings, dense_pe = prompt_encoder.run(
+                None, {"coords": coords, "labels": labels, "masks": mask_input, "masks_enable": masks_enable})
+        else:
+            sparse_embeddings, dense_embeddings, dense_pe = prompt_encoder.run(
+                {"coords": coords, "labels": labels, "masks": mask_input, "masks_enable": masks_enable})
+
+        # Repeat image features for batch
+        image_embed = np.repeat(features["image_embed"], B, axis=0)  # [B, C, H, W]
+        high_res_feat1 = np.repeat(features["high_res_feats"][0], B, axis=0)
+        high_res_feat2 = np.repeat(features["high_res_feats"][1], B, axis=0)
+
+        # Run mask decoder per-item (mask_decoder does not support batch)
+        image_embed = features["image_embed"]  # [1, C, H, W]
+        high_res_feat1 = features["high_res_feats"][0]  # [1, C, H, W]
+        high_res_feat2 = features["high_res_feats"][1]  # [1, C, H, W]
+
+        all_masks = []
+        all_ious = []
+        # dense_pe is a constant (same for all items), use first element
+        dense_pe_single = dense_pe[0:1] if dense_pe.shape[0] > 1 else dense_pe
+
+        for i in range(B):
+            if onnx:
+                masks_i, iou_i, _, _ = mask_decoder.run(None, {
+                    "image_embeddings": image_embed,
+                    "image_pe": dense_pe_single,
+                    "sparse_prompt_embeddings": sparse_embeddings[i:i+1],
+                    "dense_prompt_embeddings": dense_embeddings[i:i+1],
+                    "high_res_features1": high_res_feat1,
+                    "high_res_features2": high_res_feat2})
+            else:
+                masks_i, iou_i, _, _ = mask_decoder.run({
+                    "image_embeddings": image_embed,
+                    "image_pe": dense_pe_single,
+                    "sparse_prompt_embeddings": sparse_embeddings[i:i+1],
+                    "dense_prompt_embeddings": dense_embeddings[i:i+1],
+                    "high_res_features1": high_res_feat1,
+                    "high_res_features2": high_res_feat2})
+            # Extract multimask outputs (indices 1:4)
+            all_masks.append(masks_i[:, 1:, :, :])  # [1, 3, H, W]
+            all_ious.append(iou_i[:, 1:])  # [1, 3]
+
+        masks = np.concatenate(all_masks, axis=0)  # [B, 3, H, W]
+        iou_pred = np.concatenate(all_ious, axis=0)  # [B, 3]
+
+        # Flatten: [B, 3, H, W] -> [B*3, H, W], [B*3]
+        masks_flat = masks.reshape(-1, masks.shape[-2], masks.shape[-1])  # [B*3, H, W]
+        iou_flat = iou_pred.reshape(-1)  # [B*3]
+
+        # Repeat points 3x to match
+        points_flat = np.repeat(point_coords_batch, 3, axis=0)  # [B*3, 2]
+
+        return masks_flat, iou_flat, points_flat

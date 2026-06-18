@@ -1,0 +1,33 @@
+*.onnx
+
+# Model artifacts
+G2PWModel/
+*.bin
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Tool/IDE hidden directories
+.idea/
+.vscode/
+.venv/
+venv/
+env/
+
+# Project-local caches
+.cache/
+cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db

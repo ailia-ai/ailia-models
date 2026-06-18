@@ -49,11 +49,19 @@ parser.add_argument(
 parser.add_argument(
 	"--onnx", action="store_true", help="use onnx runtime."
 )
+parser.add_argument(
+	"--quantize", type=str, default=None, choices=["int4", "int8"],
+	help="use int4 or int8 quantized model.",
+)
+parser.add_argument("--finetuning", type=str, default=None, help="use finetuning model", choices=(None, "japanese"))
 args = update_parser(parser)
 
 # ======================
 # Models
 # ======================
+
+REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sensevoice/"
+REMOTE_PATH_VAD = REMOTE_PATH
 
 if args.fp16:
 	WEIGHT_PATH = "sensevoice_small_fp16.onnx"
@@ -65,7 +73,14 @@ else:
 MODEL_PATH = WEIGHT_PATH + ".prototxt"
 VAD_MODEL_PATH = VAD_WEIGHT_PATH + ".prototxt"
 
-REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sensevoice/"
+if args.quantize is not None:
+	WEIGHT_PATH = "sensevoice_small_" + args.quantize + ".onnx"
+	MODEL_PATH = WEIGHT_PATH + ".prototxt"
+
+if args.finetuning is not None:
+	REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sensevoice-finetuning/"
+	WEIGHT_PATH = "sensevoice_small_" + args.finetuning + ".onnx"
+	MODEL_PATH = None
 
 def format_timestamp(seconds: float, always_include_hours: bool = False):
 	assert seconds >= 0, "non-negative timestamp expected"
@@ -90,7 +105,7 @@ def recognize_from_audio():
 	for audio_path in args.input:
 		logger.info(audio_path)
 
-		model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH)
+		model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH, disable_optimization=args.quantize is not None)
 		vad = Fsmn_vad_online(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, profile=args.profile, model_file=VAD_WEIGHT_PATH)
 
 		# vad
@@ -165,7 +180,7 @@ def recognize_from_mic():
 	# input audio loop
 	logger.info("Start inference...")
 
-	model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH)
+	model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH, disable_optimization=args.quantize is not None)
 	vad = Fsmn_vad_online(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, profile=args.profile, model_file=VAD_WEIGHT_PATH)
 
 	import sounddevice
@@ -225,7 +240,7 @@ def recognize_from_mic():
 
 def main():
 	check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
-	check_and_download_models(VAD_WEIGHT_PATH, VAD_MODEL_PATH, REMOTE_PATH)
+	check_and_download_models(VAD_WEIGHT_PATH, VAD_MODEL_PATH, REMOTE_PATH_VAD)
 	
 	if args.V:
 		recognize_from_mic()

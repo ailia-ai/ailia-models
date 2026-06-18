@@ -77,7 +77,11 @@ parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
 )
 parser.add_argument(
-    "--fp16", action="store_true", help="use fp16 model (default : fp32 model)."
+    "--fp16", action="store_true", help="use fp16 model.",
+)
+parser.add_argument(
+    "--quantize", type=str, default=None, choices=["int4"],
+    help="use int4 quantized model.",
 )
 parser.add_argument(
     "--temperature",
@@ -122,16 +126,24 @@ OPT = ".opt"
 if args.normal:
     OPT = ""
 
-WEIGHT_PATH = "Qwen2-VL-2B" + FP16 + ".onnx"
-WEIGHT_VIS_PATH = "Qwen2-VL-2B_vis" + FP16 + OPT + ".onnx"
-MODEL_PATH = "Qwen2-VL-2B" + FP16 + ".onnx.prototxt"
-MODEL_VIS_PATH = "Qwen2-VL-2B_vis" + FP16 + OPT + ".onnx.prototxt"
-if args.fp16:
-    PB_PATH = "Qwen2-VL-2B_weights_fp16.pb"
+if args.quantize == "int4":
+    WEIGHT_PATH = "Qwen2-VL-2B_int4.onnx"
+    WEIGHT_VIS_PATH = "Qwen2-VL-2B_vis_int4.onnx"
+    MODEL_PATH = "Qwen2-VL-2B_int4.onnx.prototxt"
+    MODEL_VIS_PATH = "Qwen2-VL-2B_vis_int4.onnx.prototxt"
+    PB_PATH = None
     PB_VIS_PATH = None
 else:
-    PB_PATH = "Qwen2-VL-2B_weights.pb"
-    PB_VIS_PATH = "Qwen2-VL-2B_vis_weights.pb"
+    WEIGHT_PATH = "Qwen2-VL-2B" + FP16 + ".onnx"
+    WEIGHT_VIS_PATH = "Qwen2-VL-2B_vis" + FP16 + OPT + ".onnx"
+    MODEL_PATH = "Qwen2-VL-2B" + FP16 + ".onnx.prototxt"
+    MODEL_VIS_PATH = "Qwen2-VL-2B_vis" + FP16 + OPT + ".onnx.prototxt"
+    if args.fp16:
+        PB_PATH = "Qwen2-VL-2B_weights_fp16.pb"
+        PB_VIS_PATH = None
+    else:
+        PB_PATH = "Qwen2-VL-2B_weights.pb"
+        PB_VIS_PATH = "Qwen2-VL-2B_vis_weights.pb"
 
 
 # ======================
@@ -706,7 +718,7 @@ def sample(
         if this_peer_finished:
             break
 
-        if INTERMEDIATE:
+        if INTERMEDIATE and not args.benchmark:
             output_text = tokenizer_decode(initial_ids, input_ids, tokenizer, True)[0]
             if output_text.startswith(before_text):
                 deltaText = output_text[len(before_text):]
@@ -851,25 +863,15 @@ def recognize(models):
     logger.info("Start inference...")
     if args.benchmark:
         logger.info("BENCHMARK mode")
-        total_time_estimation = 0
-        for i in range(args.benchmark_count):
-            start = int(round(time.time() * 1000))
-            output_text = predict(models, messages)
-            end = int(round(time.time() * 1000))
-            estimation_time = end - start
-
-            # Logging
-            logger.info(f"\tailia processing estimation time {estimation_time} ms")
-            if i != 0:
-                total_time_estimation = total_time_estimation + estimation_time
-
-        logger.info(
-            f"\taverage time estimation {total_time_estimation / (args.benchmark_count - 1)} ms"
-        )
+        start = int(round(time.time() * 1000))
+        output_text = predict(models, messages)
+        end = int(round(time.time() * 1000))
+        estimation_time = end - start
+        logger.info(f"\tailia processing estimation time {estimation_time} ms")
     else:
         output_text = predict(models, messages)
 
-    if INTERMEDIATE:
+    if INTERMEDIATE and not args.benchmark:
         print("")
     else:
         print(output_text)
@@ -905,7 +907,15 @@ def main():
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
 
         visual = onnxruntime.InferenceSession(WEIGHT_VIS_PATH, providers=providers)
-        net = onnxruntime.InferenceSession(WEIGHT_PATH, providers=providers)
+
+        sess_options = onnxruntime.SessionOptions()
+        if args.quantize is not None:
+            sess_options.graph_optimization_level = (
+                onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+            )
+        net = onnxruntime.InferenceSession(
+            WEIGHT_PATH, sess_options=sess_options, providers=providers
+        )
 
     #args.disable_ailia_tokenizer = True
     if args.disable_ailia_tokenizer:

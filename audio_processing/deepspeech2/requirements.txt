@@ -12,7 +12,7 @@ llvmlite==0.34.0
 numba==0.51.2
 numpy==1.22.0
 packaging==20.4
-Pillow==10.3.0
+Pillow==12.1.1
 pooch==1.2.0
 PyAudio==0.2.11
 pycparser==2.20
@@ -26,4 +26,4 @@ SoundFile==0.10.3.post1
 threadpoolctl==2.1.0
 torch==2.8.0
 torchvision==0.7.0
-urllib3==2.6.0
+urllib3==2.6.3

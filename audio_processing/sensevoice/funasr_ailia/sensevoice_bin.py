@@ -36,6 +36,7 @@ class SenseVoiceSmall:
         ailia_tokenizer: bool = False,
         profile: bool = False,
         model_file = "./sensevoice_small.onnx",
+        disable_optimization: bool = False,
     ):
 
         config_file = "./s2t_config/config.yaml"
@@ -50,7 +51,8 @@ class SenseVoiceSmall:
         self.frontend = WavFrontend(ailia_audio = ailia_audio, **config["frontend_conf"])
         if onnx:
             self.ort_infer = OrtInferSession(
-                model_file, device_id, intra_op_num_threads=intra_op_num_threads
+                model_file, device_id, intra_op_num_threads=intra_op_num_threads,
+                disable_optimization=disable_optimization
             )
         else:
             self.ort_infer = AiliaInferSession(

@@ -154,6 +154,10 @@ parser.add_argument(
 parser.add_argument(
     "--fp16", action="store_true", help="use fp16 model (default : fp32 model)."
 )
+parser.add_argument(
+    "--quantize", type=str, default=None, choices=["int4", "int8"],
+    help="use int4 or int8 quantized model (turbo only).",
+)
 args = update_parser(parser)
 
 if args.ailia_audio:
@@ -334,6 +338,15 @@ WEIGTH_ENC_LARGE_V3_PB_PATH = "encoder_large_v3_weights.pb"
 WEIGHT_DEC_LARGE_V3_PB_PATH = "decoder_large_v3_weights.pb"
 WEIGHT_DEC_LARGE_V3_FIX_KV_CACHE_PB_PATH = "decoder_large_v3_fix_kv_cache_weights.pb"
 WEIGHT_ENC_TURBO_PB_PATH = "encoder_turbo_weights" + OPT3 + ".pb"
+
+# Int4/Int8 quantized models (turbo only)
+if args.quantize is not None:
+    Q_SUFFIX = "_" + args.quantize
+    WEIGHT_ENC_TURBO_PATH = "encoder_turbo" + Q_SUFFIX + ".onnx"
+    MODEL_ENC_TURBO_PATH = "encoder_turbo" + Q_SUFFIX + ".onnx.prototxt"
+    WEIGHT_DEC_TURBO_PATH = "decoder_turbo_fix_kv_cache" + Q_SUFFIX + ".onnx"
+    MODEL_DEC_TURBO_PATH = "decoder_turbo_fix_kv_cache" + Q_SUFFIX + ".onnx.prototxt"
+    WEIGHT_ENC_TURBO_PB_PATH = None
 
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/whisper/"
 
@@ -1213,7 +1226,7 @@ def main():
                 WEIGHT_DEC_LARGE_V3_FIX_KV_CACHE_PB_PATH, REMOTE_PATH
             )
     elif args.model_type == "turbo":
-        if args.fp16 == False:
+        if args.fp16 == False and WEIGHT_ENC_TURBO_PB_PATH is not None:
             check_and_download_file(WEIGHT_ENC_TURBO_PB_PATH, REMOTE_PATH)
 
     mic_info = None
@@ -1255,15 +1268,21 @@ def main():
 
         providers = ["CPUExecutionProvider"]
         # providers = ["CUDAExecutionProvider"]
-        enc_net = onnxruntime.InferenceSession(WEIGHT_ENC_PATH, providers=providers)
+        sess_options = None
+        if args.quantize is not None:
+            sess_options = onnxruntime.SessionOptions()
+            sess_options.graph_optimization_level = (
+                onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+            )
+        enc_net = onnxruntime.InferenceSession(WEIGHT_ENC_PATH, sess_options=sess_options, providers=providers)
         if args.profile:
-            options = onnxruntime.SessionOptions()
+            options = sess_options or onnxruntime.SessionOptions()
             options.enable_profiling = True
             dec_net = onnxruntime.InferenceSession(
                 WEIGHT_DEC_PATH, options, providers=providers
             )
         else:
-            dec_net = onnxruntime.InferenceSession(WEIGHT_DEC_PATH, providers=providers)
+            dec_net = onnxruntime.InferenceSession(WEIGHT_DEC_PATH, sess_options=sess_options, providers=providers)
 
     if args.V:
         # microphone input mode

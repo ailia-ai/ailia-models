@@ -7,7 +7,7 @@
 requirements.txt参照
 
 ## ailia SDKのインストール
-[公式のチュートリアル](https://medium.com/axinc/ailia-sdk-チュートリアル-python-28379dbc9649)を参考にインストールします。
+[公式のチュートリアル](https://tech.ailia.ai/ailia-sdk-チュートリアル-python-28379dbc9649)を参考にインストールします。
 
 お使いの環境がMac OSの場合、
 ```

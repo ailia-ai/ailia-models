@@ -4,3 +4,6 @@ pyopenjtalk-prebuilt
 SoundFile
 librosa
 g2p_en
+jieba
+pypinyin
+cn2an
