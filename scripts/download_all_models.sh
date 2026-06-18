@@ -49,6 +49,7 @@ cd ../../audio_processing/audiosep/; python3 audiosep.py ${OPTION}
 cd ../../audio_processing/cosyvoice2/; python3 cosyvoice2.py ${OPTION}
 cd ../../audio_processing/sensevoice/; python3 sensevoice.py ${OPTION}
 cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
+cd ../../audio_processing/parakeet-tdt/; python3 parakeet-tdt.py ${OPTION}
 cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
 cd ../../autonomous_driving/segformer; python3 segformer.py ${OPTION}
 #cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}

@@ -131,6 +131,7 @@ If you would like to try on your computer:
 | [sensevoice](/audio_processing/sensevoice/) | [SenseVoice](https://github.com/FunAudioLLM/SenseVoice) | Pytorch | 1.2.13 and later | July 2024 | [JP](https://tech.ailia.ai/sensevoice-%E6%97%A5%E6%9C%AC%E8%AA%9E%E3%81%AB%E3%82%82%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9F%E9%AB%98%E9%80%9F%E3%81%AA%E9%9F%B3%E5%A3%B0%E8%AA%8D%E8%AD%98%E3%83%A2%E3%83%87%E3%83%AB-3721c79e0592) |
 | [reazon_speech2](/audio_processing/reazon_speech2/) | [ReazonSpeech2](https://research.reazon.jp/projects/ReazonSpeech/) | Pytorch | 1.4.0 and later | Feb 2024 | |
 | [kotoba-whisper](/audio_processing/kotoba-whisper/) | [kotoba-whisper](https://huggingface.co/kotoba-tech/kotoba-whisper-v1.0) | Pytorch | 1.2.16 and later | Apr 2024 | |
+| [parakeet-tdt ](/audio_processing/parakeet-tdt ) | [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) | Pytorch | 1.2.16 and later | May 2025 | |
 
 ### Text to speech
 
