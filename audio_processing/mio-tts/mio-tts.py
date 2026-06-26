@@ -374,9 +374,8 @@ def generate_speech_tokens(
 # ======================
 
 def main():
-    # TODO: GCSにモデルをアップロード後に有効化する
-    # check_and_download_models(WEIGHT_LLM, MODEL_LLM, REMOTE_PATH)
-    # check_and_download_models(WEIGHT_DECODER, MODEL_DECODER, REMOTE_PATH)
+    check_and_download_models(WEIGHT_LLM, MODEL_LLM, REMOTE_PATH)
+    check_and_download_models(WEIGHT_DECODER, MODEL_DECODER, REMOTE_PATH)
 
     import ailia
 
