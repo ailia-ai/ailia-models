@@ -17,7 +17,7 @@ Identify person from face.
 
 We calculated accuracy with LFW-dataset (only 100 person) using this script.
 
-https://github.com/axinc-ai/ailia-models-measurement/tree/main/face_identification
+https://github.com/ailia-ai/ailia-models-measurement/tree/main/face_identification
 
 ### Accuracy (paper)
 

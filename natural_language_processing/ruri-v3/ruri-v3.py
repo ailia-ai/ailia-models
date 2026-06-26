@@ -191,11 +191,11 @@ def main():
         net = onnxruntime.InferenceSession(WEIGHT_PATH, providers=providers)
 
     if args.disable_ailia_tokenizer:
-        from transformers import AutoTokenizer
-        tokenizer = AutoTokenizer.from_pretrained('tokenizer')
+        from transformers import PreTrainedTokenizerFast
+        tokenizer = PreTrainedTokenizerFast.from_pretrained('tokenizer')
     else:
-        from ailia_tokenizer import LlamaTokenizer
-        tokenizer = LlamaTokenizer.from_pretrained("./tokenizer")
+        from ailia_tokenizer import GemmaTokenizer
+        tokenizer = GemmaTokenizer.from_pretrained("./tokenizer")
         #tokenizer._pad_token_id = 3 # ailia tokenizer 1.5.0では0でpadされるがattention maskがあるので影響しない
 
     models = {

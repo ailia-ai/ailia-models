@@ -30,7 +30,7 @@ You can use `--savepath` option to change the name of the output file to save.
 $ python3 indexnet.py --input IMAGE_PATH --trimap TRIMAP_PATH --savepath SAVE_IMAGE_PATH
 ```
 
-If you do not have a trimap image for your input image, you can use the `-a u2net` option, while not setting the `--trimap` option. It will automatically use the [U^2-Net](https://github.com/axinc-ai/ailia-models/tree/master/image_segmentation/u2net) model to compute a trimap of your input image.
+If you do not have a trimap image for your input image, you can use the `-a u2net` option, while not setting the `--trimap` option. It will automatically use the [U^2-Net](https://github.com/ailia-ai/ailia-models/tree/master/image_segmentation/u2net) model to compute a trimap of your input image.
 ```bash
 $ python3 indexnet.py --input IMAGE_PATH --savepath SAVE_IMAGE_PATH -a u2net
 ```

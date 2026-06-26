@@ -2,6 +2,8 @@ import os
 import sys
 from importlib import import_module
 
+import numpy as np
+
 import arg_utils
 
 
@@ -74,4 +76,29 @@ def load_bytetrack(args=None):
     if args:
         for name in vars(args):
             setattr(mod.args, name, getattr(args, name))
+    return mod
+
+
+def load_clip(args=None):
+    sys.path.insert(0, os.path.join(top_path, "image_classification/clip"))
+    mod = load_model("clip")
+    sys.path.pop(0)
+
+    if args:
+        for name in vars(args):
+            setattr(mod.args, name, getattr(args, name))
+
+    def predict_image_feature(net, img):
+        img = mod.preprocess(img)
+        if not mod.args.onnx:
+            output = net.predict([img])
+        else:
+            output = net.run(None, {"image": img})
+        image_feature = output[0]
+        image_feature = image_feature / np.linalg.norm(
+            image_feature, ord=2, axis=-1, keepdims=True
+        )
+        return image_feature
+
+    mod.predict_image_feature = predict_image_feature
     return mod

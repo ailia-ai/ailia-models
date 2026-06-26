@@ -50,6 +50,10 @@ parser.add_argument(
     help='Box coordinate specified by x1,y1,x2,y2.'
 )
 parser.add_argument(
+    '--mask', type=str, default=None,
+    help='Mask image path (grayscale, white=foreground) for mask prompt input.'
+)
+parser.add_argument(
     '--num_mask_mem', type=int, default=7, choices=(0, 1, 2, 3, 4, 5, 6, 7),
     help='Number of mask mem. (default 1 input frame + 6 previous frames)'
 )
@@ -66,12 +70,36 @@ parser.add_argument(
     help='execute onnxruntime version.'
 )
 parser.add_argument(
-    '--normal', action='store_true',
-    help='Use normal version of onnx model. Normal version requires 6 dim matmul.'
-)
-parser.add_argument(
     '--version', default='2', choices=('2', '2.1'),
     help='Select model.'
+)
+parser.add_argument(
+    '--legacy', action='store_true',
+    help='Use legacy ONNX model. (4D matmul with batch=1, mask prompt not supported)'
+)
+parser.add_argument(
+    '--auto', action='store_true',
+    help='Automatic mask generation mode. Segment all objects in the image.'
+)
+parser.add_argument(
+    '--points_per_side', type=int, default=32,
+    help='Grid density for auto mode. (default: 32, generates 32x32=1024 points)'
+)
+parser.add_argument(
+    '--points_per_batch', type=int, default=64,
+    help='Batch size for auto mode inference. (default: 64)'
+)
+parser.add_argument(
+    '--pred_iou_thresh', type=float, default=0.8,
+    help='Predicted IoU threshold for auto mode. (default: 0.8)'
+)
+parser.add_argument(
+    '--stability_score_thresh', type=float, default=0.95,
+    help='Stability score threshold for auto mode. (default: 0.95)'
+)
+parser.add_argument(
+    '--box_nms_thresh', type=float, default=0.7,
+    help='Box NMS IoU threshold for auto mode. (default: 0.7)'
 )
 
 args = update_parser(parser)
@@ -101,7 +129,7 @@ def show_mask(mask, img, color = np.array([255, 144, 30]), obj_id=None):
     mask = mask.reshape(h, w, 1)
 
     mask_image = mask * color
-    img = (img * ~mask) + (img * mask) * 0.6 + mask_image * 0.4
+    img = (img * ~mask) + (img * mask) * 0.5 + mask_image * 0.5
 
     return img
 
@@ -140,6 +168,7 @@ def show_box(box, img):
 
 from sam2_image_predictor import SAM2ImagePredictor
 from sam2_video_predictor import SAM2VideoPredictor
+from sam2_automatic_mask_generator import SAM2AutomaticMaskGenerator
 
 # ======================
 # Main
@@ -177,10 +206,32 @@ def get_input_point():
     return input_point, input_label, input_box
 
 
+def load_mask_input(mask_path):
+    """Load a mask image and convert to mask logits for prompt encoder input."""
+    mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+    if mask is None:
+        raise FileNotFoundError(f"Mask image not found: {mask_path}")
+    # Resize to prompt encoder mask input size (256x256)
+    mask = cv2.resize(mask, (256, 256), interpolation=cv2.INTER_LINEAR)
+    # Convert to logits: foreground (>128) -> positive, background -> negative
+    mask_logits = np.where(mask > 128, 10.0, -10.0).astype(np.float32)
+    # Shape: [1, 256, 256]
+    mask_logits = mask_logits[None, :, :]
+    return mask_logits
+
+
 def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
     input_point, input_label, input_box = get_input_point()
 
-    image_predictor = SAM2ImagePredictor()
+    # Load mask input if specified
+    mask_input = None
+    if args.mask is not None:
+        if args.legacy:
+            raise RuntimeError("--mask requires new prompt_encoder model. Cannot be used with --legacy.")
+        mask_input = load_mask_input(args.mask)
+        logger.info(f'Mask prompt loaded from: {args.mask}')
+
+    image_predictor = SAM2ImagePredictor(args.legacy, args.version, args.model_type)
 
     for image_path in args.input:
         image = cv2.imread(image_path)
@@ -200,6 +251,7 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
                     point_coords=input_point,
                     point_labels=input_label,
                     box=input_box,
+                    mask_input=mask_input,
                     prompt_encoder=prompt_encoder,
                     mask_decoder=mask_decoder,
                     onnx=args.onnx
@@ -221,6 +273,7 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
                 point_coords=input_point,
                 point_labels=input_label,
                 box=input_box,
+                mask_input=mask_input,
                 prompt_encoder=prompt_encoder,
                 mask_decoder=mask_decoder,
                 onnx=args.onnx
@@ -236,6 +289,60 @@ def recognize_from_image(image_encoder, prompt_encoder, mask_decoder):
         image = show_mask(masks[0], image)
         image = show_points(input_point, input_label, image)
         image = show_box(input_box, image)
+        cv2.imwrite(savepath, image)
+
+
+def recognize_from_image_auto(image_encoder, prompt_encoder, mask_decoder):
+    mask_generator = SAM2AutomaticMaskGenerator(
+        legacy=args.legacy,
+        version=args.version,
+        model_type=args.model_type,
+        points_per_side=args.points_per_side,
+        points_per_batch=args.points_per_batch,
+        pred_iou_thresh=args.pred_iou_thresh,
+        stability_score_thresh=args.stability_score_thresh,
+        box_nms_thresh=args.box_nms_thresh,
+    )
+
+    for image_path in args.input:
+        logger.info(f'Processing: {image_path}')
+        image = cv2.imread(image_path)
+        orig_hw = [image.shape[0], image.shape[1]]
+        image_size = 1024
+        image_np = preprocess_frame(image, image_size=image_size)
+
+        start = int(round(time.time() * 1000))
+        features = mask_generator.image_predictor.set_image(image_np, image_encoder, args.onnx)
+        binary_masks, iou_scores = mask_generator.generate(
+            features=features,
+            orig_hw=orig_hw,
+            prompt_encoder=prompt_encoder,
+            mask_decoder=mask_decoder,
+            onnx=args.onnx,
+        )
+        end = int(round(time.time() * 1000))
+        logger.info(f'\tprocessing time {end - start} ms')
+        logger.info(f'\tdetected {len(binary_masks)} masks')
+
+        # Sort masks by area (largest first, so smaller masks render on top)
+        areas = np.sum(binary_masks, axis=(1, 2))
+        sorted_idx = np.argsort(-areas)
+        binary_masks = binary_masks[sorted_idx]
+
+        # Visualize with random colors and contours (matching official SAM2 style)
+        image = image.astype(np.float64)
+        np.random.seed(0)
+        for mask in binary_masks:
+            color = (np.random.random(3) * 255).astype(np.float64)
+            image = show_mask(mask, image, color=color)
+            # Draw contour
+            mask_uint8 = mask.astype(np.uint8)
+            contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            cv2.drawContours(image, contours, -1, (0, 0, 255), thickness=1, lineType=cv2.LINE_AA)
+        image = np.clip(image, 0, 255).astype(np.uint8)
+
+        savepath = get_savepath(args.savepath, image_path, ext='.png')
+        logger.info(f'saved at : {savepath}')
         cv2.imwrite(savepath, image)
 
 
@@ -277,9 +384,9 @@ def recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_att
     else:
         writer = None
 
-    predictor = SAM2VideoPredictor(args.onnx, args.normal, args.benchmark)
+    predictor = SAM2VideoPredictor(args.onnx, args.benchmark, args.legacy)
 
-    inference_state = predictor.init_state(args.num_mask_mem, args.max_obj_ptrs_in_encoder, args.version)
+    inference_state = predictor.init_state(args.num_mask_mem, args.max_obj_ptrs_in_encoder, args.version, args.model_type)
     predictor.reset_state(inference_state)
 
     frame_shown = False
@@ -388,34 +495,36 @@ def process_frame(image, frame_idx, predictor, inference_state, image_encoder, p
 def main():
     # fetch image encoder model
     model_type = args.model_type
+    model_type_versioned = model_type
     if args.version == "2.1":
-        model_type = model_type + "_2.1"
-    WEIGHT_IMAGE_ENCODER_L_PATH = 'image_encoder_'+model_type+'.onnx'
-    MODEL_IMAGE_ENCODER_L_PATH = 'image_encoder_'+model_type+'.onnx.prototxt'
-    WEIGHT_PROMPT_ENCODER_L_PATH = 'prompt_encoder_'+model_type+'.onnx'
-    MODEL_PROMPT_ENCODER_L_PATH = 'prompt_encoder_'+model_type+'.onnx.prototxt'
-    WEIGHT_MASK_DECODER_L_PATH = 'mask_decoder_'+model_type+'.onnx'
-    MODEL_MASK_DECODER_L_PATH = 'mask_decoder_'+model_type+'.onnx.prototxt'
-    if args.normal:
-        # 6dim matmul
-        if args.version == "2.1":
-            raise Exception("SAM2.1 not exported normal model.")
-        WEIGHT_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.onnx'
-        MODEL_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.onnx.prototxt'
-    else:
-        # 4dim matmul with batch 1
-        WEIGHT_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.opt.onnx'
-        MODEL_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type+'.opt.onnx.prototxt'
-    WEIGHT_MEMORY_ENCODER_L_PATH = 'memory_encoder_'+model_type+'.onnx'
-    MODEL_MEMORY_ENCODER_L_PATH = 'memory_encoder_'+model_type+'.onnx.prototxt'
-    WEIGHT_MLP_L_PATH = 'mlp_'+model_type+'.onnx'
-    MODEL_MLP_L_PATH = 'mlp_'+model_type+'.onnx.prototxt'
+        model_type_versioned = model_type + "_2.1"
+    WEIGHT_IMAGE_ENCODER_L_PATH = 'image_encoder_'+model_type_versioned+'.onnx'
+    MODEL_IMAGE_ENCODER_L_PATH = 'image_encoder_'+model_type_versioned+'.onnx.prototxt'
+    WEIGHT_MASK_DECODER_L_PATH = 'mask_decoder_'+model_type_versioned+'.onnx'
+    MODEL_MASK_DECODER_L_PATH = 'mask_decoder_'+model_type_versioned+'.onnx.prototxt'
+    WEIGHT_MEMORY_ENCODER_L_PATH = 'memory_encoder_'+model_type_versioned+'.onnx'
+    MODEL_MEMORY_ENCODER_L_PATH = 'memory_encoder_'+model_type_versioned+'.onnx.prototxt'
+    WEIGHT_MLP_L_PATH = 'mlp_'+model_type_versioned+'.onnx'
+    MODEL_MLP_L_PATH = 'mlp_'+model_type_versioned+'.onnx.prototxt'
     if args.version == "2.1":
-        WEIGHT_TPOS_L_PATH = 'obj_ptr_tpos_proj_'+model_type+'.onnx'
-        MODEL_TPOS_L_PATH = 'obj_ptr_tpos_proj_'+model_type+'.onnx.prototxt'
+        WEIGHT_TPOS_L_PATH = 'obj_ptr_tpos_proj_'+model_type_versioned+'.onnx'
+        MODEL_TPOS_L_PATH = 'obj_ptr_tpos_proj_'+model_type_versioned+'.onnx.prototxt'
     else:
         WEIGHT_TPOS_L_PATH = None
         MODEL_TPOS_L_PATH = None
+
+    if args.legacy:
+        WEIGHT_PROMPT_ENCODER_L_PATH = 'prompt_encoder_'+model_type_versioned+'.onnx'
+        MODEL_PROMPT_ENCODER_L_PATH = 'prompt_encoder_'+model_type_versioned+'.onnx.prototxt'
+        # 4dim matmul with batch 1
+        WEIGHT_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type_versioned+'.opt.onnx'
+        MODEL_MEMORY_ATTENTION_L_PATH = 'memory_attention_'+model_type_versioned+'.opt.onnx.prototxt'
+    else:
+        # New models: 4D mask prompt encoder and 6D matmul memory attention with dynamic batch
+        WEIGHT_PROMPT_ENCODER_L_PATH = 'prompt_encoder_with_mask_'+model_type_versioned+'.onnx'
+        MODEL_PROMPT_ENCODER_L_PATH = 'prompt_encoder_with_mask_'+model_type_versioned+'.onnx.prototxt'
+        WEIGHT_MEMORY_ATTENTION_L_PATH = 'memory_attention_6d_'+model_type_versioned+'.onnx'
+        MODEL_MEMORY_ATTENTION_L_PATH = 'memory_attention_6d_'+model_type_versioned+'.onnx.prototxt'
 
     # model files check and download
     check_and_download_models(WEIGHT_IMAGE_ENCODER_L_PATH, MODEL_IMAGE_ENCODER_L_PATH, REMOTE_PATH)
@@ -453,8 +562,13 @@ def main():
         else:
             obj_ptr_tpos_proj = None
 
+    if args.auto and args.legacy:
+        raise RuntimeError("--auto requires dynamic batch support. Cannot be used with --legacy.")
+
     if args.video is not None:
         recognize_from_video(image_encoder, prompt_encoder, mask_decoder, memory_attention, memory_encoder, mlp, obj_ptr_tpos_proj)
+    elif args.auto:
+        recognize_from_image_auto(image_encoder, prompt_encoder, mask_decoder)
     else:
         recognize_from_image(image_encoder, prompt_encoder, mask_decoder)
 

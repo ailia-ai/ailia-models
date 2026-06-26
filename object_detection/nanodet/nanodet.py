@@ -77,8 +77,12 @@ parser.add_argument(
 args = update_parser(parser)
 
 MODEL_NAME = args.model_name
-WEIGHT_PATH = MODEL_NAME + ".opt.onnx"
-MODEL_PATH = MODEL_NAME + ".opt.onnx.prototxt"
+if MODEL_NAME == 'nanodet_t':
+    WEIGHT_PATH = MODEL_NAME + ".opt2.onnx"
+    MODEL_PATH = MODEL_NAME + ".opt2.onnx.prototxt"
+else:
+    WEIGHT_PATH = MODEL_NAME + ".opt.onnx"
+    MODEL_PATH = MODEL_NAME + ".opt.onnx.prototxt"
 
 HEIGHT = MODEL_PARAMS[MODEL_NAME]['input_shape'][0]
 WIDTH = MODEL_PARAMS[MODEL_NAME]['input_shape'][1]

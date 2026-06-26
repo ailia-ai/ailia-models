@@ -34,7 +34,7 @@ $ python3 facial_feature.py --video VIDEO_PATH
 ```
 
 ### Reference
-[kaggle-facial-keypoints](https://github.com/axinc-ai/kaggle-facial-keypoints)
+[kaggle-facial-keypoints](https://github.com/ailia-ai/kaggle-facial-keypoints)
 
 ### Framework
 PyTorch 1.2.0

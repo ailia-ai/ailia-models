@@ -38,7 +38,7 @@ $ python3 yolov3-face.py --video VIDEO_PATH
 
 ## Reference
 
-- [Face detection using keras-yolov3](https://github.com/axinc-ai/yolov3-face)
+- [Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face)
 
 ## Framework
 

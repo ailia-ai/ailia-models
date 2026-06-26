@@ -38,7 +38,7 @@ parser.add_argument(
 parser.add_argument(
     '--text_language', '-tl',
     default='ja',
-    help='[ja, en]'
+    help='[ja, en, zh]'
 )
 parser.add_argument(
     '--ref_audio', '-ra', metavar='TEXT', default="reference_audio_captured_by_ax.wav",
@@ -51,7 +51,7 @@ parser.add_argument(
 parser.add_argument(
     '--ref_language', '-rl',
     default='ja',
-    help='[ja, en]'
+    help='[ja, en, zh]'
 )
 parser.add_argument(
     '--onnx', action='store_true',
@@ -86,12 +86,14 @@ if args.normal:
 else:
     WEIGHT_PATH_T2S_STAGE_DECODER = 't2s_sdec' + FP16_PREFIX + '.opt3.onnx'
 WEIGHT_PATH_VITS = 'vits' + FP16_PREFIX + '.onnx'
+WEIGHT_PATH_BERT = 'chinese-roberta.onnx'
 
 MODEL_PATH_SSL = WEIGHT_PATH_SSL + '.prototxt'
 MODEL_PATH_T2S_ENCODER = WEIGHT_PATH_T2S_ENCODER + '.prototxt'
 MODEL_PATH_T2S_FIRST_DECODER = WEIGHT_PATH_T2S_FIRST_DECODER + '.prototxt'
 MODEL_PATH_T2S_STAGE_DECODER = WEIGHT_PATH_T2S_STAGE_DECODER + '.prototxt'
 MODEL_PATH_VITS = WEIGHT_PATH_VITS + '.prototxt'
+MODEL_PATH_BERT = WEIGHT_PATH_BERT + '.prototxt'
 
 # ======================
 # Mode
@@ -255,12 +257,20 @@ class SSLModel():
         return last_hidden_state[0]
 
 
-def generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits):
+def generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits, bert=None):
     gpt = T2SModel(t2s_encoder, t2s_first_decoder, t2s_stage_decoder,)
     gpt_sovits = GptSoVits(gpt, vits)
     ssl = SSLModel(ssl)
 
     input_audio = args.ref_audio
+
+    use_zh = args.text_language == "zh" or args.ref_language == "zh"
+
+    if use_zh:
+        import text.chinese as chinese
+        from text.bert_feature import get_bert_feature
+        from ailia_tokenizer import BertTokenizer
+        bert_tokenizer = BertTokenizer.from_pretrained("tokenizer/")
 
     if args.ailia_voice:
         import ailia_voice
@@ -270,7 +280,11 @@ def generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits)
         import text.japanese as japanese
         import text.english as english
 
-    if args.ref_language == "ja":
+    ref_word2ph = None
+    if args.ref_language == "zh":
+        ref_norm_text = chinese.text_normalize(args.ref_text)
+        ref_phones, ref_word2ph = chinese.g2p(ref_norm_text)
+    elif args.ref_language == "ja":
         if args.ailia_voice:
             ref_phones = voice.g2p(args.ref_text, ailia_voice.AILIA_VOICE_G2P_TYPE_GPT_SOVITS_JA).split(" ")[:-1]
         else:
@@ -282,7 +296,11 @@ def generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits)
             ref_phones = english.g2p(args.ref_text)
     ref_seq = np.array([cleaned_text_to_sequence(ref_phones)], dtype=np.int64)
 
-    if args.text_language == "ja":
+    text_word2ph = None
+    if args.text_language == "zh":
+        text_norm_text = chinese.text_normalize(args.input)
+        text_phones, text_word2ph = chinese.g2p(text_norm_text)
+    elif args.text_language == "ja":
         if args.ailia_voice:
             text_phones = voice.g2p(args.input, ailia_voice.AILIA_VOICE_G2P_TYPE_GPT_SOVITS_JA).split(" ")[:-1]
         else:
@@ -294,9 +312,16 @@ def generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits)
             text_phones = english.g2p(args.input)
     text_seq = np.array([cleaned_text_to_sequence(text_phones)], dtype=np.int64)
 
-    # empty for ja or en
-    ref_bert = np.zeros((ref_seq.shape[1], 1024), dtype=np.float32)
-    text_bert = np.zeros((text_seq.shape[1], 1024), dtype=np.float32)
+    # BERT features: real for zh, zeros for ja/en
+    if args.ref_language == "zh" and ref_word2ph is not None:
+        ref_bert = get_bert_feature(ref_norm_text, ref_word2ph, bert_tokenizer, bert, args.onnx)
+    else:
+        ref_bert = np.zeros((ref_seq.shape[1], 1024), dtype=np.float32)
+
+    if args.text_language == "zh" and text_word2ph is not None:
+        text_bert = get_bert_feature(text_norm_text, text_word2ph, bert_tokenizer, bert, args.onnx)
+    else:
+        text_bert = np.zeros((text_seq.shape[1], 1024), dtype=np.float32)
     
     vits_hps_data_sampling_rate = 32000
 
@@ -327,12 +352,16 @@ def generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits)
 
 
 def main():
+    use_zh = args.text_language == "zh" or args.ref_language == "zh"
+
     # model files check and download
     check_and_download_models(WEIGHT_PATH_SSL, MODEL_PATH_SSL, REMOTE_PATH)
     check_and_download_models(WEIGHT_PATH_T2S_ENCODER, MODEL_PATH_T2S_ENCODER, REMOTE_PATH)
     check_and_download_models(WEIGHT_PATH_T2S_FIRST_DECODER, MODEL_PATH_T2S_FIRST_DECODER, REMOTE_PATH)
     check_and_download_models(WEIGHT_PATH_T2S_STAGE_DECODER, MODEL_PATH_T2S_STAGE_DECODER, REMOTE_PATH)
     check_and_download_models(WEIGHT_PATH_VITS, MODEL_PATH_VITS, REMOTE_PATH)
+    if use_zh:
+        check_and_download_models(WEIGHT_PATH_BERT, MODEL_PATH_BERT, REMOTE_PATH)
 
     #env_id = args.env_id
 
@@ -345,6 +374,7 @@ def main():
         t2s_first_decoder = onnxruntime.InferenceSession(WEIGHT_PATH_T2S_FIRST_DECODER, providers=providers)
         t2s_stage_decoder = onnxruntime.InferenceSession(WEIGHT_PATH_T2S_STAGE_DECODER, providers=providers)
         vits = onnxruntime.InferenceSession(WEIGHT_PATH_VITS, providers=providers)
+        bert = onnxruntime.InferenceSession(WEIGHT_PATH_BERT, providers=providers) if use_zh else None
     else:
         import ailia
         memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
@@ -353,12 +383,15 @@ def main():
         t2s_first_decoder = ailia.Net(weight = WEIGHT_PATH_T2S_FIRST_DECODER, stream = MODEL_PATH_T2S_FIRST_DECODER, memory_mode = memory_mode, env_id = args.env_id)
         t2s_stage_decoder = ailia.Net(weight = WEIGHT_PATH_T2S_STAGE_DECODER, stream = MODEL_PATH_T2S_STAGE_DECODER, memory_mode = memory_mode, env_id = args.env_id)
         vits = ailia.Net(weight = WEIGHT_PATH_VITS, stream = MODEL_PATH_VITS, memory_mode = memory_mode, env_id = args.env_id)
+        bert = ailia.Net(weight = WEIGHT_PATH_BERT, stream = MODEL_PATH_BERT, memory_mode = memory_mode, env_id = args.env_id) if use_zh else None
         if args.profile:
             ssl.set_profile_mode(True)
             t2s_encoder.set_profile_mode(True)
             t2s_first_decoder.set_profile_mode(True)
             t2s_stage_decoder.set_profile_mode(True)
             vits.set_profile_mode(True)
+            if bert is not None:
+                bert.set_profile_mode(True)
         pf = platform.system()
         if pf == "Darwin":
             if args.env_id == 2:
@@ -369,7 +402,7 @@ def main():
     if args.benchmark:
         start = int(round(time.time() * 1000))
 
-    generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits)
+    generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits, bert)
 
     if args.benchmark:
         end = int(round(time.time() * 1000))
@@ -386,6 +419,9 @@ def main():
         print(t2s_stage_decoder.get_summary())
         print("vits : ")
         print(vits.get_summary())
+        if bert is not None:
+            print("bert : ")
+            print(bert.get_summary())
 
 
 if __name__ == '__main__':

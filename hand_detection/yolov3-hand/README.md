@@ -38,7 +38,7 @@ $ python3 yolov3-hand.py --video VIDEO_PATH
 
 ## Reference
 
-- [Hand detection branch of Face detection using keras-yolov3](https://github.com/axinc-ai/yolov3-face/tree/hand_detection)
+- [Hand detection branch of Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face/tree/hand_detection)
 
 ## Framework
 

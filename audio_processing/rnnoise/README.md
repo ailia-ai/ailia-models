@@ -8,7 +8,7 @@ Audio file
 - Bit per sample: 16-bit
 - Bit rate: 768 kbps
 
-https://github.com/axinc-ai/ailia-models/assets/29946532/f1908958-d3be-44a7-9180-59c375bb488c
+https://github.com/ailia-ai/ailia-models/assets/29946532/f1908958-d3be-44a7-9180-59c375bb488c
 
 (Audio from https://jmvalin.ca/demo/rnnoise/)
 
@@ -16,7 +16,7 @@ https://github.com/axinc-ai/ailia-models/assets/29946532/f1908958-d3be-44a7-9180
 
 Audio file
 
-https://github.com/axinc-ai/ailia-models/assets/29946532/21eaf44d-bffd-428a-9637-f5d385364698
+https://github.com/ailia-ai/ailia-models/assets/29946532/21eaf44d-bffd-428a-9637-f5d385364698
 
 ## Usage
 Automatically downloads the onnx and prototxt files on the first run.

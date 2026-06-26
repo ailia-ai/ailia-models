@@ -154,6 +154,10 @@ parser.add_argument(
 parser.add_argument(
     "--fp16", action="store_true", help="use fp16 model (default : fp32 model)."
 )
+parser.add_argument(
+    "--quantize", type=str, default=None, choices=["int4", "int8"],
+    help="use int4 or int8 quantized model (turbo only).",
+)
 args = update_parser(parser)
 
 if args.ailia_audio:
@@ -180,7 +184,7 @@ else:
     )
 
 if not args.disable_ailia_tokenizer:
-    from ailia_tokenizer import get_tokenizer
+    from ailia_simple_tokenizer import get_tokenizer
 else:
     from tokenizer import get_tokenizer
 
@@ -334,6 +338,15 @@ WEIGTH_ENC_LARGE_V3_PB_PATH = "encoder_large_v3_weights.pb"
 WEIGHT_DEC_LARGE_V3_PB_PATH = "decoder_large_v3_weights.pb"
 WEIGHT_DEC_LARGE_V3_FIX_KV_CACHE_PB_PATH = "decoder_large_v3_fix_kv_cache_weights.pb"
 WEIGHT_ENC_TURBO_PB_PATH = "encoder_turbo_weights" + OPT3 + ".pb"
+
+# Int4/Int8 quantized models (turbo only)
+if args.quantize is not None:
+    Q_SUFFIX = "_" + args.quantize
+    WEIGHT_ENC_TURBO_PATH = "encoder_turbo" + Q_SUFFIX + ".onnx"
+    MODEL_ENC_TURBO_PATH = "encoder_turbo" + Q_SUFFIX + ".onnx.prototxt"
+    WEIGHT_DEC_TURBO_PATH = "decoder_turbo_fix_kv_cache" + Q_SUFFIX + ".onnx"
+    MODEL_DEC_TURBO_PATH = "decoder_turbo_fix_kv_cache" + Q_SUFFIX + ".onnx.prototxt"
+    WEIGHT_ENC_TURBO_PB_PATH = None
 
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/whisper/"
 
@@ -656,7 +669,7 @@ def detect_language(enc_net, dec_net, mel, tokenizer=None):
         language_tokens = language_tokens[0]
         language_probs = language_probs[0]
 
-    return language_tokens, language_probs
+    return language_tokens, language_probs, mel
 
 
 DecodingResult = namedtuple(
@@ -674,7 +687,7 @@ DecodingResult = namedtuple(
 )
 
 
-def decode(enc_net, dec_net, mel, options):
+def decode(enc_net, dec_net, mel, options, audio_features_cache = None):
     single = mel.ndim == 2
     if single:
         mel = mel.unsqueeze(0)
@@ -725,7 +738,10 @@ def decode(enc_net, dec_net, mel, options):
     decoder.reset()
     n_audio = mel.shape[0]
 
-    audio_features = get_audio_features(enc_net, mel)
+    if audio_features_cache is not None:
+        audio_features = audio_features_cache
+    else:
+        audio_features = get_audio_features(enc_net, mel)
     tokens = np.repeat(np.array([initial_tokens]), n_audio, axis=-1)
     languages = [language] * audio_features.shape[0]
 
@@ -832,7 +848,7 @@ def decode(enc_net, dec_net, mel, options):
     return result
 
 
-def decode_with_fallback(enc_net, dec_net, segment, decode_options):
+def decode_with_fallback(enc_net, dec_net, segment, decode_options, audio_features_cache = None):
     logprob_threshold = decode_options.get("logprob_threshold", -1.0)
     temperature = decode_options.get("temperature", 0)
     no_speech_threshold = decode_options.get("no_speech_threshold", 0.6)
@@ -855,7 +871,7 @@ def decode_with_fallback(enc_net, dec_net, segment, decode_options):
             kwargs.pop("best_of", None)
 
         options = {**kwargs, "temperature": t}
-        decode_result = decode(enc_net, dec_net, segment, options)[0]
+        decode_result = decode(enc_net, dec_net, segment, options, audio_features_cache = audio_features_cache)[0]
 
         needs_fallback = False
         if (
@@ -913,9 +929,10 @@ def predict(wav, enc_net, dec_net, immediate=False, microphone=False):
     mel = log_mel_spectrogram(wav, dims.n_mels, padding=N_SAMPLES)
     content_frames = mel.shape[-1] - N_FRAMES
 
+    audio_features_cache = None
     if language is None:
         segment = pad_or_trim(mel, N_FRAMES)
-        _, probs = detect_language(enc_net, dec_net, segment)
+        _, probs, audio_features_cache = detect_language(enc_net, dec_net, segment)
         decode_options["language"] = language = max(probs, key=probs.get)
         logger.info(
             f"Detected language: {LANGUAGES[decode_options['language']].title()}"
@@ -971,9 +988,11 @@ def predict(wav, enc_net, dec_net, immediate=False, microphone=False):
         mel_segment = pad_or_trim(mel_segment, N_FRAMES)
 
         decode_options["prompt"] = all_tokens[prompt_reset_since:]
-        result = decode_with_fallback(enc_net, dec_net, mel_segment, decode_options)
+        result = decode_with_fallback(enc_net, dec_net, mel_segment, decode_options, audio_features_cache = audio_features_cache)
         result = result[0]
         tokens = np.array(result.tokens)
+
+        audio_features_cache = None
 
         if no_speech_threshold is not None:
             # no voice activity check
@@ -1207,7 +1226,7 @@ def main():
                 WEIGHT_DEC_LARGE_V3_FIX_KV_CACHE_PB_PATH, REMOTE_PATH
             )
     elif args.model_type == "turbo":
-        if args.fp16 == False:
+        if args.fp16 == False and WEIGHT_ENC_TURBO_PB_PATH is not None:
             check_and_download_file(WEIGHT_ENC_TURBO_PB_PATH, REMOTE_PATH)
 
     mic_info = None
@@ -1249,15 +1268,21 @@ def main():
 
         providers = ["CPUExecutionProvider"]
         # providers = ["CUDAExecutionProvider"]
-        enc_net = onnxruntime.InferenceSession(WEIGHT_ENC_PATH, providers=providers)
+        sess_options = None
+        if args.quantize is not None:
+            sess_options = onnxruntime.SessionOptions()
+            sess_options.graph_optimization_level = (
+                onnxruntime.GraphOptimizationLevel.ORT_DISABLE_ALL
+            )
+        enc_net = onnxruntime.InferenceSession(WEIGHT_ENC_PATH, sess_options=sess_options, providers=providers)
         if args.profile:
-            options = onnxruntime.SessionOptions()
+            options = sess_options or onnxruntime.SessionOptions()
             options.enable_profiling = True
             dec_net = onnxruntime.InferenceSession(
                 WEIGHT_DEC_PATH, options, providers=providers
             )
         else:
-            dec_net = onnxruntime.InferenceSession(WEIGHT_DEC_PATH, providers=providers)
+            dec_net = onnxruntime.InferenceSession(WEIGHT_DEC_PATH, sess_options=sess_options, providers=providers)
 
     if args.V:
         # microphone input mode

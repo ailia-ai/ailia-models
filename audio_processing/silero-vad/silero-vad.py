@@ -29,8 +29,6 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
-WEIGHT_PATH = 'silero_vad.onnx'
-MODEL_PATH = 'silero_vad.onnx.prototxt'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/silero-vad/'
 
 WAVE_PATH = "en_example.wav"
@@ -51,7 +49,26 @@ parser.add_argument(
     action='store_true',
     help='execute onnxruntime version.'
 )
+parser.add_argument(
+    "-v",
+    "--version",
+    default="4",
+    choices=(
+        "4",
+        "5",
+        "6",
+        "6_2",
+    ),
+    help="versionn",
+)
 args = update_parser(parser)
+
+if args.version == "4":
+    WEIGHT_PATH = 'silero_vad.onnx'
+    MODEL_PATH = 'silero_vad.onnx.prototxt'
+else:
+    WEIGHT_PATH = 'silero_vad_v' + args.version + '.onnx'
+    MODEL_PATH = 'silero_vad_v' + args.version + '.onnx.prototxt'
 
 # ======================
 # Logic
@@ -60,22 +77,25 @@ args = update_parser(parser)
 def audio_recognition(model):
   # **Speech timestapms from full audio**
 
-  wav = read_audio('en_example.wav', sampling_rate=SAMPLING_RATE)
+  wav = read_audio(args.input[0], sampling_rate=SAMPLING_RATE)
   # get speech timestamps from full audio file
   speech_timestamps = get_speech_timestamps(wav, model, sampling_rate=SAMPLING_RATE)
   logger.info("Speech timestamp")
   logger.info(speech_timestamps)
 
   # merge all speech chunks to one audio
-  save_audio('only_speech.wav',
+  save_audio(args.savepath,
             collect_chunks(speech_timestamps, wav), sampling_rate=SAMPLING_RATE) 
 
   ## using VADIterator class
   vad_iterator = VADIterator(model)
-  wav = read_audio(f'en_example.wav', sampling_rate=SAMPLING_RATE)
+  wav = read_audio(args.input[0], sampling_rate=SAMPLING_RATE)
 
   logger.info("VADIterator")
-  window_size_samples = 1536 # number of samples in a single audio chunk
+  if args.version == "4":
+    window_size_samples = 1536 # number of samples in a single audio chunk
+  else:
+    window_size_samples = 512 if SAMPLING_RATE == 16000 else 256
   for i in range(0, len(wav), window_size_samples):
       chunk = wav[i: i+ window_size_samples]
       if len(chunk) < window_size_samples:
@@ -87,9 +107,12 @@ def audio_recognition(model):
 
   ## just probabilities
   logger.info("Speech Probablities")
-  wav = read_audio('en_example.wav', sampling_rate=SAMPLING_RATE)
+  wav = read_audio(args.input[0], sampling_rate=SAMPLING_RATE)
   speech_probs = []
-  window_size_samples = 1536
+  if args.version == "4":
+    window_size_samples = 1536
+  else:
+    window_size_samples = 512 if SAMPLING_RATE == 16000 else 256
   for i in range(0, len(wav), window_size_samples):
       chunk = wav[i: i+ window_size_samples]
       if len(chunk) < window_size_samples:
@@ -118,7 +141,7 @@ def main():
         import onnxruntime
         session = onnxruntime.InferenceSession(WEIGHT_PATH)
 
-    model = OnnxWrapper('silero_vad.onnx')
+    model = OnnxWrapper(args.version)
     model.session = session
     model.ailia = not args.onnx
 

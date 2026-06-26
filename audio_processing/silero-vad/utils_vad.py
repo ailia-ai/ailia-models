@@ -8,7 +8,8 @@ import numpy as np
 
 class OnnxWrapper():
 
-    def __init__(self, path):
+    def __init__(self, version):
+        self.version = version
         self.reset_states()
         self.sample_rates = [8000, 16000]
 
@@ -32,8 +33,12 @@ class OnnxWrapper():
         return x, sr
 
     def reset_states(self, batch_size=1):
-        self._h = np.zeros((2, batch_size, 64)).astype('float32')
-        self._c = np.zeros((2, batch_size, 64)).astype('float32')
+        if self.version == "4":
+            self._h = np.zeros((2, batch_size, 64)).astype('float32')
+            self._c = np.zeros((2, batch_size, 64)).astype('float32')
+        else:
+            self._state = np.zeros((2, batch_size, 128)).astype('float32')
+            self._context = np.zeros(0)
         self._last_sr = 0
         self._last_batch_size = 0
 
@@ -41,6 +46,17 @@ class OnnxWrapper():
 
         x, sr = self._validate_input(x, sr)
         batch_size = x.shape[0]
+
+        x = x.numpy().astype(np.float32)
+
+        if sr == 16000:
+            context_size = 64
+        else:
+            context_size = 32
+        if self.version != "4":
+            if not len(self._context):
+                self._context = np.zeros((batch_size, context_size), dtype=np.float32)
+            x = np.concatenate([self._context, x], axis=1)
 
         if not self._last_batch_size:
             self.reset_states(batch_size)
@@ -50,12 +66,19 @@ class OnnxWrapper():
             self.reset_states(batch_size)
 
         if sr in [8000, 16000]:
-            ort_inputs = {'input': x.numpy(), 'h': self._h, 'c': self._c, 'sr': np.array(sr, dtype='int64')}
+            if self.version == "4":
+                ort_inputs = {'input': x, 'h': self._h, 'c': self._c, 'sr': np.array(sr, dtype='int64')}
+            else:
+                ort_inputs = {'input': x, 'state': self._state, 'sr': np.array(sr, dtype='int64')}
             if self.ailia:
                 ort_outs = self.session.run(ort_inputs)
             else:
                 ort_outs = self.session.run(None, ort_inputs)
-            out, self._h, self._c = ort_outs
+            if self.version == "4":
+                out, self._h, self._c = ort_outs
+            else:
+                out, self._state = ort_outs
+                self._context = x[..., -context_size:]
         else:
             raise ValueError()
 

@@ -1,7 +1,7 @@
 import numpy as np
+import random
 
-
-def generate_text(tokenizer, ailia_model, span, outputlength, onnx_runtime=False):
+def generate_text(tokenizer, ailia_model, span, outputlength, onnx_runtime=False, seed=None, temperature=1.0):
     model_input = tokenizer.encode_plus(span)
     model_input = {name : np.atleast_2d(value) for name, value in model_input.items()}
 
@@ -13,11 +13,26 @@ def generate_text(tokenizer, ailia_model, span, outputlength, onnx_runtime=False
     else:
       onnx_result = ailia_model.run(model_input)
 
+    if seed is not None:
+        random.seed(seed)
+
     out_str = span
     for i in range(outputlength):
-      K=outputlength
-      predictions = np.argpartition(-onnx_result[0][0, -1], K)[:K]
-      index = predictions[0]
+      # pick next token logits
+      logits = onnx_result[0][0, -1]
+
+      # safe softmax with temparature
+      mod_logits = logits - np.max(logits)
+      work = np.exp(mod_logits / temperature)
+      prob = work / np.sum(work)
+
+      # pick top-k
+      K=20
+      topk_idx = np.argpartition(-prob, K)[:K]
+      topk_prob = [ prob[i] for i in topk_idx ]
+
+      # select next token with top-k probability weight
+      index = random.choices(topk_idx, weights=topk_prob)[0]
       token = tokenizer.convert_ids_to_tokens([index])[0]
       out_str += token.replace('Ġ',' ')
       trim = 0

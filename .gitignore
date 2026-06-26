@@ -8,6 +8,7 @@ ailia/
 *.caffemodel
 *.onnx
 *.prototxt
+*.pb
 
 __pycache__/
 .ipynb_checkpoints/

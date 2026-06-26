@@ -48,7 +48,7 @@ By adding the `--use_dlib` option, you can use original version of face alignmen
 
 - [SAM](https://github.com/yuval-alaluf/SAM)
 
-- [PSGAN](https://github.com/axinc-ai/ailia-models/tree/master/style_transfer/psgan) (face alignment without dlib)
+- [PSGAN](https://github.com/ailia-ai/ailia-models/tree/master/style_transfer/psgan) (face alignment without dlib)
 
 ## Framework
 

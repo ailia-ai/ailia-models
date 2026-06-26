@@ -12,6 +12,7 @@ cd ../../diffusion/riffusion; python3 riffusion.py ${OPTION}
 cd ../../diffusion/marigold; python3 marigold.py ${OPTION}
 cd ../../image_captioning/blip2; python3 blip2.py ${OPTION}
 cd ../../image_classification/japanese-clip; python3 japanese-clip.py ${OPTION}
+cd ../../image_classification/siglip2; python3 siglip2.py ${OPTION}
 cd ../../large_language_model/llava; python3 llava.py ${OPTION}
 cd ../../natural_language_processing/bert; python3 bert.py ${OPTION}
 cd ../../natural_language_processing/bert_insert_punctuation; python3 bert_insert_punctuation.py ${OPTION}
@@ -45,6 +46,7 @@ cd ../../natural_language_processing/glucose; python3 glucose.py ${OPTION}
 cd ../../natural_language_processing/cross_encoder_mmarco; python3 cross_encoder_mmarco.py ${OPTION}
 cd ../../natural_language_processing/soundchoice-g2p; python3 soundchoice-g2p.py ${OPTION}
 cd ../../natural_language_processing/multilingual-minilmv2; python3 multilingual-minilmv2.py ${OPTION}
+cd ../../natural_language_processing/embeddinggemma; python3 embeddinggemma.py ${OPTION}
 cd ../../network_intrusion_detection/bert-network-packet-flow-header-payload; python3 bert-network-packet-flow-header-payload.py ${OPTION}
 cd ../../network_intrusion_detection/falcon-adapter-network-packet; python3 falcon-adapter-network-packet.py ${OPTION}
 cd ../../object_detection/glip; python3 glip.py ${OPTION}

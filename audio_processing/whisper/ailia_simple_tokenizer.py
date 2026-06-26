@@ -21,8 +21,12 @@ def get_tokenizer(multilingual: bool,
         task = None
         language = None
 
+    _assets = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
     tokenizer = AiliaTokenizer()
-    tokenizer.build_tokenizer('assets/multilingual/vocab.json', 'assets/multilingual/merges.txt',tokenizer_name, task, language, num_languages)
+    tokenizer.build_tokenizer(
+        os.path.join(_assets, "multilingual/vocab.json"),
+        os.path.join(_assets, "multilingual/merges.txt"),
+        tokenizer_name, task, language, num_languages)
     return tokenizer
 
 # Uses some code from Apache licensed transformers
