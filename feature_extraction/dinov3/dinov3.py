@@ -100,8 +100,8 @@ TRACKING_COLORS_BGR = [
 ]
 
 MATCHING_DIST_THRESHOLD_SQ = (
-    100.0**2
-)  # 100px suppression radius in original image space
+    PCA_IMAGE_SIZE * 0.047
+) ** 2  # ~4.7% of preprocessed height suppression radius
 
 # False: equal-height panels (default, both images at PCA_IMAGE_SIZE rows)
 # True:  equal-width panels  (matches matplotlib subplot behaviour — narrower image appears taller)
@@ -336,6 +336,8 @@ def render_sparse_matching(
     patch_size,
     w_prep_l,
     w_prep_r,
+    h_prep_l,
+    h_prep_r,
 ):
     h_l, w_l = img_left_bgr.shape[:2]
     h_r, w_r = img_right_bgr.shape[:2]
@@ -344,10 +346,10 @@ def render_sparse_matching(
         # Equal-width panels: both images at the same display width.
         # Matches matplotlib subplot(1,2,*) — narrower aspect → taller panel.
         display_w = max(w_prep_l, w_prep_r)
-        scale_l = display_w / w_prep_l
-        scale_r = display_w / w_prep_r
-        disp_h_l = max(1, int(round(PCA_IMAGE_SIZE * scale_l)))
-        disp_h_r = max(1, int(round(PCA_IMAGE_SIZE * scale_r)))
+        scale_lx = scale_ly = display_w / w_prep_l
+        scale_rx = scale_ry = display_w / w_prep_r
+        disp_h_l = max(1, int(round(h_prep_l * scale_ly)))
+        disp_h_r = max(1, int(round(h_prep_r * scale_ry)))
         img_l_disp = cv2.resize(img_left_bgr, (display_w, disp_h_l))
         img_r_disp = cv2.resize(img_right_bgr, (display_w, disp_h_r))
         max_h = max(disp_h_l, disp_h_r)
@@ -356,23 +358,21 @@ def render_sparse_matching(
         canvas[:disp_h_r, display_w:] = img_r_disp
         pt_offset = display_w
     else:
-        # Equal-height panels (default): both images at PCA_IMAGE_SIZE rows.
-        display_h = PCA_IMAGE_SIZE
-        disp_scale = display_h / PCA_IMAGE_SIZE  # == 1.0; kept for clarity
-        disp_w_l = max(1, int(round(w_l * display_h / h_l)))
-        disp_w_r = max(1, int(round(w_r * display_h / h_r)))
-        img_l_disp = cv2.resize(img_left_bgr, (disp_w_l, display_h))
-        img_r_disp = cv2.resize(img_right_bgr, (disp_w_r, display_h))
+        # Equal-height panels (default): both images at preprocessed height.
+        # Locs are in preprocessed pixel space, so scale == 1.0 and coords map exactly.
+        img_l_disp = cv2.resize(img_left_bgr, (w_prep_l, h_prep_l))
+        img_r_disp = cv2.resize(img_right_bgr, (w_prep_r, h_prep_r))
         canvas = np.concatenate([img_l_disp, img_r_disp], axis=1)
-        scale_l = scale_r = disp_scale
-        pt_offset = disp_w_l
+        scale_lx = scale_ly = 1.0
+        scale_rx = scale_ry = 1.0
+        pt_offset = w_prep_l
 
     for i in indices_keep:
         row_l, col_l_px = locs_left[i]
         row_r, col_r_px = locs_right[i]
 
-        pt_l = (int(col_l_px * scale_l), int(row_l * scale_l))
-        pt_r = (int(col_r_px * scale_r) + pt_offset, int(row_r * scale_r))
+        pt_l = (int(col_l_px * scale_lx), int(row_l * scale_ly))
+        pt_r = (int(col_r_px * scale_rx) + pt_offset, int(row_r * scale_ry))
 
         pr = int(row_l / patch_size)
         pc = int(col_l_px / patch_size)
