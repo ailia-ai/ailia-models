@@ -78,6 +78,27 @@ DEFAULT_RESOLUTION = 896
 
 PCA_IMAGE_SIZE = 768  # height for aspect-ratio-preserving resize in PCA / matching mode
 
+# Tracking mode parameters (matching segmentation_tracking.ipynb)
+TRACKING_NEIGHBORHOOD_SIZE = 12  # circle radius in patch units
+TRACKING_NEIGHBORHOOD_SHAPE = "circle"
+TRACKING_TOPK = 5
+TRACKING_TEMPERATURE = 0.2
+TRACKING_MAX_CONTEXT = 7  # rolling queue length (first frame always added on top)
+
+# tab10 palette in BGR for tracking overlay (class 1, 2, 3, ...)
+TRACKING_COLORS_BGR = [
+    (180, 119, 31),  # tab:blue   #1f77b4
+    (14, 127, 255),  # tab:orange #ff7f0e
+    (44, 160, 44),  # tab:green  #2ca02c
+    (40, 39, 214),  # tab:red    #d62728
+    (189, 103, 148),  # tab:purple #9467bd
+    (75, 86, 140),  # tab:brown  #8c564b
+    (194, 119, 227),  # tab:pink   #e377c2
+    (127, 127, 127),  # tab:gray   #7f7f7f
+    (34, 189, 188),  # tab:olive  #bcbd22
+    (207, 190, 23),  # tab:cyan   #17becf
+]
+
 MATCHING_DIST_THRESHOLD_SQ = (
     100.0**2
 )  # 100px suppression radius in original image space
@@ -112,11 +133,12 @@ parser.add_argument(
 parser.add_argument(
     "--mode",
     default="similarity",
-    choices=["pca", "similarity", "matching"],
+    choices=["pca", "similarity", "tracking", "matching"],
     help=(
         "output mode: "
         "pca=PCA patch features (rainbow, requires --mask for foreground-only), "
         "similarity=patch similarity map, "
+        "tracking=segmentation tracking (video), "
         "matching=dense+sparse cross-image correspondences (requires --image2)"
     ),
 )
@@ -142,6 +164,7 @@ parser.add_argument(
     metavar="PATH",
     help="foreground mask image (grayscale, >127=foreground). "
     "pca: applies PCA to foreground patches only, background is black. "
+    "tracking: initial mask for frame 0.",
 )
 parser.add_argument(
     "--image2",
@@ -159,6 +182,61 @@ parser.add_argument(
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
+
+
+# ======================
+# Classes
+# ======================
+
+
+class FrameDirCapture:
+    """cv2.VideoCapture-compatible wrapper for a directory of image files."""
+
+    _EXTS = ("*.jpg", "*.jpeg", "*.png", "*.bmp", "*.JPG", "*.JPEG", "*.PNG", "*.BMP")
+
+    def __init__(self, dir_path):
+        import glob
+
+        files = []
+        for ext in self._EXTS:
+            files.extend(glob.glob(os.path.join(dir_path, ext)))
+
+        def _sort_key(p):
+            stem = os.path.splitext(os.path.basename(p))[0]
+            try:
+                return (0, int(stem))
+            except ValueError:
+                return (1, stem)
+
+        self._files = sorted(set(files), key=_sort_key)
+        self._idx = 0
+        if self._files:
+            first = cv2.imread(self._files[0])
+            self._h, self._w = (
+                (first.shape[0], first.shape[1]) if first is not None else (0, 0)
+            )
+        else:
+            self._h = self._w = 0
+
+    def isOpened(self):
+        return len(self._files) > 0
+
+    def read(self):
+        if self._idx >= len(self._files):
+            return False, None
+        frame = cv2.imread(self._files[self._idx])
+        self._idx += 1
+        return (True, frame) if frame is not None else (False, None)
+
+    def get(self, prop_id):
+        if prop_id == cv2.CAP_PROP_FRAME_HEIGHT:
+            return float(self._h)
+        if prop_id == cv2.CAP_PROP_FRAME_WIDTH:
+            return float(self._w)
+        return 0.0
+
+    def release(self):
+        pass
 
 
 # ======================
@@ -388,6 +466,129 @@ def stratify_points(pts_yx, threshold_sq):
 
 
 # ======================
+# Tracking mode
+# ======================
+
+
+def preprocess_tracking(img_bgr, short_side, patch_size):
+    """ResizeToMultiple preprocessing for tracking mode (BICUBIC, aspect-ratio-preserving).
+    Returns (pixel_values [1,3,H,W], h_patches, w_patches)."""
+    h, w = img_bgr.shape[:2]
+    multiple = patch_size
+    if w > h:  # landscape: height is the short side
+        new_h = math.ceil(short_side / multiple) * multiple
+        new_w = math.ceil(w * new_h / h / multiple) * multiple
+    else:
+        new_w = math.ceil(short_side / multiple) * multiple
+        new_h = math.ceil(h * new_w / w / multiple) * multiple
+
+    pil_img = PILImage.fromarray(img_bgr[:, :, ::-1])  # BGR → RGB
+    pil_resized = pil_img.resize((new_w, new_h), PILImage.BICUBIC)
+
+    arr = np.array(pil_resized, dtype=np.float32) / 255.0
+    arr = (arr - IMAGE_MEAN) / IMAGE_STD
+    pixel_values = arr.transpose(2, 0, 1)[np.newaxis]
+
+    h_patches = new_h // patch_size
+    w_patches = new_w // patch_size
+    return pixel_values, h_patches, w_patches
+
+
+def load_mask_multiclass(mask_path):
+    """Load mask and remap pixel values to consecutive class indices 0..M-1.
+
+    Returns (mask_indices: np.uint8 [H, W], num_classes: int).
+    0 is always background; non-zero unique values are remapped to 1, 2, 3, ...
+    """
+    pil = PILImage.open(mask_path)
+    arr = np.array(pil if pil.mode == "P" else pil.convert("L"), dtype=np.uint8)
+    unique_vals = np.unique(arr)
+    fg_vals = unique_vals[unique_vals > 0]
+    if len(fg_vals) == 0:
+        return arr, 2
+    remap = np.zeros(256, dtype=np.uint8)
+    for i, v in enumerate(fg_vals):
+        remap[v] = i + 1
+    return remap[arr], int(len(fg_vals)) + 1
+
+
+def postprocess_probs_tracking(probs_mhw):
+    """Per-channel min-max normalization. probs_mhw: (M, H, W) → (M, H, W)."""
+    out = probs_mhw.copy()
+    for m in range(out.shape[0]):
+        vmin, vmax = out[m].min(), out[m].max()
+        if vmax > vmin:
+            out[m] = (out[m] - vmin) / (vmax - vmin)
+        else:
+            out[m][:] = 0.0
+    return out
+
+
+def make_neighborhood_mask_np(h, w, size, shape="circle"):
+    """Returns [h, w, h, w] bool mask. mask[i,j,u,v] is True when (u,v) is within
+    neighborhood of (i,j)."""
+    rows = np.arange(h, dtype=np.float32)
+    cols = np.arange(w, dtype=np.float32)
+    ii, jj = np.meshgrid(rows, cols, indexing="ij")
+    ij = np.stack([ii, jj], axis=-1)  # [h, w, 2]
+    diff = ij[:, :, np.newaxis, np.newaxis, :] - ij[np.newaxis, np.newaxis, :, :, :]
+    if shape == "circle":
+        dist = np.linalg.norm(diff, axis=-1)
+    else:
+        dist = np.abs(diff).max(axis=-1)
+    return dist <= size
+
+
+def propagate_mask(
+    F_curr,
+    context_features,
+    context_probs,
+    neighborhood_mask,
+    topk=TRACKING_TOPK,
+    temperature=TRACKING_TEMPERATURE,
+):
+    """
+    Propagates segmentation probabilities from context frames to the current frame.
+
+    F_curr:            (h, w, D) – L2-normalized current-frame patch features
+    context_features:  list of t arrays, each (h, w, D)
+    context_probs:     list of t arrays, each (h, w, M)
+    neighborhood_mask: (h, w, h, w) bool
+    Returns:           (h, w, M)
+    """
+    h, w, D = F_curr.shape
+    t = len(context_features)
+    M = context_probs[0].shape[-1]
+
+    ctx_feat_arr = np.stack(context_features, axis=0)  # (t, h, w, D)
+    ctx_prob_arr = np.stack(context_probs, axis=0)  # (t, h, w, M)
+
+    curr_flat = F_curr.reshape(h * w, D)
+    ctx_flat = ctx_feat_arr.reshape(t * h * w, D)
+    ctx_prob_flat = ctx_prob_arr.reshape(t * h * w, M)
+
+    dot = curr_flat @ ctx_flat.T  # (hw, thw)
+
+    nbr_flat = neighborhood_mask.reshape(h * w, h * w)  # (hw, hw)
+    nbr_broadcast = np.tile(nbr_flat, (1, t))  # (hw, thw)
+    dot[~nbr_broadcast] = -np.inf
+
+    kth = np.partition(dot, kth=-topk, axis=-1)[:, -topk]
+    dot = np.where(dot >= kth[:, np.newaxis], dot, -np.inf)
+
+    row_max = np.where(np.isfinite(dot), dot, -np.inf).max(axis=-1, keepdims=True)
+    row_max = np.where(np.isinf(row_max), 0.0, row_max)
+    exp_dot = np.exp((dot - row_max) / temperature)
+    exp_dot[~np.isfinite(dot)] = 0.0
+    weights = exp_dot / (exp_dot.sum(axis=-1, keepdims=True) + 1e-10)
+
+    probs = weights @ ctx_prob_flat  # (hw, M)
+    probs /= probs.sum(axis=-1, keepdims=True) + 1e-10
+
+    return probs.reshape(h, w, M)
+
+
+# ======================
 # Main functions
 # ======================
 
@@ -468,48 +669,237 @@ def recognize_from_image(net):
 
         savepath = get_savepath(args.savepath, image_path)
 
-        if args.mode == "pca":
-            pixel_values, h_patches, w_patches = preprocess_pca(
-                img, params["patch_size"]
-            )
-            if not args.onnx:
-                output = net.predict([pixel_values])
-            else:
-                output = net.run(None, {"pixel_values": pixel_values})
-            last_hidden_state, pooler_output = output
-            patch_tokens = last_hidden_state[0, num_prefix_tokens:, :]
-            panel = render_pca(
-                patch_tokens, h_patches, w_patches, img_w, img_h, mask_path=args.mask
-            )
-            logger.info(f"saved at : {savepath}")
-            cv2.imwrite(savepath, panel)
+        last_hidden_state, pooler_output = predict(net, img, image_size)
 
-        else:  # similarity
-            last_hidden_state, pooler_output = predict(net, img, image_size)
+        logger.info(f"model_type: {args.model_type}")
+        logger.info(f"last_hidden_state: shape={last_hidden_state.shape}")
+        logger.info(
+            f"pooler_output: shape={pooler_output.shape}, "
+            f"norm={np.linalg.norm(pooler_output):.4f}"
+        )
 
-            logger.info(f"model_type: {args.model_type}")
-            logger.info(f"last_hidden_state: shape={last_hidden_state.shape}")
+        patch_tokens = last_hidden_state[0, num_prefix_tokens:, :]
+        points = args.point if args.point else [None]
+        if len(points) > 1:
+            base, ext = os.path.splitext(savepath)
+
+        for i, point in enumerate(points):
+            similarity_map, ref_grid = similarity_map_for_point(
+                patch_tokens, grid_size, point, img_w, img_h
+            )
+            logger.info(f"reference patch (grid coords): {ref_grid}")
+
+            panel = render_panel(similarity_map, point, img_w, img_h)
+
+            out_path = f"{base}_{i}{ext}" if len(points) > 1 else savepath
+            logger.info(f"saved at : {out_path}")
+            cv2.imwrite(out_path, panel)
+
+    logger.info("Script finished successfully.")
+
+
+def recognize_from_image_pca(net):
+    params = MODEL_PARAMS[args.model_type]
+    num_prefix_tokens = params["num_prefix_tokens"]
+
+    for image_path in args.input:
+        logger.info(image_path)
+
+        img = imread(image_path)
+        img_h, img_w = img.shape[:2]
+
+        logger.info("Start inference...")
+
+        pixel_values, h_patches, w_patches = preprocess_pca(img, params["patch_size"])
+        if not args.onnx:
+            output = net.predict([pixel_values])
+        else:
+            output = net.run(None, {"pixel_values": pixel_values})
+        last_hidden_state, pooler_output = output
+        patch_tokens = last_hidden_state[0, num_prefix_tokens:, :]
+        panel = render_pca(
+            patch_tokens, h_patches, w_patches, img_w, img_h, mask_path=args.mask
+        )
+
+        savepath = get_savepath(args.savepath, image_path)
+        logger.info(f"saved at : {savepath}")
+        cv2.imwrite(savepath, panel)
+
+    logger.info("Script finished successfully.")
+
+
+def recognize_from_video(net):
+    params = MODEL_PARAMS[args.model_type]
+    num_prefix_tokens = params["num_prefix_tokens"]
+    patch_size = params["patch_size"]
+    short_side = args.resolution  # used as ResizeToMultiple short_side
+
+    video_file = args.video if args.video else args.input[0]
+    if os.path.isdir(video_file):
+        capture = FrameDirCapture(video_file)
+    else:
+        capture = get_capture(video_file)
+    assert capture.isOpened(), "Cannot capture source"
+
+    if args.savepath != SAVE_IMAGE_PATH:
+        f_h = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        f_w = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        writer = get_writer(args.savepath, f_h, f_w * 2)  # side-by-side
+    else:
+        writer = None
+
+    first_feats = None
+    first_probs = None
+    num_classes = None
+    features_queue = []
+    probs_queue = []
+    neighborhood_mask = None
+    h_patches = None
+    w_patches = None
+
+    has_display = bool(os.environ.get("DISPLAY"))
+    frame_idx = 0
+    frame_shown = False
+
+    while True:
+        ret, frame = capture.read()
+        if not ret:
+            break
+        if has_display:
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                break
+            if (
+                frame_shown
+                and cv2.getWindowProperty("frame", cv2.WND_PROP_VISIBLE) == 0
+            ):
+                break
+
+        img_h, img_w = frame.shape[:2]
+
+        # ResizeToMultiple preprocessing (BICUBIC, aspect-ratio-preserving)
+        pixel_values, h_p, w_p = preprocess_tracking(frame, short_side, patch_size)
+
+        if not args.onnx:
+            output = net.predict([pixel_values])
+        else:
+            output = net.run(None, {"pixel_values": pixel_values})
+        last_hidden_state, _ = output
+
+        patch_tokens = last_hidden_state[0, num_prefix_tokens:]  # (h*w, D)
+        dim = patch_tokens.shape[-1]
+        F_curr = patch_tokens.reshape(h_p, w_p, dim)
+        F_curr = F_curr / (np.linalg.norm(F_curr, axis=-1, keepdims=True) + 1e-6)
+
+        if frame_idx == 0:
+            h_patches, w_patches = h_p, w_p
             logger.info(
-                f"pooler_output: shape={pooler_output.shape}, "
-                f"norm={np.linalg.norm(pooler_output):.4f}"
+                f"Feature grid: {h_patches}x{w_patches} (short_side={short_side})"
             )
 
-            patch_tokens = last_hidden_state[0, num_prefix_tokens:, :]
-            points = args.point if args.point else [None]
-            if len(points) > 1:
-                base, ext = os.path.splitext(savepath)
+            neighborhood_mask = make_neighborhood_mask_np(
+                h_patches,
+                w_patches,
+                TRACKING_NEIGHBORHOOD_SIZE,
+                TRACKING_NEIGHBORHOOD_SHAPE,
+            )
 
-            for i, point in enumerate(points):
-                similarity_map, ref_grid = similarity_map_for_point(
-                    patch_tokens, grid_size, point, img_w, img_h
+            if args.mask:
+                mask_indices, num_classes = load_mask_multiclass(args.mask)
+                mask_resized = cv2.resize(
+                    mask_indices,
+                    (w_patches, h_patches),
+                    interpolation=cv2.INTER_NEAREST,
                 )
-                logger.info(f"reference patch (grid coords): {ref_grid}")
+                current_probs = np.eye(num_classes, dtype=np.float32)[
+                    mask_resized
+                ]  # (h, w, M)
+            else:
+                num_classes = 2
+                point = args.point[0] if args.point else None
+                px = point[0] if point is not None else img_w // 2
+                py = point[1] if point is not None else img_h // 2
+                gx = min(max(int(px / img_w * w_patches), 0), w_patches - 1)
+                gy = min(max(int(py / img_h * h_patches), 0), h_patches - 1)
+                radius = max(1, min(h_patches, w_patches) // 8)
+                gy_idx, gx_idx = np.ogrid[:h_patches, :w_patches]
+                fg = ((gx_idx - gx) ** 2 + (gy_idx - gy) ** 2 <= radius**2).astype(
+                    np.float32
+                )
+                current_probs = np.stack([1.0 - fg, fg], axis=-1)  # (h, w, 2)
 
-                panel = render_panel(similarity_map, point, img_w, img_h)
+            first_feats = F_curr.copy()
+            first_probs = current_probs.copy()
 
-                out_path = f"{base}_{i}{ext}" if len(points) > 1 else savepath
-                logger.info(f"saved at : {out_path}")
-                cv2.imwrite(out_path, panel)
+            left = frame
+            probs_hw_0 = current_probs.transpose(2, 0, 1)
+            probs_full_0 = np.stack(
+                [
+                    cv2.resize(
+                        probs_hw_0[m], (img_w, img_h), interpolation=cv2.INTER_NEAREST
+                    )
+                    for m in range(num_classes)
+                ],
+                axis=0,
+            )
+            probs_full_0 = postprocess_probs_tracking(probs_full_0)
+            src_mask = probs_full_0.argmax(axis=0).astype(np.uint8)
+            right = np.zeros((img_h, img_w, 3), dtype=np.uint8)
+            for m in range(1, num_classes):
+                right[src_mask == m] = TRACKING_COLORS_BGR[
+                    (m - 1) % len(TRACKING_COLORS_BGR)
+                ]
+        else:
+            ctx_feats = [first_feats] + features_queue
+            ctx_probs = [first_probs] + probs_queue
+
+            current_probs = propagate_mask(
+                F_curr, ctx_feats, ctx_probs, neighborhood_mask
+            )
+
+            features_queue.append(F_curr.copy())
+            probs_queue.append(current_probs.copy())
+            if len(features_queue) > TRACKING_MAX_CONTEXT:
+                features_queue.pop(0)
+            if len(probs_queue) > TRACKING_MAX_CONTEXT:
+                probs_queue.pop(0)
+
+            probs_hw = current_probs.transpose(2, 0, 1)
+            probs_full = np.stack(
+                [
+                    cv2.resize(
+                        probs_hw[m], (img_w, img_h), interpolation=cv2.INTER_NEAREST
+                    )
+                    for m in range(num_classes)
+                ],
+                axis=0,
+            )
+            probs_full = postprocess_probs_tracking(probs_full)
+            pred = probs_full.argmax(axis=0).astype(np.uint8)
+
+            left = frame
+            right = np.zeros((img_h, img_w, 3), dtype=np.uint8)
+            for m in range(1, num_classes):
+                right[pred == m] = TRACKING_COLORS_BGR[
+                    (m - 1) % len(TRACKING_COLORS_BGR)
+                ]
+
+        panel = np.concatenate([left, right], axis=1)
+
+        if has_display:
+            cv2.imshow("frame", panel)
+            frame_shown = True
+
+        if writer is not None:
+            writer.write(panel)
+
+        frame_idx += 1
+
+    capture.release()
+    if has_display:
+        cv2.destroyAllWindows()
+    if writer is not None:
+        writer.release()
 
     logger.info("Script finished successfully.")
 
@@ -586,9 +976,11 @@ def recognize_from_image_matching(net):
     locs_l_fg = locs_l[fg_sel]
     locs_r_fg = locs_r[fg_sel]
 
-    # Stratify in original image space (scale converts 768px locs to original pixel coords)
-    scale_l = img_l.shape[0] / PCA_IMAGE_SIZE
-    indices_keep = stratify_points(locs_l_fg * scale_l, MATCHING_DIST_THRESHOLD_SQ)
+    h_prep_l = h_l * patch_size
+    h_prep_r = h_r * patch_size
+
+    # Stratify in original image space (scale converts preprocessed locs to original pixel coords)
+    indices_keep = stratify_points(locs_l_fg, MATCHING_DIST_THRESHOLD_SQ)
     logger.info(
         f"Sparse correspondences: {len(locs_l_fg)} fg matches → {len(indices_keep)} after stratification"
     )
@@ -603,6 +995,8 @@ def recognize_from_image_matching(net):
         patch_size,
         w_prep_l=w_l * patch_size,
         w_prep_r=w_r * patch_size,
+        h_prep_l=h_prep_l,
+        h_prep_r=h_prep_r,
     )
 
     # ---- Save ----
@@ -635,8 +1029,12 @@ def main():
         providers = ["CPUExecutionProvider", "CUDAExecutionProvider"]
         net = onnxruntime.InferenceSession(weight_path, providers=providers)
 
-    if args.mode == "matching":
+    if args.mode == "tracking":
+        recognize_from_video(net)
+    elif args.mode == "matching":
         recognize_from_image_matching(net)
+    elif args.mode == "pca":
+        recognize_from_image_pca(net)
     else:
         recognize_from_image(net)
 
