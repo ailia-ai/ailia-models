@@ -29,6 +29,17 @@ except ImportError:
                    '[--env_id N]')
     AILIA_EXIST = False
 
+# On Windows on ARM (WoA) only the headless build of OpenCV is available, so
+# cv2.imshow raises "The function is not implemented". Only in that case, import
+# woa_imshow and overwrite the highgui functions with a tkinter based fallback so
+# the sample video/webcam viewers keep working.
+if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'aarch64'):
+    try:
+        import woa_imshow
+        woa_imshow.enable_if_needed()
+    except Exception as e:
+        logger.warning(f'failed to setup headless imshow fallback: {e}')
+
 
 def check_file_existance(filename):
     if os.path.isfile(filename):
