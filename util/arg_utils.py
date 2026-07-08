@@ -35,7 +35,7 @@ except ImportError:
 # the sample video/webcam viewers keep working.
 if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'aarch64'):
     try:
-        import woa_imshow
+        from woa import woa_imshow
         woa_imshow.enable_if_needed()
     except Exception as e:
         logger.warning(f'failed to setup headless imshow fallback: {e}')
