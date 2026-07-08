@@ -14,7 +14,7 @@ if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'a
 import librosa
 import time
 
-env_id = 1
+env_id = -1 # auto
 is_fp16 = True
 model_type = ailia_speech.AILIA_SPEECH_MODEL_TYPE_WHISPER_MULTILINGUAL_LARGE_V3_TURBO
 input_file = "demo.wav"
