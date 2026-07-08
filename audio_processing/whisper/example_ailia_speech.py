@@ -6,11 +6,13 @@ import ailia_speech
 # On Windows on ARM (WoA) librosa cannot be installed. Only in that case,
 # register the pure Python wav-only fallback in util/woa_librosa.py so the
 # import below keeps working.
-import os
-import sys
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'util'))
-import woa_librosa
-woa_librosa.enable_if_needed()
+import platform
+if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'aarch64'):
+	import os
+	import sys
+	sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'util'))
+	import woa_librosa
+	woa_librosa.enable_if_needed()
 
 import librosa
 import time
