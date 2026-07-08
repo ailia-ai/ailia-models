@@ -3,9 +3,6 @@
 
 import ailia_speech
 
-# On Windows on ARM (WoA) librosa cannot be installed. Only in that case,
-# register the pure Python wav-only fallback in util/woa_librosa.py so the
-# import below keeps working.
 import platform
 if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'aarch64'):
 	import os

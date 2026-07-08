@@ -2,9 +2,6 @@
 
 import ailia_voice
 
-# On Windows on ARM (WoA) librosa / soundfile cannot be installed. Only in
-# that case, register the pure Python wav-only fallback in
-# util/woa_librosa.py so the imports below keep working.
 import platform
 if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'aarch64'):
 	import os
