@@ -2,13 +2,10 @@
 
 import ailia_voice
 
-import platform
-if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'aarch64'):
-	import os
-	import sys
-	sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'util'))
+import os, sys, platform
+if (platform.system(), platform.machine().lower()) in {('Windows', 'arm64'), ('Windows', 'aarch64')}:
+	sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'util'))
 	import woa_librosa
-	woa_librosa.enable_if_needed()
 
 import librosa
 import time

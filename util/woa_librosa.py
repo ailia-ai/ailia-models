@@ -7,12 +7,11 @@ for that platform. This module reimplements the small subset of their APIs
 used by the samples with numpy and the standard library only, limited to
 wav file input / output.
 
-Call `enable_if_needed()` once before `import librosa` / `import soundfile`
-and, only when the real package is missing, a compatible module is
-registered in sys.modules so the samples keep working without any change:
+Import this module once before `import librosa` / `import soundfile` and,
+only when the real package is missing, a compatible module is registered in
+sys.modules so the samples keep working without any change:
 
-    import woa_librosa
-    woa_librosa.enable_if_needed()
+    import woa_librosa                  # auto-enables the fallback
 
     import librosa                      # -> pure Python fallback on WoA
     y, sr = librosa.load('input.wav', mono=True)
@@ -303,3 +302,7 @@ def enable_if_needed():
         _install('librosa', _LIBROSA_API)
     if _is_missing('soundfile'):
         _install('soundfile', _SOUNDFILE_API)
+
+
+# Importing this module is enough to activate the fallback.
+enable_if_needed()
