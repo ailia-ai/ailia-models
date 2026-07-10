@@ -18,22 +18,16 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
-WEIGHT_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder.onnx"
-MODEL_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder.onnx.prototxt"
-PB_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder_weights.pb"
-WEIGHT_LM_PATH = "qwen3_vl_8b_instruct_language_model.onnx"
-MODEL_LM_PATH = "qwen3_vl_8b_instruct_language_model.onnx.prototxt"
-PB_LM_PATH = "qwen3_vl_8b_instruct_language_model_weights.pb"
-WEIGHT_EMBED_PATH = "qwen3_vl_8b_instruct_embed_tokens.npy"
-
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/qwen3_vl/"
 IMAGE_PATH = "demo.jpeg"
 
-# Model config constants
+# Model config constants shared by both 4b and 8b (verified equal via
+# transformers.AutoConfig: num_hidden_layers/num_key_value_heads/head_dim/
+# vision num_position_embeddings/spatial_merge_size/vocab & token ids all
+# match; only the language model hidden_size differs, see MODEL_TYPE below).
 NUM_KV_HEADS = 8
 HEAD_DIM = 128
 NUM_LM_LAYERS = 36
-HIDDEN_SIZE = 4096
 SPATIAL_MERGE_SIZE = 2
 NUM_GRID_PER_SIDE = 48  # int(sqrt(num_position_embeddings=2304))
 IMAGE_TOKEN_ID = 151655
@@ -67,7 +61,7 @@ parser.add_argument(
 parser.add_argument(
     "--max_new_tokens",
     type=int,
-    default=512,
+    default=1024,
     help="maximum number of tokens to generate",
 )
 parser.add_argument(
@@ -104,7 +98,50 @@ parser.add_argument(
     action="store_true",
     help="use onnxruntime",
 )
+parser.add_argument(
+    "--fp16",
+    action="store_true",
+    help="use fp16 language model",
+)
+parser.add_argument(
+    "--model_type",
+    default="8b",
+    choices=["4b", "8b"],
+    help="Qwen3-VL model type: 4b or 8b (default: 8b)",
+)
 args = update_parser(parser)
+
+
+# fp16 is 8B-only: the 4B fp32 LM (~15GB) already fits in GPU memory, so no
+# fp16 variant is exported for it.
+if args.fp16 and args.model_type == "4b":
+    logger.error("--fp16 is not supported for --model_type 4b")
+    sys.exit(1)
+
+if args.model_type == "4b":
+    HIDDEN_SIZE = 2560
+    WEIGHT_VIS_PATH = "qwen3_vl_4b_instruct_vision_encoder.onnx"
+    MODEL_VIS_PATH = "qwen3_vl_4b_instruct_vision_encoder.onnx.prototxt"
+    PB_VIS_PATH = None  # 4b vision encoder is under 2GB, so ONNX export keeps
+    WEIGHT_EMBED_PATH = "qwen3_vl_4b_instruct_embed_tokens.npy"
+    WEIGHT_LM_PATH = "qwen3_vl_4b_instruct_language_model.onnx"
+    MODEL_LM_PATH = "qwen3_vl_4b_instruct_language_model.onnx.prototxt"
+    PB_LM_PATH = "qwen3_vl_4b_instruct_language_model_weights.pb"
+else:
+    HIDDEN_SIZE = 4096
+    WEIGHT_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder.onnx"
+    MODEL_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder.onnx.prototxt"
+    PB_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder_weights.pb"
+    WEIGHT_EMBED_PATH = "qwen3_vl_8b_instruct_embed_tokens.npy"
+    WEIGHT_LM_PATH = "qwen3_vl_8b_instruct_language_model.onnx"
+    MODEL_LM_PATH = "qwen3_vl_8b_instruct_language_model.onnx.prototxt"
+    PB_LM_PATH = "qwen3_vl_8b_instruct_language_model_weights.pb"
+    WEIGHT_LM_FP16_PATH = "qwen3_vl_8b_instruct_language_model_fp16.onnx"
+    MODEL_LM_FP16_PATH = "qwen3_vl_8b_instruct_language_model_fp16.onnx.prototxt"
+    PB_LM_FP16_PATH = "qwen3_vl_8b_instruct_language_model_weights_fp16.pb"
+
+
+LM_DTYPE = np.float16 if args.fp16 else np.float32
 
 
 # ======================
@@ -470,10 +507,10 @@ def build_lm_inputs(data, image_embeds, embed_tokens):
     image_grid_thw = data["image_grid_thw"]
     attention_mask = data["attention_mask"]
 
-    token_embeds = embed_tokens[input_ids[0]].copy()  # [seq, 4096]
+    token_embeds = embed_tokens[input_ids[0]].astype(LM_DTYPE, copy=True)  # [seq, 4096]
     image_positions = np.where(input_ids[0] == IMAGE_TOKEN_ID)[0]
-    token_embeds[image_positions] = image_embeds
-    inputs_embeds = token_embeds[None, :, :].astype(np.float32)  # [1, seq, 4096]
+    token_embeds[image_positions] = image_embeds.astype(LM_DTYPE, copy=False)
+    inputs_embeds = token_embeds[None, :, :]  # [1, seq, 4096]
 
     visual_pos_masks = mm_token_type_ids == 1  # [1, seq] bool
 
@@ -594,10 +631,12 @@ def generate(models, data, embed_tokens):
         logger.info(f"\tvision encoder: {int(round(time.time() * 1000)) - t0} ms")
 
     inputs_embeds, position_ids, visual_pos_masks, rope_deltas = build_lm_inputs(
-        data, image_embeds, embed_tokens
+        data,
+        image_embeds.astype(LM_DTYPE, copy=False),
+        embed_tokens,
     )
     rope_delta = int(rope_deltas[0, 0])
-    EMPTY_DS = np.zeros((0, HIDDEN_SIZE), dtype=np.float32)
+    EMPTY_DS = np.zeros((0, HIDDEN_SIZE), dtype=LM_DTYPE)
 
     # --- Prefill ---
     logger.info("Prefill...")
@@ -612,16 +651,16 @@ def generate(models, data, embed_tokens):
         "inputs_embeds": inputs_embeds,
         "position_ids": position_ids.astype(np.int64),
         "visual_pos_masks": visual_pos_masks,
-        "deepstack_0": ds0,
-        "deepstack_1": ds1,
-        "deepstack_2": ds2,
+        "deepstack_0": ds0.astype(LM_DTYPE, copy=False),
+        "deepstack_1": ds1.astype(LM_DTYPE, copy=False),
+        "deepstack_2": ds2.astype(LM_DTYPE, copy=False),
     }
     for i in range(NUM_LM_LAYERS):
         feeds[f"past_key_values.{i}.key"] = np.zeros(
-            (1, NUM_KV_HEADS, 0, HEAD_DIM), dtype=np.float32
+            (1, NUM_KV_HEADS, 0, HEAD_DIM), dtype=LM_DTYPE
         )
         feeds[f"past_key_values.{i}.value"] = np.zeros(
-            (1, NUM_KV_HEADS, 0, HEAD_DIM), dtype=np.float32
+            (1, NUM_KV_HEADS, 0, HEAD_DIM), dtype=LM_DTYPE
         )
 
     logits, past_keys, past_values = lm_step(
@@ -656,7 +695,7 @@ def generate(models, data, embed_tokens):
         if benchmark and step == 0:
             t0 = int(round(time.time() * 1000))
 
-        next_embed = embed_tokens[[next_token]][None, :, :].astype(np.float32)
+        next_embed = embed_tokens[[next_token]][None, :, :].astype(LM_DTYPE)
 
         pos_dec = np.full((4, 1, 1), past_len + rope_delta, dtype=np.int64)
         pos_dec[0, 0, 0] = past_len
@@ -727,10 +766,20 @@ def recognize(models, embed_tokens):
 
 
 def main():
+    if args.fp16:
+        weight_lm_path = WEIGHT_LM_FP16_PATH
+        model_lm_path = MODEL_LM_FP16_PATH
+        pb_lm_path = PB_LM_FP16_PATH
+    else:
+        weight_lm_path = WEIGHT_LM_PATH
+        model_lm_path = MODEL_LM_PATH
+        pb_lm_path = PB_LM_PATH
+
     check_and_download_models(WEIGHT_VIS_PATH, MODEL_VIS_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_LM_PATH, MODEL_LM_PATH, REMOTE_PATH)
-    check_and_download_file(PB_VIS_PATH, REMOTE_PATH)
-    check_and_download_file(PB_LM_PATH, REMOTE_PATH)
+    check_and_download_models(weight_lm_path, model_lm_path, REMOTE_PATH)
+    if PB_VIS_PATH is not None:
+        check_and_download_file(PB_VIS_PATH, REMOTE_PATH)
+    check_and_download_file(pb_lm_path, REMOTE_PATH)
     check_and_download_file(WEIGHT_EMBED_PATH, REMOTE_PATH)
 
     logger.info("Loading embed_tokens...")
@@ -781,7 +830,7 @@ def main():
             MODEL_VIS_PATH, WEIGHT_VIS_PATH, env_id=env_id, memory_mode=memory_mode
         )
         language_model = ailia.Net(
-            MODEL_LM_PATH, WEIGHT_LM_PATH, env_id=env_id, memory_mode=memory_mode
+            model_lm_path, weight_lm_path, env_id=env_id, memory_mode=memory_mode
         )
     else:
         import onnxruntime
@@ -791,7 +840,7 @@ def main():
             WEIGHT_VIS_PATH, providers=providers
         )
         language_model = onnxruntime.InferenceSession(
-            WEIGHT_LM_PATH, providers=providers
+            weight_lm_path, providers=providers
         )
 
     models = {
