@@ -154,7 +154,7 @@ def recognize_from_image(net_nsfw, net_image):
         else:
             nsfw_value = predict(net_nsfw, net_image, img)
 
-        logger.info(" NSFW: %.3f" % (nsfw_value[0] * 100))
+        logger.info(" NSFW: %.3f" % (nsfw_value[0][0] * 100))
 
     logger.info('Script finished successfully.')
 
