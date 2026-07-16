@@ -10,10 +10,10 @@
 
 - Zero-Shot Prediction
 ```bash
-1: 2 cats - 65.41%
-2: 3 dogs - 32.62%
-3: a remote - 1.05%
-4: a plane - 0.92%
+1: 2 cats - 92.34%
+2: a remote - 7.65%
+3: 3 dogs - 0.00%
+4: a plane - 0.00%
 ```
 
 ## Requirements
@@ -49,6 +49,12 @@ By adding the `--model_type` option, you can specify model type which is selecte
 $ python3 siglip2.py --model_type base-patch16-224
 ```
 
+By adding the `--separate` option, you can use models separated into an image encoder and a text encoder. (base-patch16-224 only)
+The text features are computed only once, so this is efficient when processing multiple images with the same labels.
+```bash
+$ python3 siglip2.py --separate
+```
+
 ## Reference
 
 - [Hugging Face - SigLIP 2 Base](https://huggingface.co/google/siglip2-base-patch16-224)
@@ -65,3 +71,5 @@ ONNX opset=17
 ## Netron
 
 [siglip2-base-patch16-224.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/siglip2/siglip2-base-patch16-224.onnx.prototxt)  
+[siglip2-base-patch16-224-encode_image.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/siglip2/siglip2-base-patch16-224-encode_image.onnx.prototxt)  
+[siglip2-base-patch16-224-encode_text.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/siglip2/siglip2-base-patch16-224-encode_text.onnx.prototxt)  
