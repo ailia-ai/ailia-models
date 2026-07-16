@@ -14,7 +14,7 @@ import time
 env_id = -1 # auto
 is_fp16 = True
 model_type = ailia_speech.AILIA_SPEECH_MODEL_TYPE_WHISPER_MULTILINGUAL_LARGE_V3_TURBO
-input_file = "demo.wav"
+input_file = "ax.wav"
 
 audio_waveform, sampling_rate = librosa.load(input_file, mono = True)
 
