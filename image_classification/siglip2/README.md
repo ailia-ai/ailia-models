@@ -10,10 +10,10 @@
 
 - Zero-Shot Prediction
 ```bash
-1: 2 cats - 65.41%
-2: 3 dogs - 32.62%
-3: a remote - 1.05%
-4: a plane - 0.92%
+1: 2 cats - 92.34%
+2: a remote - 7.65%
+3: 3 dogs - 0.00%
+4: a plane - 0.00%
 ```
 
 ## Requirements

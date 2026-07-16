@@ -41,6 +41,10 @@ REMOTE_PATH = "https://storage.googleapis.com/ailia-models/siglip2/"
 
 IMAGE_PATH = "demo.jpg"
 
+# The model was trained with fixed-length text and has no attention_mask
+# input, so input_ids must be padded to this length.
+SEQ_LENGTH = 64
+
 
 # ======================
 # Arguemnt Parser Config
@@ -163,10 +167,14 @@ def recognize_from_image(models):
     text_descriptions = [f"This is a photo of a {label}" for label in input_labels]
 
     tokenizer = models["tokenizer"]
+    # ailia tokenizer adds a bos token which is removed below,
+    # so pad to one more token
+    max_length = SEQ_LENGTH if args.disable_ailia_tokenizer else SEQ_LENGTH + 1
     encoded = tokenizer(
         text_descriptions,
         return_tensors="np",
-        padding=True,
+        padding="max_length",
+        max_length=max_length,
         truncation=True,
     )
     input_ids = encoded["input_ids"]
