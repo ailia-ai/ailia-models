@@ -3,3 +3,4 @@
 *.onnx.prototxt
 *.pth
 __pycache__/
+onnx2prototxt.py
