@@ -6,11 +6,12 @@ On Windows on ARM (WoA) only the headless build of OpenCV
 other highgui functions raise `cv2.error: The function is not implemented`.
 
 This module provides a minimal drop-in replacement implemented with tkinter
-(which ships with the standard CPython installer). Call `enable_if_needed()`
-once at start-up (arg_utils does this automatically) and the affected cv2
-highgui functions are transparently overwritten. Samples that use the common
-`cv2.imshow` / `cv2.waitKey` / `cv2.getWindowProperty` / `cv2.destroyAllWindows`
-pattern keep working without any change.
+(which ships with the standard CPython installer). Simply importing this
+module activates the fallback when OpenCV is headless (arg_utils does this
+automatically) and the affected cv2 highgui functions are transparently
+overwritten. Samples that use the common `cv2.imshow` / `cv2.waitKey` /
+`cv2.getWindowProperty` / `cv2.destroyAllWindows` pattern keep working
+without any change.
 """
 
 import time
@@ -308,3 +309,8 @@ def enable_if_needed():
     """Enable the tkinter fallback only when OpenCV has no GUI backend."""
     if is_headless():
         enable()
+
+
+# Activate automatically on import. is_headless() and enable() never raise,
+# so importing this module is always safe.
+enable_if_needed()
