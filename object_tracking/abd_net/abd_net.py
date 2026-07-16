@@ -8,7 +8,6 @@ from itertools import chain
 
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 
 import ailia
 
@@ -70,8 +69,18 @@ parser.add_argument(
     '-bs', '--batchsize', type=int, default=64,
     help='Batchsize.'
 )
+parser.add_argument(
+    '--cui',
+    action='store_true',
+    help="Don't display preview in GUI."
+)
 
 args = update_parser(parser)
+
+if args.cui:
+    import matplotlib
+    matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 # ======================
 # Secondaty Functions
@@ -162,7 +171,8 @@ def imshow(path, title=None):
     plt.imshow(im)
     if title is not None:
         plt.title(title)
-    plt.pause(0.001)  # pause a bit so that plots are updated
+    if not args.cui:
+        plt.pause(0.001)  # pause a bit so that plots are updated
 
 # ======================
 # Main functions
