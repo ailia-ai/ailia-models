@@ -33,22 +33,9 @@ PB_LARGE_P16_256_PATH = "siglip2-large-patch16-256_weights.pb"
 PB_GIANT_P16_256_PATH = "siglip2-giant-opt-patch16-256_weights.pb"
 
 WEIGHT_BASE_P16_224_IMAGE_PATH = "siglip2-base-patch16-224-encode_image.onnx"
-WEIGHT_LARGE_P16_256_IMAGE_PATH = "siglip2-large-patch16-256-encode_image.onnx"
-WEIGHT_GIANT_P16_256_IMAGE_PATH = "siglip2-giant-opt-patch16-256-encode_image.onnx"
 MODEL_BASE_P16_224_IMAGE_PATH = "siglip2-base-patch16-224-encode_image.onnx.prototxt"
-MODEL_LARGE_P16_256_IMAGE_PATH = "siglip2-large-patch16-256-encode_image.onnx.prototxt"
-MODEL_GIANT_P16_256_IMAGE_PATH = "siglip2-giant-opt-patch16-256-encode_image.onnx.prototxt"
-PB_LARGE_P16_256_IMAGE_PATH = "siglip2-large-patch16-256-encode_image_weights.pb"
-PB_GIANT_P16_256_IMAGE_PATH = "siglip2-giant-opt-patch16-256-encode_image_weights.pb"
-
 WEIGHT_BASE_P16_224_TEXT_PATH = "siglip2-base-patch16-224-encode_text.onnx"
-WEIGHT_LARGE_P16_256_TEXT_PATH = "siglip2-large-patch16-256-encode_text.onnx"
-WEIGHT_GIANT_P16_256_TEXT_PATH = "siglip2-giant-opt-patch16-256-encode_text.onnx"
 MODEL_BASE_P16_224_TEXT_PATH = "siglip2-base-patch16-224-encode_text.onnx.prototxt"
-MODEL_LARGE_P16_256_TEXT_PATH = "siglip2-large-patch16-256-encode_text.onnx.prototxt"
-MODEL_GIANT_P16_256_TEXT_PATH = "siglip2-giant-opt-patch16-256-encode_text.onnx.prototxt"
-PB_LARGE_P16_256_TEXT_PATH = "siglip2-large-patch16-256-encode_text_weights.pb"
-PB_GIANT_P16_256_TEXT_PATH = "siglip2-giant-opt-patch16-256-encode_text_weights.pb"
 
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/siglip2/"
 
@@ -78,7 +65,8 @@ parser.add_argument(
 parser.add_argument(
     "--separate",
     action="store_true",
-    help="use models separated into an image encoder and a text encoder.",
+    help="use models separated into an image encoder and a text encoder. "
+    "(base-patch16-224 only)",
 )
 parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
@@ -248,32 +236,8 @@ def main():
     }
     dic_model_separate = {
         "base-patch16-224": (
-            (WEIGHT_BASE_P16_224_IMAGE_PATH, MODEL_BASE_P16_224_IMAGE_PATH, None),
-            (WEIGHT_BASE_P16_224_TEXT_PATH, MODEL_BASE_P16_224_TEXT_PATH, None),
-        ),
-        "large-patch16-256": (
-            (
-                WEIGHT_LARGE_P16_256_IMAGE_PATH,
-                MODEL_LARGE_P16_256_IMAGE_PATH,
-                PB_LARGE_P16_256_IMAGE_PATH,
-            ),
-            (
-                WEIGHT_LARGE_P16_256_TEXT_PATH,
-                MODEL_LARGE_P16_256_TEXT_PATH,
-                PB_LARGE_P16_256_TEXT_PATH,
-            ),
-        ),
-        "giant-patch16-256": (
-            (
-                WEIGHT_GIANT_P16_256_IMAGE_PATH,
-                MODEL_GIANT_P16_256_IMAGE_PATH,
-                PB_GIANT_P16_256_IMAGE_PATH,
-            ),
-            (
-                WEIGHT_GIANT_P16_256_TEXT_PATH,
-                MODEL_GIANT_P16_256_TEXT_PATH,
-                PB_GIANT_P16_256_TEXT_PATH,
-            ),
+            (WEIGHT_BASE_P16_224_IMAGE_PATH, MODEL_BASE_P16_224_IMAGE_PATH),
+            (WEIGHT_BASE_P16_224_TEXT_PATH, MODEL_BASE_P16_224_TEXT_PATH),
         ),
     }
     model_type = args.model_type
@@ -281,19 +245,19 @@ def main():
     env_id = args.env_id
 
     if args.separate:
+        if model_type not in dic_model_separate:
+            logger.error(f"--separate is not supported for {model_type}.")
+            sys.exit(1)
+
         (
-            (WEIGHT_IMAGE_PATH, MODEL_IMAGE_PATH, PB_IMAGE_PATH),
-            (WEIGHT_TEXT_PATH, MODEL_TEXT_PATH, PB_TEXT_PATH),
+            (WEIGHT_IMAGE_PATH, MODEL_IMAGE_PATH),
+            (WEIGHT_TEXT_PATH, MODEL_TEXT_PATH),
         ) = dic_model_separate[model_type]
 
         logger.info("Checking encode_image model...")
         check_and_download_models(WEIGHT_IMAGE_PATH, MODEL_IMAGE_PATH, REMOTE_PATH)
-        if PB_IMAGE_PATH:
-            check_and_download_file(PB_IMAGE_PATH, REMOTE_PATH)
         logger.info("Checking encode_text model...")
         check_and_download_models(WEIGHT_TEXT_PATH, MODEL_TEXT_PATH, REMOTE_PATH)
-        if PB_TEXT_PATH:
-            check_and_download_file(PB_TEXT_PATH, REMOTE_PATH)
 
         # initialize
         if not args.onnx:

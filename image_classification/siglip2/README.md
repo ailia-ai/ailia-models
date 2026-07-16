@@ -49,7 +49,7 @@ By adding the `--model_type` option, you can specify model type which is selecte
 $ python3 siglip2.py --model_type base-patch16-224
 ```
 
-By adding the `--separate` option, you can use models separated into an image encoder and a text encoder.
+By adding the `--separate` option, you can use models separated into an image encoder and a text encoder. (base-patch16-224 only)
 The text features are computed only once, so this is efficient when processing multiple images with the same labels.
 ```bash
 $ python3 siglip2.py --separate
