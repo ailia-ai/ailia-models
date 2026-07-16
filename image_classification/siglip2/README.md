@@ -49,6 +49,12 @@ By adding the `--model_type` option, you can specify model type which is selecte
 $ python3 siglip2.py --model_type base-patch16-224
 ```
 
+By adding the `--separate` option, you can use models separated into an image encoder and a text encoder.
+The text features are computed only once, so this is efficient when processing multiple images with the same labels.
+```bash
+$ python3 siglip2.py --separate
+```
+
 ## Reference
 
 - [Hugging Face - SigLIP 2 Base](https://huggingface.co/google/siglip2-base-patch16-224)
@@ -65,3 +71,5 @@ ONNX opset=17
 ## Netron
 
 [siglip2-base-patch16-224.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/siglip2/siglip2-base-patch16-224.onnx.prototxt)  
+[siglip2-base-patch16-224-encode_image.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/siglip2/siglip2-base-patch16-224-encode_image.onnx.prototxt)  
+[siglip2-base-patch16-224-encode_text.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/siglip2/siglip2-base-patch16-224-encode_text.onnx.prototxt)  
