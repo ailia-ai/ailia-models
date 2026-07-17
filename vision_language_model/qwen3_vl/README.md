@@ -55,7 +55,7 @@ If you want to specify the prompt, put the prompt after the `--prompt` option.
 $ python3 qwen3_vl.py --prompt PROMPT
 ```
 
-By adding the `--model_type` option, you can specify the model size which is selected from "4b", "8b". (default is 8b)
+By adding the `--model_type` option, you can specify the model size which is selected from "4b", "8b". (default is 4b)
 ```bash
 $ python3 qwen3_vl.py --model_type 4b
 ```

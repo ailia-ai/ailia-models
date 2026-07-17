@@ -105,9 +105,9 @@ parser.add_argument(
 )
 parser.add_argument(
     "--model_type",
-    default="8b",
+    default="4b",
     choices=["4b", "8b"],
-    help="Qwen3-VL model type: 4b or 8b (default: 8b)",
+    help="Qwen3-VL model type: 4b or 8b (default: 4b)",
 )
 args = update_parser(parser)
 
