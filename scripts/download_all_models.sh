@@ -139,8 +139,9 @@ cd ../../face_recognition/gazelle; python3 gazelle.py ${OPTION}
 cd ../../face_restoration/codeformer; python3 codeformer.py ${OPTION}
 cd ../../face_restoration/gfpgan; python3 gfpgan.py ${OPTION}
 cd ../../face_swapping/facefusion; python3 facefusion.py ${OPTION}
-cd ../../face-swapping/sber-swap; python3 sber-swap.py ${OPTION}
-cd ../../face-swapping/deepfacelive; python3 deepfacelive.py ${OPTION}
+cd ../../face_swapping/sber-swap; python3 sber-swap.py ${OPTION}
+cd ../../face_swapping/deepfacelive; python3 deepfacelive.py ${OPTION}
+cd ../../feature_extraction/dinov3; python3 dinov3.py ${OPTION}
 cd ../../frame_interpolation/flavr; python3 flavr.py ${OPTION}
 cd ../../frame_interpolation/cain; python3 cain.py ${OPTION}
 cd ../../frame_interpolation/film; python3 film.py ${OPTION}

@@ -343,6 +343,12 @@ If you would like to try on your computer:
 | [<img src="face_swapping/sber-swap/output.png" width=128px>](face_swapping/sber-swap/) | [sber-swap](/face_swapping/sber-swap/) | [SberSwap](https://github.com/ai-forever/sber-swap) | Pytorch | 1.2.12 and later | Feb 2022 | [EN](https://tech.ailia.ai/en/sberswap-high-precision-faceswap-powered-by-ai-ef29c9639a68/) [JP](https://tech.ailia.ai/sberswap-ai%E3%81%AB%E3%82%88%E3%82%8B%E9%AB%98%E7%B2%BE%E5%BA%A6%E3%81%AAfaceswap-bddae3b8ff84) |
 | [<img src="face_swapping/facefusion/output.png" width=128px>](face_swapping/facefusion/) | [facefusion](/face_swapping/facefusion/) | [FaceFusion](https://github.com/facefusion/facefusion) | ONNX Runtime | 1.2.10 and later | Aug 2023 | |
 
+## Feature Extraction
+
+| | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
+|:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|
+| [<img src="feature_extraction/dinov3/output.png" width=128px>](feature_extraction/dinov3/) | [dinov3](/feature_extraction/dinov3/) | [DINOv3](https://github.com/facebookresearch/dinov3) | Pytorch | 1.2.16 and later | Aug 2025 | |
+
 ## Frame Interpolation
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
