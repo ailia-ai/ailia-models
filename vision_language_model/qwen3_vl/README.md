@@ -65,6 +65,11 @@ For the 8b model, adding the `--fp16` option runs the language model in fp16 to 
 $ python3 qwen3_vl.py --model_type 8b --fp16
 ```
 
+By adding the `--npy_embed` option, the token embedding lookup uses the .npy embedding table instead of the embed_tokens ONNX.
+```bash
+$ python3 qwen3_vl.py --npy_embed
+```
+
 You can adjust the generation behavior with `--max_new_tokens`, `--temperature`, `--top_k`, `--top_p` and `--repetition_penalty`.
 ```bash
 $ python3 qwen3_vl.py --max_new_tokens 512 --temperature 0.7 --top_k 20 --top_p 0.8 --repetition_penalty 1.0
@@ -87,7 +92,9 @@ ONNX opset=17
 ## Netron
 
 [qwen3_vl_4b_instruct_vision_encoder.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_4b_instruct_vision_encoder.onnx.prototxt)  
+[qwen3_vl_4b_instruct_embed_tokens.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_4b_instruct_embed_tokens.onnx.prototxt)  
 [qwen3_vl_4b_instruct_language_model.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_4b_instruct_language_model.onnx.prototxt)  
 [qwen3_vl_8b_instruct_vision_encoder.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_8b_instruct_vision_encoder.onnx.prototxt)  
+[qwen3_vl_8b_instruct_embed_tokens.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_8b_instruct_embed_tokens.onnx.prototxt)  
 [qwen3_vl_8b_instruct_language_model.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_8b_instruct_language_model.onnx.prototxt)  
 [qwen3_vl_8b_instruct_language_model_fp16.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_8b_instruct_language_model_fp16.onnx.prototxt)

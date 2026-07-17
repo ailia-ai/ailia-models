@@ -99,6 +99,11 @@ parser.add_argument(
     help="use onnxruntime",
 )
 parser.add_argument(
+    "--npy_embed",
+    action="store_true",
+    help="use the .npy embedding table instead of the embed_tokens ONNX",
+)
+parser.add_argument(
     "--fp16",
     action="store_true",
     help="use fp16 language model",
@@ -123,7 +128,10 @@ if args.model_type == "4b":
     WEIGHT_VIS_PATH = "qwen3_vl_4b_instruct_vision_encoder.onnx"
     MODEL_VIS_PATH = "qwen3_vl_4b_instruct_vision_encoder.onnx.prototxt"
     PB_VIS_PATH = None  # 4b vision encoder is under 2GB, so ONNX export keeps
-    WEIGHT_EMBED_PATH = "qwen3_vl_4b_instruct_embed_tokens.npy"
+    WEIGHT_EMBED_PATH = "qwen3_vl_4b_instruct_embed_tokens.onnx"
+    MODEL_EMBED_PATH = "qwen3_vl_4b_instruct_embed_tokens.onnx.prototxt"
+    PB_EMBED_PATH = None  # 4b embed_tokens (1.6GB) is under 2GB
+    NPY_EMBED_PATH = "qwen3_vl_4b_instruct_embed_tokens.npy"
     WEIGHT_LM_PATH = "qwen3_vl_4b_instruct_language_model.onnx"
     MODEL_LM_PATH = "qwen3_vl_4b_instruct_language_model.onnx.prototxt"
     PB_LM_PATH = "qwen3_vl_4b_instruct_language_model_weights.pb"
@@ -132,7 +140,10 @@ else:
     WEIGHT_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder.onnx"
     MODEL_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder.onnx.prototxt"
     PB_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder_weights.pb"
-    WEIGHT_EMBED_PATH = "qwen3_vl_8b_instruct_embed_tokens.npy"
+    WEIGHT_EMBED_PATH = "qwen3_vl_8b_instruct_embed_tokens.onnx"
+    MODEL_EMBED_PATH = "qwen3_vl_8b_instruct_embed_tokens.onnx.prototxt"
+    PB_EMBED_PATH = "qwen3_vl_8b_instruct_embed_tokens_weights.pb"
+    NPY_EMBED_PATH = "qwen3_vl_8b_instruct_embed_tokens.npy"
     WEIGHT_LM_PATH = "qwen3_vl_8b_instruct_language_model.onnx"
     MODEL_LM_PATH = "qwen3_vl_8b_instruct_language_model.onnx.prototxt"
     PB_LM_PATH = "qwen3_vl_8b_instruct_language_model_weights.pb"
@@ -149,13 +160,20 @@ LM_DTYPE = np.float16 if args.fp16 else np.float32
 # ======================
 
 
-def load_embed_tokens():
-    """Load embed_tokens.weight from the pre-saved .npy file.
+def embed_tokens(models, input_ids):
+    """Run the embed_tokens ONNX: input_ids [batch, seq] -> inputs_embeds [batch, seq, hidden].
 
     tie_word_embeddings=false, so embed_tokens.weight != lm_head.weight.
-    The embed_tokens weights are saved separately during export.
+    The lookup is exported as a standalone ONNX (a single Gather) because the
+    language model takes inputs_embeds: image embeddings from the vision
+    encoder are inserted at the image token positions outside the graph.
     """
-    return np.load(WEIGHT_EMBED_PATH)
+    if args.npy_embed:
+        return models["embed_tokens"][input_ids]
+    net = models["embed_tokens"]
+    if args.onnx:
+        return net.run(["inputs_embeds"], {"input_ids": input_ids})[0]
+    return net.predict([input_ids])[0]
 
 
 # ── image preprocessing ────────────────────────────────────────────────────────
@@ -500,17 +518,19 @@ def run_vision_encoder(models, data, use_onnx=False):
     return out[0], out[1], out[2], out[3]
 
 
-def build_lm_inputs(data, image_embeds, embed_tokens):
-    """Construct inputs_embeds [1,seq,4096], position_ids [4,1,seq], visual_pos_masks [1,seq]."""
+def build_lm_inputs(data, image_embeds, models):
+    """Construct inputs_embeds [1,seq,hidden], position_ids [4,1,seq], visual_pos_masks [1,seq]."""
     input_ids = data["input_ids"]
     mm_token_type_ids = data["mm_token_type_ids"]
     image_grid_thw = data["image_grid_thw"]
     attention_mask = data["attention_mask"]
 
-    token_embeds = embed_tokens[input_ids[0]].astype(LM_DTYPE, copy=True)  # [seq, 4096]
+    token_embeds = embed_tokens(models, input_ids)[0].astype(
+        LM_DTYPE, copy=True
+    )  # [seq, hidden]
     image_positions = np.where(input_ids[0] == IMAGE_TOKEN_ID)[0]
     token_embeds[image_positions] = image_embeds.astype(LM_DTYPE, copy=False)
-    inputs_embeds = token_embeds[None, :, :]  # [1, seq, 4096]
+    inputs_embeds = token_embeds[None, :, :]  # [1, seq, hidden]
 
     visual_pos_masks = mm_token_type_ids == 1  # [1, seq] bool
 
@@ -611,7 +631,7 @@ def logits_processor(
     return scores
 
 
-def generate(models, data, embed_tokens):
+def generate(models, data):
     use_onnx = args.onnx
     max_new_tokens = args.max_new_tokens
     benchmark = args.benchmark
@@ -633,7 +653,7 @@ def generate(models, data, embed_tokens):
     inputs_embeds, position_ids, visual_pos_masks, rope_deltas = build_lm_inputs(
         data,
         image_embeds.astype(LM_DTYPE, copy=False),
-        embed_tokens,
+        models,
     )
     rope_delta = int(rope_deltas[0, 0])
     EMPTY_DS = np.zeros((0, HIDDEN_SIZE), dtype=LM_DTYPE)
@@ -695,7 +715,9 @@ def generate(models, data, embed_tokens):
         if benchmark and step == 0:
             t0 = int(round(time.time() * 1000))
 
-        next_embed = embed_tokens[[next_token]][None, :, :].astype(LM_DTYPE)
+        next_embed = embed_tokens(
+            models, np.array([[next_token]], dtype=np.int64)
+        ).astype(LM_DTYPE, copy=False)
 
         pos_dec = np.full((4, 1, 1), past_len + rope_delta, dtype=np.int64)
         pos_dec[0, 0, 0] = past_len
@@ -731,12 +753,12 @@ def generate(models, data, embed_tokens):
     return tokenizer.decode(generated, skip_special_tokens=True)
 
 
-def predict(models, embed_tokens, image_path, prompt):
+def predict(models, image_path, prompt):
     logger.info(f"Image: {image_path}")
     logger.info(f"Prompt: {prompt}")
 
     data = preprocess(image_path, prompt, models["tokenizer"])
-    output_text = generate(models, data, embed_tokens)
+    output_text = generate(models, data)
 
     if INTERMEDIATE:
         print("")
@@ -746,21 +768,21 @@ def predict(models, embed_tokens, image_path, prompt):
     return output_text
 
 
-def recognize(models, embed_tokens):
+def recognize(models):
     logger.info("Start inference...")
     if args.benchmark:
         logger.info("BENCHMARK mode")
         total = 0
         for i in range(args.benchmark_count):
             t0 = int(round(time.time() * 1000))
-            predict(models, embed_tokens, args.input[0], args.prompt)
+            predict(models, args.input[0], args.prompt)
             elapsed = int(round(time.time() * 1000)) - t0
             logger.info(f"\tailia processing time {elapsed} ms")
             if i != 0:
                 total += elapsed
         logger.info(f"\taverage time {total / (args.benchmark_count - 1)} ms")
     else:
-        predict(models, embed_tokens, args.input[0], args.prompt)
+        predict(models, args.input[0], args.prompt)
 
     logger.info("Script finished successfully.")
 
@@ -776,15 +798,16 @@ def main():
         pb_lm_path = PB_LM_PATH
 
     check_and_download_models(WEIGHT_VIS_PATH, MODEL_VIS_PATH, REMOTE_PATH)
+    if args.npy_embed:
+        check_and_download_file(NPY_EMBED_PATH, REMOTE_PATH)
+    else:
+        check_and_download_models(WEIGHT_EMBED_PATH, MODEL_EMBED_PATH, REMOTE_PATH)
+        if PB_EMBED_PATH is not None:
+            check_and_download_file(PB_EMBED_PATH, REMOTE_PATH)
     check_and_download_models(weight_lm_path, model_lm_path, REMOTE_PATH)
     if PB_VIS_PATH is not None:
         check_and_download_file(PB_VIS_PATH, REMOTE_PATH)
     check_and_download_file(pb_lm_path, REMOTE_PATH)
-    check_and_download_file(WEIGHT_EMBED_PATH, REMOTE_PATH)
-
-    logger.info("Loading embed_tokens...")
-    embed_tokens = load_embed_tokens()
-    logger.info(f"embed_tokens shape: {embed_tokens.shape}")
 
     env_id = args.env_id
 
@@ -817,6 +840,10 @@ def main():
             }
         )
 
+    if args.npy_embed:
+        logger.info("Loading embed_tokens...")
+        embed_net = np.load(NPY_EMBED_PATH)
+
     if not args.onnx:
         import ailia
 
@@ -829,6 +856,12 @@ def main():
         vision_encoder = ailia.Net(
             MODEL_VIS_PATH, WEIGHT_VIS_PATH, env_id=env_id, memory_mode=memory_mode
         )
+        if not args.npy_embed:
+            # embed_tokens is a single Gather over a 1.6GB (4b) / 2.5GB (8b)
+            # table; run it on CPU to avoid consuming GPU memory for a lookup.
+            embed_net = ailia.Net(
+                MODEL_EMBED_PATH, WEIGHT_EMBED_PATH, memory_mode=memory_mode
+            )
         language_model = ailia.Net(
             model_lm_path, weight_lm_path, env_id=env_id, memory_mode=memory_mode
         )
@@ -839,17 +872,22 @@ def main():
         vision_encoder = onnxruntime.InferenceSession(
             WEIGHT_VIS_PATH, providers=providers
         )
+        if not args.npy_embed:
+            embed_net = onnxruntime.InferenceSession(
+                WEIGHT_EMBED_PATH, providers=["CPUExecutionProvider"]
+            )
         language_model = onnxruntime.InferenceSession(
             weight_lm_path, providers=providers
         )
 
     models = {
         "vision_encoder": vision_encoder,
+        "embed_tokens": embed_net,
         "language_model": language_model,
         "tokenizer": tokenizer,
     }
 
-    recognize(models, embed_tokens)
+    recognize(models)
 
 
 if __name__ == "__main__":
