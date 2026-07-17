@@ -2,6 +2,11 @@
 
 import ailia_voice
 
+import os, sys, platform
+if (platform.system(), platform.machine().lower()) in {('Windows', 'arm64'), ('Windows', 'aarch64')}:
+	sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'util', 'woa'))
+	import woa_librosa
+
 import librosa
 import time
 import soundfile
