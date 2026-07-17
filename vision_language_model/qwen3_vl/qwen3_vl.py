@@ -104,6 +104,13 @@ parser.add_argument(
     help="use the .npy embedding table instead of the embed_tokens ONNX",
 )
 parser.add_argument(
+    "--quantize",
+    type=str,
+    default=None,
+    choices=["int4"],
+    help="use int4 quantized language model (4b only)",
+)
+parser.add_argument(
     "--fp16",
     action="store_true",
     help="use fp16 language model",
@@ -123,6 +130,11 @@ if args.fp16 and args.model_type == "4b":
     logger.error("--fp16 is not supported for --model_type 4b")
     sys.exit(1)
 
+# int4 is 4B-only: only the 4b language model is quantized for now.
+if args.quantize == "int4" and args.model_type != "4b":
+    logger.error("--quantize int4 is only supported for --model_type 4b")
+    sys.exit(1)
+
 if args.model_type == "4b":
     HIDDEN_SIZE = 2560
     WEIGHT_VIS_PATH = "qwen3_vl_4b_instruct_vision_encoder.onnx"
@@ -135,6 +147,9 @@ if args.model_type == "4b":
     WEIGHT_LM_PATH = "qwen3_vl_4b_instruct_language_model.onnx"
     MODEL_LM_PATH = "qwen3_vl_4b_instruct_language_model.onnx.prototxt"
     PB_LM_PATH = "qwen3_vl_4b_instruct_language_model_weights.pb"
+    WEIGHT_LM_INT4_PATH = "qwen3_vl_4b_instruct_language_model_int4.onnx"
+    MODEL_LM_INT4_PATH = "qwen3_vl_4b_instruct_language_model_int4.onnx.prototxt"
+    PB_LM_INT4_PATH = "qwen3_vl_4b_instruct_language_model_int4_weights.pb"
 else:
     HIDDEN_SIZE = 4096
     WEIGHT_VIS_PATH = "qwen3_vl_8b_instruct_vision_encoder.onnx"
@@ -792,6 +807,10 @@ def main():
         weight_lm_path = WEIGHT_LM_FP16_PATH
         model_lm_path = MODEL_LM_FP16_PATH
         pb_lm_path = PB_LM_FP16_PATH
+    elif args.quantize == "int4":
+        weight_lm_path = WEIGHT_LM_INT4_PATH
+        model_lm_path = MODEL_LM_INT4_PATH
+        pb_lm_path = PB_LM_INT4_PATH
     else:
         weight_lm_path = WEIGHT_LM_PATH
         model_lm_path = MODEL_LM_PATH

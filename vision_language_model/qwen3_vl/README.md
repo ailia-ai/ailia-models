@@ -65,6 +65,11 @@ For the 8b model, adding the `--fp16` option runs the language model in fp16 to 
 $ python3 qwen3_vl.py --model_type 8b --fp16
 ```
 
+By adding the `--quantize int4` option, the int4 quantized language model is used to reduce memory usage. (4b only)
+```bash
+$ python3 qwen3_vl.py --quantize int4
+```
+
 By adding the `--npy_embed` option, the token embedding lookup uses the .npy embedding table instead of the embed_tokens ONNX.
 ```bash
 $ python3 qwen3_vl.py --npy_embed
@@ -94,6 +99,7 @@ ONNX opset=17
 [qwen3_vl_4b_instruct_vision_encoder.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_4b_instruct_vision_encoder.onnx.prototxt)  
 [qwen3_vl_4b_instruct_embed_tokens.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_4b_instruct_embed_tokens.onnx.prototxt)  
 [qwen3_vl_4b_instruct_language_model.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_4b_instruct_language_model.onnx.prototxt)  
+[qwen3_vl_4b_instruct_language_model_int4.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_4b_instruct_language_model_int4.onnx.prototxt)  
 [qwen3_vl_8b_instruct_vision_encoder.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_8b_instruct_vision_encoder.onnx.prototxt)  
 [qwen3_vl_8b_instruct_embed_tokens.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_8b_instruct_embed_tokens.onnx.prototxt)  
 [qwen3_vl_8b_instruct_language_model.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3_vl/qwen3_vl_8b_instruct_language_model.onnx.prototxt)  
