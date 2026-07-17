@@ -867,6 +867,7 @@ If you would like to try on your computer:
 | [<img src="vision_language_model/llava-jp/sample.jpg" width=128px>](vision_language_model/llava-jp/) | [llava-jp](vision_language_model/llava-jp) | [LLaVA-JP](https://github.com/tosiyuki/LLaVA-JP/tree/main) | Pytorch | 1.5.0 and later | Jan 2024 | |
 | [<img src="vision_language_model/qwen2_vl/demo.jpeg" width=128px>](vision_language_model/qwen2_vl/) | [qwen2_vl](vision_language_model/qwen2_vl) | [Qwen2-VL](https://github.com/QwenLM/Qwen2-VL) | Pytorch | 1.5.0 and later | Sep 2024 | [EN](https://tech.ailia.ai/en/qwen2-vl-a-vision-language-model-that-runs-locally-4b97ccab1bf6/) [JP](https://tech.ailia.ai/qwen2-vl-%E3%83%AD%E3%83%BC%E3%82%AB%E3%83%AB%E3%81%A7%E5%8B%95%E4%BD%9C%E3%81%99%E3%82%8Bvision-language-model-b6f75fa30a08) |
 | [<img src="vision_language_model/qwen2.5_vl/demo.jpeg" width=128px>](vision_language_model/qwen2.5_vl/) | [qwen2.5_vl](vision_language_model/qwen2.5_vl) | [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct#qwen25-vl-3b-instruct) | Pytorch | 1.6.0 and later | Jan 2025 |  |
+| [<img src="vision_language_model/qwen3_vl/demo.jpeg" width=128px>](vision_language_model/qwen3_vl/) | [qwen3_vl](vision_language_model/qwen3_vl) | [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL) | Pytorch | 1.6.0 and later | Oct 2025 |  |
 
 ## Commercial model
 
