@@ -816,6 +816,19 @@ def main():
         model_lm_path = MODEL_LM_PATH
         pb_lm_path = PB_LM_PATH
 
+    # ailia older than 1.7.0 cannot load the 8b embed_tokens ONNX (its
+    # initializers are all external data); fall back to the .npy table.
+    if not args.onnx and args.model_type == "8b" and not args.npy_embed:
+        import ailia
+
+        version = ailia.get_version()
+        if tuple(int(x) for x in version.split(".")[:3]) < (1, 7, 0):
+            logger.warning(
+                f"ailia {version} cannot load the 8b embed_tokens ONNX; "
+                "falling back to the .npy embedding table (--npy_embed)."
+            )
+            args.npy_embed = True
+
     check_and_download_models(WEIGHT_VIS_PATH, MODEL_VIS_PATH, REMOTE_PATH)
     if args.npy_embed:
         check_and_download_file(NPY_EMBED_PATH, REMOTE_PATH)
