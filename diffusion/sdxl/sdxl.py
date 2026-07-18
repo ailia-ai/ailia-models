@@ -51,6 +51,36 @@ parser.add_argument(
     help="the prompt to render",
 )
 parser.add_argument(
+    "--width",
+    type=int,
+    default=1024,
+    help="output image width",
+)
+parser.add_argument(
+    "--height",
+    type=int,
+    default=1024,
+    help="output image height",
+)
+parser.add_argument(
+    "--steps",
+    type=int,
+    default=50,
+    help="number of sampling steps",
+)
+parser.add_argument(
+    "--guidance_scale",
+    type=float,
+    default=5.0,
+    help="classifier free guidance scale",
+)
+parser.add_argument(
+    "--seed",
+    type=int,
+    default=None,
+    help="random seed",
+)
+parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
@@ -60,6 +90,33 @@ args = update_parser(parser, check_input_type=False)
 # ======================
 # Secondaty Functions
 # ======================
+
+
+def timestep_embedding(timesteps, dim, max_period=10000):
+    """Create sinusoidal timestep embeddings (sgm.modules.diffusionmodules.util)."""
+    half = dim // 2
+    freqs = np.exp(-math.log(max_period) * np.arange(0, half, dtype=np.float32) / half)
+    args = timesteps[:, None].astype(np.float32) * freqs[None]
+    embedding = np.concatenate([np.cos(args), np.sin(args)], axis=-1)
+    if dim % 2:
+        embedding = np.concatenate(
+            [embedding, np.zeros_like(embedding[:, :1])], axis=-1
+        )
+    return embedding
+
+
+def embed_nd(values, batch_size, outdim=256):
+    """ConcatTimestepEmbedderND: embed each scalar independently and concatenate.
+
+    values は (crop_top, crop_left) のような 1 次元の並び。各要素を
+    timestep_embedding で outdim 次元に埋め込み、要素方向に連結する。
+    """
+    x = np.array(values, dtype=np.float32)
+    x = np.tile(x[None], (batch_size, 1))
+    b, dims = x.shape
+    emb = timestep_embedding(x.reshape(b * dims), outdim)
+    emb = emb.reshape(b, dims * outdim)
+    return emb
 
 
 class LegacyDDPMDiscretization:
@@ -113,18 +170,78 @@ class StableDiffusionXL:
         open_clip_bigg,
         unet,
         vae_decoder,
+        tokenizer,
+        tokenizer_2,
         use_onnx=False,
     ):
         self.clip_l = clip_l
         self.open_clip_bigg = open_clip_bigg
         self.unet = unet
         self.vae_decoder = vae_decoder
+        self.tokenizer = tokenizer
+        self.tokenizer_2 = tokenizer_2
         self.use_onnx = use_onnx
 
         self.vae_scale_factor = 8
 
+        # DiscreteDenoiser(num_idx=1000) が sigma<->index 量子化に使う固定テーブル。
+        # discretization(1000, do_append_zero=False, flip=True) で昇順(idx0=最小)。
         discretization = LegacyDDPMDiscretization()
+        self.discretization = discretization
         self.discrete_sigmas = discretization(1000, do_append_zero=False, flip=True)
+
+    def _run(self, net, inputs, onnx_inputs):
+        if not self.use_onnx:
+            return net.run(inputs)
+        return net.run(None, onnx_inputs)
+
+    def _tokenize(self, tokenizer, prompt):
+        text_inputs = tokenizer(
+            prompt,
+            padding="max_length",
+            max_length=tokenizer.model_max_length,
+            truncation=True,
+            return_tensors="np",
+        )
+        return text_inputs.input_ids.astype(np.int64)
+
+    def encode_prompt(self, prompt):
+        # CLIP ViT-L/14 : penultimate hidden state (768)
+        input_ids = self._tokenize(self.tokenizer, prompt)
+        output = self._run(self.clip_l, [input_ids], {"input_ids": input_ids})
+        clip_l_hidden = output[0]
+
+        # OpenCLIP ViT-bigG/14 : penultimate hidden state (1280) + pooled (1280)
+        input_ids_2 = self._tokenize(self.tokenizer_2, prompt)
+        output = self._run(
+            self.open_clip_bigg, [input_ids_2], {"input_ids": input_ids_2}
+        )
+        open_clip_hidden, pooled = output
+
+        # crossattn: CLIP-L(768) と OpenCLIP(1280) を特徴次元で連結 -> 2048
+        context = np.concatenate([clip_l_hidden, open_clip_hidden], axis=-1)
+        return context, pooled
+
+    def build_conditioning(self, prompt, batch_size, height, width):
+        context, pooled = self.encode_prompt(prompt)
+
+        # 追加条件 (ConcatTimestepEmbedderND)。orig/target は (height, width)。
+        emb_orig = embed_nd([height, width], batch_size)
+        emb_crop = embed_nd([0, 0], batch_size)  # crop_coords_top_left
+        emb_target = embed_nd([height, width], batch_size)
+
+        # vector(y): pooled(1280) + orig(512) + crop(512) + target(512) = 2816
+        vector = np.concatenate([pooled, emb_orig, emb_crop, emb_target], axis=-1)
+
+        # force_uc_zero_embeddings=["txt"]: uncond 側は txt 由来の埋め込みを 0 に
+        # する (crossattn 全体と pooled 部分)。サイズ埋め込みは cond と同一。
+        context_uc = np.zeros_like(context)
+        pooled_uc = np.zeros_like(pooled)
+        vector_uc = np.concatenate([pooled_uc, emb_orig, emb_crop, emb_target], axis=-1)
+
+        c = {"crossattn": context, "vector": vector}
+        uc = {"crossattn": context_uc, "vector": vector_uc}
+        return c, uc
 
     def sigma_to_idx(self, sigma):
         return int(np.argmin(np.abs(sigma - self.discrete_sigmas)))
@@ -165,13 +282,27 @@ class StableDiffusionXL:
     def forward(
         self,
         prompt,
-        negative_prompt="",
         height=1024,
         width=1024,
         num_inference_steps=50,
         guidance_scale=5.0,
     ):
         batch_size = 1
+
+        c, uc = self.build_conditioning(prompt, batch_size, height, width)
+
+        # sampling sigma schedule (EulerEDMSampler.prepare_sampling_loop)
+        sigmas = self.discretization(num_inference_steps)
+        num_sigmas = len(sigmas)
+
+        shape = (
+            batch_size,
+            4,
+            height // self.vae_scale_factor,
+            width // self.vae_scale_factor,
+        )
+        x = np.random.randn(*shape).astype(np.float32)
+        x = x * float(np.sqrt(1.0 + sigmas[0] ** 2.0))
 
         # EulerEDMSampler (s_churn=0 -> gamma=0, 追加ノイズなし)
         for i in tqdm(range(num_sigmas - 1)):
@@ -184,6 +315,16 @@ class StableDiffusionXL:
             d = (x - denoised) / sigma
             dt = next_sigma - sigma
             x = x + dt * d
+
+        # VAE decode (ONNX 側で 1/scale_factor 除算を含む)
+        latent = x.astype(np.float32)
+        output = self._run(self.vae_decoder, [latent], {"latent": latent})
+        image = output[0]
+
+        image = np.clip((image + 1.0) / 2.0, 0, 1)
+        image = image.transpose((0, 2, 3, 1))
+        return image
+
 
 # ======================
 # Main functions
@@ -198,12 +339,17 @@ def recognize_from_text(pipe):
 
     image = pipe.forward(
         prompt=prompt,
-        negative_prompt=args.negative_prompt,
         height=args.height,
         width=args.width,
         num_inference_steps=args.steps,
         guidance_scale=args.guidance_scale,
     )
+    image = (image[0] * 255).astype(np.uint8)
+    image = image[:, :, ::-1]  # RGB->BGR
+
+    img_savepath = get_savepath(args.savepath, "", ext=".png")
+    logger.info(f"saved at : {img_savepath}")
+    cv2.imwrite(img_savepath, image)
 
     logger.info("Script finished successfully.")
 
@@ -219,6 +365,10 @@ def main():
     check_and_download_file(WEIGHT_CLIP_L_PB_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_OPEN_CLIP_PB_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_VAE_DECODER_PB_PATH, REMOTE_PATH)
+
+    seed = args.seed
+    if seed is not None:
+        np.random.seed(seed)
 
     env_id = args.env_id
 
@@ -270,11 +420,27 @@ def main():
             WEIGHT_VAE_DECODER_PATH, providers=providers
         )
 
+    if args.disable_ailia_tokenizer:
+        import transformers
+
+        tokenizer = transformers.CLIPTokenizer.from_pretrained("./tokenizer")
+        tokenizer_2 = transformers.CLIPTokenizer.from_pretrained("./tokenizer_2")
+    else:
+        from ailia_tokenizer import CLIPTokenizer
+
+        tokenizer = CLIPTokenizer.from_pretrained()
+        tokenizer.model_max_length = 77
+        tokenizer_2 = CLIPTokenizer.from_pretrained()
+        tokenizer_2.add_special_tokens({"pad_token": "!"})
+        tokenizer_2.model_max_length = 77
+
     pipe = StableDiffusionXL(
         clip_l=clip_l,
         open_clip_bigg=open_clip_bigg,
         unet=unet,
         vae_decoder=vae_decoder,
+        tokenizer=tokenizer,
+        tokenizer_2=tokenizer_2,
         use_onnx=args.onnx,
     )
 
