@@ -44,6 +44,15 @@ You can use `--savepath` option to change the name of the output file to save.
 $ python3 voicefilter.py --input MIXED_WAV --reference_file REFERENCE_WAV --savepath SAVE_PATH
 ```
 
+By default, `embedder_dynamic.onnx` is used, which accepts a reference audio of arbitrary length.
+You can use the `--legacy` option to use the legacy `embedder.onnx`,
+which requires a reference audio of 2.8 sec or longer
+(the sliding windows of unfold were frozen to 6 windows at export time,
+and the extra frames of a reference audio longer than 3 sec are ignored).
+```bash
+$ python3 voicefilter.py --input MIXED_WAV --reference_file REFERENCE_WAV --legacy
+```
+
 
 ## Reference
 
@@ -59,5 +68,6 @@ ONNX opset=11
 
 ## Netron
 
+[embedder_dynamic.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/embedder_dynamic.onnx.prototxt)  
 [embedder.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/embedder.onnx.prototxt)  
 [model.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/model.onnx.prototxt)
