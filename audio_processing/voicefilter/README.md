@@ -44,6 +44,14 @@ You can use `--savepath` option to change the name of the output file to save.
 $ python3 voicefilter.py --input MIXED_WAV --reference_file REFERENCE_WAV --savepath SAVE_PATH
 ```
 
+By default, the model trained by ailia Inc. is used. You can use the `-m voicesplit` option
+to use the model of [VoiceSplit](https://github.com/Edresson/VoiceSplit), which has the same
+architecture and was trained with the power-law compressed loss of the original paper.
+The same embedder can be used for both models.
+```bash
+$ python3 voicefilter.py --input MIXED_WAV --reference_file REFERENCE_WAV -m voicesplit
+```
+
 By default, `embedder_dynamic.onnx` is used, which accepts a reference audio of arbitrary length.
 You can use the `--legacy` option to use the legacy `embedder.onnx`,
 which requires a reference audio of 2.8 sec or longer
@@ -57,6 +65,7 @@ $ python3 voicefilter.py --input MIXED_WAV --reference_file REFERENCE_WAV --lega
 ## Reference
 
 - [VoiceFilter](https://github.com/mindslab-ai/voicefilter)
+- [VoiceSplit](https://github.com/Edresson/VoiceSplit)
 
 ## Framework
 
@@ -70,4 +79,5 @@ ONNX opset=11
 
 [embedder_dynamic.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/embedder_dynamic.onnx.prototxt)  
 [embedder.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/embedder.onnx.prototxt)  
-[model.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/model.onnx.prototxt)
+[model.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/model.onnx.prototxt)  
+[voicesplit.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/voicefilter/voicesplit.onnx.prototxt)
