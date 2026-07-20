@@ -24,6 +24,8 @@ logger = getLogger(__name__)
 
 WEIGHT_PATH = 'model.onnx'
 MODEL_PATH = 'model.onnx.prototxt'
+WEIGHT_VOICESPLIT_PATH = 'voicesplit.onnx'
+MODEL_VOICESPLIT_PATH = 'voicesplit.onnx.prototxt'
 WEIGHT_EMB_PATH = 'embedder_dynamic.onnx'
 MODEL_EMB_PATH = 'embedder_dynamic.onnx.prototxt'
 WEIGHT_EMB_LEGACY_PATH = 'embedder.onnx'
@@ -47,6 +49,12 @@ parser.add_argument(
     '-r', '--reference_file',
     default="ref-voice.wav", type=str,
     help='path of reference wav file'
+)
+parser.add_argument(
+    '-m', '--model', metavar='MODEL',
+    default='voicefilter', choices=('voicefilter', 'voicesplit'),
+    help='model to use: voicefilter (original) or voicesplit '
+         '(VoiceSplit checkpoint trained with the power-law compressed loss)'
 )
 parser.add_argument(
     '--legacy',
@@ -140,20 +148,24 @@ def audio_recognition(net, embedder):
 
 
 def main():
+    if args.model == 'voicesplit':
+        weight_path, model_path = WEIGHT_VOICESPLIT_PATH, MODEL_VOICESPLIT_PATH
+    else:
+        weight_path, model_path = WEIGHT_PATH, MODEL_PATH
     if args.legacy:
         weight_emb_path, model_emb_path = WEIGHT_EMB_LEGACY_PATH, MODEL_EMB_LEGACY_PATH
     else:
         weight_emb_path, model_emb_path = WEIGHT_EMB_PATH, MODEL_EMB_PATH
 
     # model files check and download
-    logger.info('Checking voicefilter model...')
-    check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+    logger.info('Checking %s model...' % args.model)
+    check_and_download_models(weight_path, model_path, REMOTE_PATH)
     logger.info('Checking embedder model...')
     check_and_download_models(weight_emb_path, model_emb_path, REMOTE_PATH)
 
     env_id = args.env_id
 
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+    net = ailia.Net(model_path, weight_path, env_id=env_id)
     embedder = ailia.Net(model_emb_path, weight_emb_path, env_id=env_id)
 
     audio_recognition(net, embedder)
