@@ -6,6 +6,7 @@ from logging import getLogger
 import ailia
 import cv2
 import numpy as np
+from PIL import Image
 from tqdm import tqdm
 
 # import original modules
@@ -31,6 +32,9 @@ MODEL_OPEN_CLIP_PATH = "sdxl_text_encoder_open_clip_bigg.onnx.prototxt"
 WEIGHT_VAE_DECODER_PATH = "sdxl_vae_decoder.onnx"
 WEIGHT_VAE_DECODER_PB_PATH = "sdxl_vae_decoder_weights.pb"
 MODEL_VAE_DECODER_PATH = "sdxl_vae_decoder.onnx.prototxt"
+WEIGHT_VAE_ENCODER_PATH = "sdxl_vae_encoder.onnx"
+WEIGHT_VAE_ENCODER_PB_PATH = "sdxl_vae_encoder_weights.pb"
+MODEL_VAE_ENCODER_PATH = "sdxl_vae_encoder.onnx.prototxt"
 
 WEIGHT_REFINER_UNET_PATH = "sdxl_refiner_unet.onnx"
 WEIGHT_REFINER_UNET_PB_PATH = "sdxl_refiner_unet_weights.pb"
@@ -80,6 +84,19 @@ parser.add_argument(
     help="classifier free guidance scale",
 )
 parser.add_argument(
+    "--input_image",
+    metavar="IMAGE_PATH",
+    type=str,
+    default=None,
+    help="input image for img2img.",
+)
+parser.add_argument(
+    "--strength",
+    type=float,
+    default=0.75,
+    help="img2img strength (0-1). 1.0 keeps nothing of the input image.",
+)
+parser.add_argument(
     "--seed",
     type=int,
     default=None,
@@ -116,7 +133,7 @@ args = update_parser(parser, check_input_type=False)
 
 
 def timestep_embedding(timesteps, dim, max_period=10000):
-    """Create sinusoidal timestep embeddings (sgm.modules.diffusionmodules.util)."""
+    """Create sinusoidal timestep embeddings."""
     half = dim // 2
     freqs = np.exp(-math.log(max_period) * np.arange(0, half, dtype=np.float32) / half)
     args = timesteps[:, None].astype(np.float32) * freqs[None]
@@ -129,7 +146,7 @@ def timestep_embedding(timesteps, dim, max_period=10000):
 
 
 def embed_nd(values, batch_size, outdim=256):
-    """ConcatTimestepEmbedderND: embed each scalar independently and concatenate.
+    """各スカラーを個別に埋め込んで連結する。
 
     values は (crop_top, crop_left) のような 1 次元の並び。各要素を
     timestep_embedding で outdim 次元に埋め込み、要素方向に連結する。
@@ -142,8 +159,23 @@ def embed_nd(values, batch_size, outdim=256):
     return emb
 
 
+def load_input_image(image_path):
+    """入力画像を [-1, 1] の NCHW float32 にする。
+
+    解像度は各辺を 64 の倍数へ切り捨てたサイズになる。resize は PIL の
+    デフォルトフィルタで、RGB 変換は resize の後に行う。
+    """
+    image = Image.open(image_path)
+    w, h = image.size
+    width, height = w - w % 64, h - h % 64
+    image = image.resize((width, height))
+    image = np.array(image.convert("RGB"))
+    image = image[None].transpose(0, 3, 1, 2)
+    return image.astype(np.float32) / 127.5 - 1.0
+
+
 class LegacyDDPMDiscretization:
-    """sgm.modules.diffusionmodules.discretizer.LegacyDDPMDiscretization 相当。"""
+    """DDPM の alphas_cumprod から sigma スケジュールを作る。"""
 
     def __init__(self, linear_start=0.00085, linear_end=0.0120, num_timesteps=1000):
         self.num_timesteps = num_timesteps
@@ -179,10 +211,7 @@ class LegacyDDPMDiscretization:
 
 
 def img2img_sigmas(discretization, num_steps, strength):
-    """scripts/demo/discretization.py Img2ImgDiscretizationWrapper 相当。
-
-    大きい方から strength 割だけ sigma を残す(refiner が担当する低ノイズ側)。
-    """
+    """低ノイズ側の sigma だけを strength の割合ぶん残す。"""
     sigmas = discretization(num_steps)
     ascending = sigmas[::-1]
     ascending = ascending[: max(int(strength * len(ascending)), 1)]
@@ -190,10 +219,7 @@ def img2img_sigmas(discretization, num_steps, strength):
 
 
 def txt2noisy_sigmas(discretization, num_steps, strength, original_steps):
-    """scripts/demo/discretization.py Txt2NoisyDiscretizationWrapper 相当。
-
-    base 側を strength の境目で打ち切り、低ノイズ側を refiner に引き継ぐ。
-    """
+    """strength の境目で打ち切り、低ノイズ側を残さない。"""
     sigmas = discretization(num_steps)
     ascending = sigmas[::-1]
     steps = original_steps + 1
@@ -234,12 +260,11 @@ class LazyModel:
 
 
 class SDXLPipeline:
-    """base / refiner 共通の Denoiser(DiscreteDenoiser+EpsScaling)・
-    VanillaCFG・EulerEDMSampler(s_churn=0) と VAE デコードを持つ基底クラス。
+    """base / refiner 共通の denoiser・CFG 合成・Euler サンプラーと
+    VAE デコードを持つ基底クラス。
 
-    generative-models (SGM) の scripts/demo デフォルト構成を踏襲する。UNet の
-    time_embed 用正弦波化・CFG 合成・sigma スケジュールは ONNX に含まれない
-    ため、ここで再実装する。
+    sigma スケジュール・denoiser の preconditioning・CFG 合成は ONNX に
+    含まれないため、ここで実装する。
     """
 
     def __init__(self, unet, vae_decoder, use_onnx=False):
@@ -249,7 +274,7 @@ class SDXLPipeline:
 
         self.vae_scale_factor = 8
 
-        # DiscreteDenoiser(num_idx=1000) が sigma<->index 量子化に使う固定テーブル。
+        # sigma <-> index の量子化に使う 1000 点の固定テーブル。
         # discretization(1000, do_append_zero=False, flip=True) で昇順(idx0=最小)。
         self.discretization = LegacyDDPMDiscretization()
         self.discrete_sigmas = self.discretization(
@@ -272,12 +297,12 @@ class SDXLPipeline:
         return text_inputs.input_ids.astype(np.int64)
 
     def denoise(self, x, sigma, c, uc, guidance_scale):
-        # VanillaCFG.prepare_inputs: uncond/cond をバッチ方向に連結して 1 回で推論
+        # uncond/cond をバッチ方向に連結して 1 回で推論する
         x_in = np.concatenate([x, x], axis=0)
         context = np.concatenate([uc["crossattn"], c["crossattn"]], axis=0)
         vector = np.concatenate([uc["vector"], c["vector"]], axis=0)
 
-        # DiscreteDenoiser: sigma を離散テーブルへ量子化してから preconditioning
+        # sigma を離散テーブルへ量子化してから preconditioning を掛ける
         idx = int(np.argmin(np.abs(sigma - self.discrete_sigmas)))
         sigma_q = self.discrete_sigmas[idx]
         c_skip = 1.0
@@ -296,16 +321,16 @@ class SDXLPipeline:
         eps = output[0]
         denoised = eps * c_out + x_in * c_skip
 
-        # VanillaCFG: x_u + scale * (x_c - x_u)
+        # CFG 合成: x_u + scale * (x_c - x_u)
         denoised_uc, denoised_c = np.split(denoised, 2, axis=0)
         denoised = denoised_uc + guidance_scale * (denoised_c - denoised_uc)
         return denoised
 
     def sample(self, x_init, sigmas, c, uc, guidance_scale):
-        # EulerEDMSampler.prepare_sampling_loop: 初期表現を sqrt(1+sigma0^2) 倍する
+        # 初期表現を sqrt(1+sigma0^2) 倍してからループに入る
         x = x_init * float(np.sqrt(1.0 + sigmas[0] ** 2.0))
 
-        # EulerEDMSampler (s_churn=0 -> gamma=0, 追加ノイズなし)
+        # Euler ステップ (s_churn=0 なので途中でノイズは足さない)
         for i in tqdm(range(len(sigmas) - 1)):
             sigma = sigmas[i]
             next_sigma = sigmas[i + 1]
@@ -341,6 +366,7 @@ class StableDiffusionXL(SDXLPipeline):
         vae_decoder,
         tokenizer,
         tokenizer_2,
+        vae_encoder=None,
         use_onnx=False,
     ):
         super().__init__(unet, vae_decoder, use_onnx)
@@ -348,6 +374,7 @@ class StableDiffusionXL(SDXLPipeline):
         self.open_clip_bigg = open_clip_bigg
         self.tokenizer = tokenizer
         self.tokenizer_2 = tokenizer_2
+        self.vae_encoder = vae_encoder
 
     def encode_prompt(self, prompt):
         # CLIP ViT-L/14 : penultimate hidden state (768)
@@ -369,7 +396,7 @@ class StableDiffusionXL(SDXLPipeline):
     def build_conditioning(self, prompt, batch_size, height, width):
         context, pooled = self.encode_prompt(prompt)
 
-        # 追加条件 (ConcatTimestepEmbedderND)。orig/target は (height, width)。
+        # 追加条件。orig/target は (height, width)。
         emb_orig = embed_nd([height, width], batch_size)
         emb_crop = embed_nd([0, 0], batch_size)  # crop_coords_top_left
         emb_target = embed_nd([height, width], batch_size)
@@ -377,9 +404,8 @@ class StableDiffusionXL(SDXLPipeline):
         # vector(y): pooled(1280) + orig(512) + crop(512) + target(512) = 2816
         vector = np.concatenate([pooled, emb_orig, emb_crop, emb_target], axis=-1)
 
-        # force_uc_zero_embeddings=["txt"]: uncond 側は txt 由来の埋め込みを 0 に
-        # する (crossattn 全体と pooled 部分)。サイズ埋め込みは cond と同一。
-        # base は is_legacy=False のため negative_prompt は未使用 (常にゼロ埋め)。
+        # uncond 側は txt 由来の埋め込み (crossattn 全体と pooled 部分) を 0 に
+        # する。サイズ埋め込みは cond と同一。base は negative_prompt を使わない。
         context_uc = np.zeros_like(context)
         pooled_uc = np.zeros_like(pooled)
         vector_uc = np.concatenate([pooled_uc, emb_orig, emb_crop, emb_target], axis=-1)
@@ -414,12 +440,46 @@ class StableDiffusionXL(SDXLPipeline):
 
         return self.sample(x_init, sigmas, c, uc, guidance_scale)
 
+    def encode_image(self, image):
+        # ONNX は scale_factor 適用済みの mean/std を返すので、再パラメータ化
+        # (z = mean + std * randn) だけをここで行う。
+        image = image.astype(np.float32)
+        output = self._run(self.vae_encoder, [image], {"pixel": image})
+        mean, std = output
+        return mean + std * np.random.randn(*mean.shape).astype(np.float32)
+
+    def img2img(
+        self,
+        image,
+        prompt,
+        num_inference_steps=50,
+        guidance_scale=5.0,
+        strength=0.75,
+    ):
+        batch_size = image.shape[0]
+        # 解像度は入力画像 (64 の倍数へ切り捨て済み) をそのまま使う
+        height, width = image.shape[2], image.shape[3]
+
+        c, uc = self.build_conditioning(prompt, batch_size, height, width)
+
+        z = self.encode_image(image)
+
+        # 低ノイズ側の sigma だけを使う
+        sigmas = img2img_sigmas(self.discretization, num_inference_steps, strength)
+
+        # 入力潜在に sigma[0] のノイズを乗せてから denoise する
+        noise = np.random.randn(*z.shape).astype(np.float32)
+        noised_z = z + noise * sigmas[0]
+        x_init = noised_z / float(np.sqrt(1.0 + sigmas[0] ** 2.0))
+
+        return self.sample(x_init, sigmas, c, uc, guidance_scale)
+
 
 class StableDiffusionXLRefiner(SDXLPipeline):
     """SDXL-refiner-1.0。conditioner は OpenCLIP bigG のみ + aesthetic_score。
 
-    base の潜在(samples_z)を受け取り、低ノイズ側だけを denoise する
-    (ensemble of experts)。is_legacy=True のため negative_prompt を使用する。
+    base の潜在を受け取り、低ノイズ側だけを denoise する
+    (ensemble of experts)。negative_prompt を使用する。
     """
 
     def __init__(
@@ -452,8 +512,7 @@ class StableDiffusionXLRefiner(SDXLPipeline):
         negative_aesthetic_score,
     ):
         context, pooled = self.encode_prompt(prompt)
-        # refiner は is_legacy=True なので negative_prompt を実際にエンコードする
-        # (force_uc_zero_embeddings=[] のためゼロ埋めしない)。
+        # refiner は negative_prompt を実際にエンコードする (ゼロ埋めしない)。
         context_uc, pooled_uc = self.encode_prompt(negative_prompt)
 
         # 追加条件。base の target_size の代わりに aesthetic_score(スカラ)を使う。
@@ -497,12 +556,11 @@ class StableDiffusionXLRefiner(SDXLPipeline):
             negative_aesthetic_score,
         )
 
-        # Img2ImgDiscretizationWrapper で低ノイズ側の sigma だけを使う
+        # 低ノイズ側の sigma だけを使う
         sigmas = img2img_sigmas(self.discretization, num_inference_steps, strength)
 
-        # do_img2img(add_noise=False): base 潜在はすでに sigma[0] のノイズを
-        # 持っているのでノイズは足さず、prepare_sampling_loop の sqrt 倍を
-        # 打ち消すよう事前に割っておく。
+        # base 潜在はすでに sigma[0] のノイズを持っているのでノイズは足さず、
+        # サンプラーの sqrt 倍を打ち消すよう事前に割っておく。
         x_init = latent / float(np.sqrt(1.0 + sigmas[0] ** 2.0))
 
         return self.sample(x_init, sigmas, c, uc, guidance_scale)
@@ -551,14 +609,19 @@ def recognize_from_text(models):
         vae_decoder=models["vae_decoder"],
         tokenizer=tokenizer,
         tokenizer_2=tokenizer_2,
+        vae_encoder=models.get("vae_encoder"),
         use_onnx=args.onnx,
     )
 
-    if not args.refiner:
+    if args.input_image:
+        init_image = load_input_image(args.input_image)
+        latent = base.img2img(init_image, prompt, steps, guidance_scale, args.strength)
+        image = base.decode(latent)
+    elif not args.refiner:
         latent = base.txt2img(prompt, height, width, steps, guidance_scale)
         image = base.decode(latent)
     else:
-        # base は refiner に引き継ぐぶんだけ手前で打ち切る (Txt2Noisy 相当)
+        # base は refiner に引き継ぐぶんだけ手前で打ち切る
         base_sigmas = txt2noisy_sigmas(base.discretization, steps, strength, steps)
         latent = base.txt2img(
             prompt, height, width, steps, guidance_scale, sigmas=base_sigmas
@@ -611,6 +674,11 @@ def main():
     check_and_download_file(WEIGHT_CLIP_L_PB_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_OPEN_CLIP_PB_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_VAE_DECODER_PB_PATH, REMOTE_PATH)
+    if args.input_image:
+        check_and_download_models(
+            WEIGHT_VAE_ENCODER_PATH, MODEL_VAE_ENCODER_PATH, REMOTE_PATH
+        )
+        check_and_download_file(WEIGHT_VAE_ENCODER_PB_PATH, REMOTE_PATH)
     if args.refiner:
         check_and_download_models(
             WEIGHT_REFINER_UNET_PATH, MODEL_REFINER_UNET_PATH, REMOTE_PATH
@@ -664,6 +732,11 @@ def main():
             "vae_decoder",
         ),
     }
+    if args.input_image:
+        models["vae_encoder"] = LazyModel(
+            lambda: load_net(MODEL_VAE_ENCODER_PATH, WEIGHT_VAE_ENCODER_PATH),
+            "vae_encoder",
+        )
     if args.refiner:
         models["refiner_unet"] = LazyModel(
             lambda: load_net(MODEL_REFINER_UNET_PATH, WEIGHT_REFINER_UNET_PATH),
