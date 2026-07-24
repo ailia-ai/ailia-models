@@ -123,8 +123,36 @@ parser.add_argument(
 parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
 )
+quant_group = parser.add_mutually_exclusive_group()
+quant_group.add_argument(
+    "--fp16",
+    action="store_true",
+    help="use fp16 models for the unet and text encoders.",
+)
+quant_group.add_argument(
+    "--int8",
+    action="store_true",
+    help="use int8 (MatMulNBits) models for the unet and text encoders.",
+)
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser, check_input_type=False)
+
+# fp16/int8 は unet とテキストエンコーダのみ。VAE は fp16 でオーバーフロー
+# する既知の問題があるため常に fp32 を使う。
+if args.fp16 or args.int8:
+    _suffix = "_fp16" if args.fp16 else "_int8"
+    WEIGHT_UNET_PATH = f"sdxl_unet{_suffix}.onnx"
+    WEIGHT_UNET_PB_PATH = f"sdxl_unet{_suffix}_weights.pb"
+    MODEL_UNET_PATH = f"sdxl_unet{_suffix}.onnx.prototxt"
+    WEIGHT_CLIP_L_PATH = f"sdxl_text_encoder_clip_l{_suffix}.onnx"
+    WEIGHT_CLIP_L_PB_PATH = f"sdxl_text_encoder_clip_l{_suffix}_weights.pb"
+    MODEL_CLIP_L_PATH = f"sdxl_text_encoder_clip_l{_suffix}.onnx.prototxt"
+    WEIGHT_OPEN_CLIP_PATH = f"sdxl_text_encoder_open_clip_bigg{_suffix}.onnx"
+    WEIGHT_OPEN_CLIP_PB_PATH = f"sdxl_text_encoder_open_clip_bigg{_suffix}_weights.pb"
+    MODEL_OPEN_CLIP_PATH = f"sdxl_text_encoder_open_clip_bigg{_suffix}.onnx.prototxt"
+    WEIGHT_REFINER_UNET_PATH = f"sdxl_refiner_unet{_suffix}.onnx"
+    WEIGHT_REFINER_UNET_PB_PATH = f"sdxl_refiner_unet{_suffix}_weights.pb"
+    MODEL_REFINER_UNET_PATH = f"sdxl_refiner_unet{_suffix}.onnx.prototxt"
 
 
 # ======================

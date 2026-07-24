@@ -77,6 +77,20 @@ by the refiner, and `--negative_prompt` is used only in the refiner stage
 $ python3 sdxl.py --refiner --refiner_strength 0.15 --negative_prompt "blurry, low quality"
 ```
 
+### FP16 / INT8 models
+
+`--fp16` switches the UNet and both text encoders to fp16 weights (about half
+the size of fp32). `--int8` switches them to 8-bit weight-only quantized
+models (MatMulNBits, dynamic quantization without a calibration dataset).
+The VAE always stays fp32 because the SDXL VAE overflows in fp16.
+```bash
+$ python3 sdxl.py --fp16
+$ python3 sdxl.py --int8
+```
+
+The conversion scripts used to generate these models are in the `export`
+folder (`convert_to_fp16.py` / `convert_to_int8.py`).
+
 ## Writing prompts
 
 SDXL responds better to short natural phrases joined by commas than to a bare
