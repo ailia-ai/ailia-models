@@ -78,6 +78,7 @@ cd ../../diffusion/daclip-sde; python3 daclipsde.py ${OPTION}
 cd ../../diffusion/riffusion; python3 riffusion.py ${OPTION}
 cd ../../diffusion/marigold; python3 marigold.py ${OPTION}
 cd ../../diffusion/sdxl-turbo; python3 sdxl-turbo.py ${OPTION}
+cd ../../diffusion/sdxl; python3 sdxl.py ${OPTION}
 cd ../../diffusion/sd-turbo; python3 sd-turbo.py ${OPTION}
 cd ../../diffusion/anything_v3; python3 anything_v3.py ${OPTION}
 cd ../../diffusion/depth_anything_controlnet; python3 depth_anything_controlnet.py ${OPTION}
