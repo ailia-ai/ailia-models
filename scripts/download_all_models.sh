@@ -418,3 +418,4 @@ cd ../../vision_language_model/qwen2.5_vl; python3 qwen2.5_vl.py ${OPTION}
 cd ../../vision_language_model/qwen3_vl; python3 qwen3_vl.py ${OPTION}
 cd ../../vision_language_model/llava-jp; python3 llava-jp.py ${OPTION}
 cd ../../vision_language_model/mobilevlm; python3 mobilevlm.py ${OPTION}
+cd ../../3d_reconstruction/sam-3d-objects; python3 sam_3d_objects.py ${OPTION}

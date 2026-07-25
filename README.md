@@ -870,6 +870,12 @@ If you would like to try on your computer:
 | [<img src="vision_language_model/qwen2.5_vl/demo.jpeg" width=128px>](vision_language_model/qwen2.5_vl/) | [qwen2.5_vl](vision_language_model/qwen2.5_vl) | [Qwen2.5-VL-3B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct#qwen25-vl-3b-instruct) | Pytorch | 1.6.0 and later | Jan 2025 |  |
 | [<img src="vision_language_model/qwen3_vl/demo.jpeg" width=128px>](vision_language_model/qwen3_vl/) | [qwen3_vl](vision_language_model/qwen3_vl) | [Qwen3-VL](https://github.com/QwenLM/Qwen3-VL) | Pytorch | 1.6.0 and later | Oct 2025 |  |
 
+## 3D reconstruction
+
+| | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
+|:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|
+| [<img src="3d_reconstruction/sam-3d-objects/output.png" width=128px>](3d_reconstruction/sam-3d-objects/) | [sam-3d-objects](/3d_reconstruction/sam-3d-objects/) | [SAM 3D Objects](https://github.com/facebookresearch/sam-3d-objects) | Pytorch | 1.6.1 and later | Nov 2025 ||
+
 ## Commercial model
 
 | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
