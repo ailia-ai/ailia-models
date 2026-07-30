@@ -206,6 +206,16 @@ class StableDiffusionXL:
                 ],
             )
 
+            # perform guidance
+            if do_classifier_free_guidance:
+                noise_pred_uncond, noise_pred_text = np.split(noise_pred, 2)
+                noise_pred = noise_pred_uncond + guidance_scale * (
+                    noise_pred_text - noise_pred_uncond
+                )
+
+            # compute the previous noisy sample x_t -> x_t-1
+            latents = self.scheduler.step(noise_pred, t, latents)
+
         return latents
 
     def decode_latents(self, latents):
@@ -280,6 +290,15 @@ class StableDiffusionXL:
             add_time_ids, batch_size * num_images_per_prompt, axis=0
         )
 
+        if do_classifier_free_guidance:
+            prompt_embeds = np.concatenate(
+                (negative_prompt_embeds, prompt_embeds), axis=0
+            )
+            add_text_embeds = np.concatenate(
+                (negative_pooled_prompt_embeds, add_text_embeds), axis=0
+            )
+            add_time_ids = np.concatenate((add_time_ids, add_time_ids), axis=0)
+
         # Denoising loop
         latents = self.denoise(
             latents,
@@ -290,3 +309,5 @@ class StableDiffusionXL:
             guidance_scale,
             do_classifier_free_guidance,
         )
+
+        return self.decode_latents(latents)
