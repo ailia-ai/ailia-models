@@ -1,1 +1,2 @@
 from .stable_diffusion_xl import StableDiffusionXL
+from .stable_diffusion_xl_img2img import StableDiffusionXLImg2Img

@@ -4,6 +4,7 @@ from logging import getLogger
 import ailia
 import cv2
 import numpy as np
+from PIL import Image
 
 # import original modules
 sys.path.append("../../util")
@@ -27,6 +28,8 @@ WEIGHT_TEXT_ENCODER_2_PB_PATH = "text_encoder_2_weights.pb"
 MODEL_TEXT_ENCODER_2_PATH = "text_encoder_2.onnx.prototxt"
 WEIGHT_VAE_DECODER_PATH = "vae_decoder.onnx"
 MODEL_VAE_DECODER_PATH = "vae_decoder.onnx.prototxt"
+WEIGHT_VAE_ENCODER_PATH = "vae_encoder.onnx"
+MODEL_VAE_ENCODER_PATH = "vae_encoder.onnx.prototxt"
 
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/dreamshaper-xl/"
 
@@ -54,6 +57,19 @@ parser.add_argument(
     type=str,
     default=None,
     help="the prompt not to guide the image generation.",
+)
+parser.add_argument(
+    "--init_image",
+    metavar="IMAGE_PATH",
+    type=str,
+    default=None,
+    help="input image for img2img.",
+)
+parser.add_argument(
+    "--strength",
+    type=float,
+    default=0.75,
+    help="img2img strength (0-1). 1.0 keeps nothing of the input image.",
 )
 parser.add_argument(
     "--width",
@@ -99,19 +115,31 @@ args = update_parser(parser, check_input_type=False)
 
 def recognize_from_text(pipe):
     prompt = args.input if isinstance(args.input, str) else args.input[0]
+    image_path = args.init_image
 
     logger.info("prompt: %s" % prompt)
 
     logger.info("Start inference...")
 
-    image = pipe.forward(
-        prompt=prompt,
-        height=args.height,
-        width=args.width,
-        num_inference_steps=args.steps,
-        guidance_scale=args.guidance_scale,
-        negative_prompt=args.negative_prompt,
-    )
+    if image_path is None:
+        image = pipe.forward(
+            prompt=prompt,
+            height=args.height,
+            width=args.width,
+            num_inference_steps=args.steps,
+            guidance_scale=args.guidance_scale,
+            negative_prompt=args.negative_prompt,
+        )
+    else:
+        init_image = Image.open(image_path).convert("RGB")
+        image = pipe.forward(
+            prompt=prompt,
+            image=init_image,
+            strength=args.strength,
+            num_inference_steps=args.steps,
+            guidance_scale=args.guidance_scale,
+            negative_prompt=args.negative_prompt,
+        )
 
     image = (image[0] * 255).round().astype(np.uint8)
     image = image[:, :, ::-1]  # RGB->BGR
@@ -124,6 +152,8 @@ def recognize_from_text(pipe):
 
 
 def main():
+    init_image = args.init_image
+
     check_and_download_models(WEIGHT_UNET_PATH, MODEL_UNET_PATH, REMOTE_PATH)
     check_and_download_models(
         WEIGHT_TEXT_ENCODER_PATH, MODEL_TEXT_ENCODER_PATH, REMOTE_PATH
@@ -136,6 +166,10 @@ def main():
     )
     check_and_download_file(WEIGHT_UNET_PB_PATH, REMOTE_PATH)
     check_and_download_file(WEIGHT_TEXT_ENCODER_2_PB_PATH, REMOTE_PATH)
+    if init_image:
+        check_and_download_models(
+            WEIGHT_VAE_ENCODER_PATH, MODEL_VAE_ENCODER_PATH, REMOTE_PATH
+        )
 
     seed = args.seed
     if seed is not None:
@@ -175,6 +209,13 @@ def main():
             env_id=env_id,
             memory_mode=memory_mode,
         )
+        if init_image:
+            vae_encoder = ailia.Net(
+                MODEL_VAE_ENCODER_PATH,
+                WEIGHT_VAE_ENCODER_PATH,
+                env_id=env_id,
+                memory_mode=memory_mode,
+            )
     else:
         import onnxruntime
 
@@ -195,6 +236,10 @@ def main():
         vae_decoder = onnxruntime.InferenceSession(
             WEIGHT_VAE_DECODER_PATH, providers=providers
         )
+        if init_image:
+            vae_encoder = onnxruntime.InferenceSession(
+                WEIGHT_VAE_ENCODER_PATH, providers=providers
+            )
 
     if args.disable_ailia_tokenizer:
         import transformers
@@ -227,7 +272,7 @@ def main():
         }
     )
 
-    pipe = df.StableDiffusionXL(
+    params = dict(
         vae_decoder=vae_decoder,
         text_encoder=text_encoder,
         text_encoder_2=text_encoder_2,
@@ -237,6 +282,11 @@ def main():
         scheduler=scheduler,
         use_onnx=args.onnx,
     )
+    if init_image:
+        params["vae_encoder"] = vae_encoder
+        pipe = df.StableDiffusionXLImg2Img(**params)
+    else:
+        pipe = df.StableDiffusionXL(**params)
 
     # generate
     recognize_from_text(pipe)

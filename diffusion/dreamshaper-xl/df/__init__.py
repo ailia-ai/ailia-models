@@ -1,2 +1,2 @@
-from .pipelines import StableDiffusionXL
+from .pipelines import StableDiffusionXL, StableDiffusionXLImg2Img
 from .schedulers import DEISMultistepScheduler
