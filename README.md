@@ -38,6 +38,8 @@ If you would like to try on your computer:
 
 # Models
 
+418 models are available.
+
 | Category | Models | Sub categories |
 |:---|:---:|:---|
 | [Action recognition](/action_recognition/) | 6 |  |
