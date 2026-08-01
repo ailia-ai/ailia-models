@@ -40,57 +40,57 @@ If you would like to try on your computer:
 
 | Category | Sub categories |
 |:---|:---|
-| [Action recognition](/action_recognition/) | Action recognition |
-| [Anomaly detection](/anomaly_detection/) | Anomaly detection |
-| [Audio Language Model](/audio_language_model/) | Audio Language Model |
+| [Action recognition](/action_recognition/) |  |
+| [Anomaly detection](/anomaly_detection/) |  |
+| [Audio Language Model](/audio_language_model/) |  |
 | [Audio processing](/audio_processing/) | Audio classification, Music enhancement, Music generation, Noise reduction, Phoneme alignment, Pitch detection, Speaker diarization, Speech to text, Text to speech, Voice activity detection, Voice conversion |
-| [Autonomous driving](/autonomous_driving/) | Autonomous driving |
-| [Background removal](/background_removal/) | Background removal |
-| [Crowd counting](/crowd_counting/) | Crowd counting |
-| [Deep fashion](/deep_fashion/) | Deep fashion |
-| [Depth estimation](/depth_estimation/) | Depth estimation |
+| [Autonomous driving](/autonomous_driving/) |  |
+| [Background removal](/background_removal/) |  |
+| [Crowd counting](/crowd_counting/) |  |
+| [Deep fashion](/deep_fashion/) |  |
+| [Depth estimation](/depth_estimation/) |  |
 | [Diffusion](/diffusion/) | Text to image, Text to audio, Others |
-| [Face detection](/face_detection/) | Face detection |
-| [Face identification](/face_identification/) | Face identification |
+| [Face detection](/face_detection/) |  |
+| [Face identification](/face_identification/) |  |
 | [Face recognition](/face_recognition/) | Age gender estimation, Emotion recognition, Gaze estimation, Head pose estimation, Keypoint detection, Others |
-| [Face restoration](/face_restoration/) | Face restoration |
-| [Face swapping](/face_swapping/) | Face swapping |
-| [Feature Extraction](/feature_extraction/) | Feature Extraction |
-| [Frame Interpolation](/frame_interpolation/) | Frame Interpolation |
-| [Generative adversarial networks](/generative_adversarial_networks/) | Generative adversarial networks |
-| [Hand detection](/hand_detection/) | Hand detection |
-| [Hand recognition](/hand_recognition/) | Hand recognition |
-| [Image captioning](/image_captioning/) | Image captioning |
+| [Face restoration](/face_restoration/) |  |
+| [Face swapping](/face_swapping/) |  |
+| [Feature Extraction](/feature_extraction/) |  |
+| [Frame Interpolation](/frame_interpolation/) |  |
+| [Generative adversarial networks](/generative_adversarial_networks/) |  |
+| [Hand detection](/hand_detection/) |  |
+| [Hand recognition](/hand_recognition/) |  |
+| [Image captioning](/image_captioning/) |  |
 | [Image classification](/image_classification/) | CNN, Transformer, Specific task |
-| [Image inpainting](/image_inpainting/) | Image inpainting |
-| [Image manipulation](/image_manipulation/) | Image manipulation |
-| [Image Quality Assessment](/image_quality_assessment/) | Image Quality Assessment |
-| [Image restoration](/image_restoration/) | Image restoration |
-| [Image segmentation](/image_segmentation/) | Image segmentation |
-| [Landmark classification](/landmark_classification/) | Landmark classification |
-| [Line segment detection](/line_segment_detection/) | Line segment detection |
-| [Low Light Image Enhancement](/low_light_image_enhancement/) | Low Light Image Enhancement |
+| [Image inpainting](/image_inpainting/) |  |
+| [Image manipulation](/image_manipulation/) |  |
+| [Image Quality Assessment](/image_quality_assessment/) |  |
+| [Image restoration](/image_restoration/) |  |
+| [Image segmentation](/image_segmentation/) |  |
+| [Landmark classification](/landmark_classification/) |  |
+| [Line segment detection](/line_segment_detection/) |  |
+| [Low Light Image Enhancement](/low_light_image_enhancement/) |  |
 | [Natural language processing](/natural_language_processing/) | Bert, Embedding, Error corrector, Grapheme to phoneme, Named entity recognition, Reranker, Sentence generation, Sentiment analysis, Summarize, Translation, Zero shot classification |
-| [Network intrusion detection](/network_intrusion_detection/) | Network intrusion detection |
-| [Neural Rendering](/neural_rendering/) | Neural Rendering |
-| [NSFW detector](/nsfw_detector/) | NSFW detector |
+| [Network intrusion detection](/network_intrusion_detection/) |  |
+| [Neural Rendering](/neural_rendering/) |  |
+| [NSFW detector](/nsfw_detector/) |  |
 | [Object detection](/object_detection/) | CNN, Transformer, Specific target |
-| [Object detection 3d](/object_detection_3d/) | Object detection 3d |
-| [Object tracking](/object_tracking/) | Object tracking |
-| [Optical Flow Estimation](/optical_flow_estimation/) | Optical Flow Estimation |
-| [Point segmentation](/point_segmentation/) | Point segmentation |
-| [Pose estimation](/pose_estimation/) | Pose estimation |
-| [Pose estimation 3d](/pose_estimation_3d/) | Pose estimation 3d |
-| [Road detection](/road_detection/) | Road detection |
-| [Rotation prediction](/rotation_prediction/) | Rotation prediction |
-| [Style transfer](/style_transfer/) | Style transfer |
-| [Super resolution](/super_resolution/) | Super resolution |
-| [Text detection](/text_detection/) | Text detection |
-| [Text recognition](/text_recognition/) | Text recognition |
-| [Time-Series Forecasting](/time_series_forecasting/) | Time-Series Forecasting |
-| [Vehicle recognition](/vehicle_recognition/) | Vehicle recognition |
-| [Vision Language Model](/vision_language_model/) | Vision Language Model |
-| [Commercial model](/commercial_model/) | Commercial model |
+| [Object detection 3d](/object_detection_3d/) |  |
+| [Object tracking](/object_tracking/) |  |
+| [Optical Flow Estimation](/optical_flow_estimation/) |  |
+| [Point segmentation](/point_segmentation/) |  |
+| [Pose estimation](/pose_estimation/) |  |
+| [Pose estimation 3d](/pose_estimation_3d/) |  |
+| [Road detection](/road_detection/) |  |
+| [Rotation prediction](/rotation_prediction/) |  |
+| [Style transfer](/style_transfer/) |  |
+| [Super resolution](/super_resolution/) |  |
+| [Text detection](/text_detection/) |  |
+| [Text recognition](/text_recognition/) |  |
+| [Time-Series Forecasting](/time_series_forecasting/) |  |
+| [Vehicle recognition](/vehicle_recognition/) |  |
+| [Vision Language Model](/vision_language_model/) |  |
+| [Commercial model](/commercial_model/) |  |
 
 # Other platforms
 
