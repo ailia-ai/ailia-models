@@ -2,6 +2,8 @@
 
 このチュートリアルでは、このリポジトリのモデルをpythonから実行する方法について解説します。
 
+インストールせずに試したい場合は、[hello_ailia.ipynb](hello_ailia.ipynb) を [Google Colaboratory](https://colab.research.google.com/github/ailia-ai/ailia-models/blob/master/hello_ailia.ipynb) で開いてください。数個のセルでSDKのインストールから物体検出までを実行できます。
+
 他の言語（C++/C#(Unity)/JNI/Kotlin/Rust/Flutter）からailiaを使用したい場合は、[Other platforms](README.md#other-platforms) を参照してください。
 
 ## 動作条件
@@ -20,7 +22,11 @@ python、pip、gitの準備ができていない場合は、OSごとの手順を
 pip3 install ailia
 ```
 
-ailia SDKは商用ライブラリです。特定の条件下では、無償使用いただけますが、原則として有償ソフトウェアです。詳細は https://ailia.ai/license/ を参照してください。
+ailia SDKは商用ライブラリですが、個人の非商用利用や、12か月間の経済的利益が10万米ドル未満の商用利用など、特定の条件下では無償で使用できます。無償利用の場合はailia SDKのクレジット表記が必要です。
+
+使い始めるにあたってライセンスの設定は不要です。pipでインストールした場合、評価用のライセンスファイルが自動的にダウンロードされ、30日ごとに更新されます。
+
+正確な条件は https://ailia.ai/license/ を参照してください。
 
 ## 2. ailia MODELSの取得
 
@@ -40,6 +46,8 @@ python3 yolox.py
 ```
 
 `input.jpg` から物体を検出し、結果を `output.jpg` に保存します。
+
+なお `output.jpg` はgitの管理下にあるファイルのため、実行すると `git status` で変更済みとして表示されます。これはどのモデルでも同様です。リポジトリを汚したくない場合は `-s` で別の保存先を指定してください。
 
 他のモデルを試す場合は、[カテゴリ一覧](README.md#models) からモデルを選び、そのフォルダの中にある同名のスクリプトを実行してください。
 
@@ -115,6 +123,12 @@ ailiaはデフォルトでVulkanまたはMetal経由でGPUを使用します。m
 
 ```
 python3 launcher.py
+```
+
+ラウンチャーはtkinterを使用します。Linuxのディストリビューションによってはpythonに同梱されていないため、tkinterのimport errorが発生した場合はパッケージマネージャからインストールしてください。
+
+```
+sudo apt install python3-tk
 ```
 
 <img src="launcher.png">

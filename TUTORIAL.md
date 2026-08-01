@@ -2,6 +2,8 @@
 
 This tutorial explains how to run the models in this repository from Python.
 
+To try it without installing anything, open [hello_ailia.ipynb](hello_ailia.ipynb) in [Google Colaboratory](https://colab.research.google.com/github/ailia-ai/ailia-models/blob/master/hello_ailia.ipynb). It installs the SDK and runs object detection in a few cells.
+
 To use ailia from another language (C++ / C# (Unity) / JNI / Kotlin / Rust / Flutter), see [Other platforms](README.md#other-platforms).
 
 ## Requirements
@@ -18,7 +20,11 @@ If Python, pip or git are not set up yet, follow the guide for your OS:
 pip3 install ailia
 ```
 
-The ailia SDK is a commercial library. Under certain conditions, it can be used free of charge; however, it is principally paid software. For details, please refer to https://ailia.ai/license/en/ .
+The ailia SDK is a commercial library, but it can be used free of charge under certain conditions, including personal non-commercial use and commercial use where the total economic benefit over 12 months is below 100,000 USD. Crediting the ailia SDK is required for the free tiers.
+
+You do not need to set up a license to get started: when you install with pip, an evaluation license file is downloaded automatically and renewed every 30 days.
+
+For the exact terms, please refer to https://ailia.ai/license/en/ .
 
 ## 2. Get ailia MODELS
 
@@ -38,6 +44,8 @@ python3 yolox.py
 ```
 
 This detects objects in `input.jpg` and writes the result to `output.jpg`.
+
+Note that `output.jpg` is a file tracked by git, so `git status` will report it as modified after the run. Every model works this way. Pass `-s` to write the result somewhere else if you want to keep your checkout clean.
 
 To try another model, pick one from the [category list](README.md#models) and run the script of the same name inside its folder.
 
@@ -113,6 +121,12 @@ You can use a GUI and select the model from the list using the command below. (P
 
 ```
 python3 launcher.py
+```
+
+The launcher uses tkinter, which is not bundled with Python on some Linux distributions. If you get a tkinter import error, install it with your package manager.
+
+```
+sudo apt install python3-tk
 ```
 
 <img src="launcher.png">
