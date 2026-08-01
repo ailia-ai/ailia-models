@@ -26,4 +26,14 @@ https://console.cloud.google.com/storage/browser/ailia-models
 
 ## リストへの追加
 
-トップページのREADME.mdと、scripts/download_all_models.shに追加する。
+モデルリストはカテゴリごとに分割されている。
+モデルが属するカテゴリのフォルダのREADME.md（例：物体検出ならobject_detection/README.md）と、
+scripts/download_all_models.shに追加する。
+カテゴリのREADME.md内のパスは、そのフォルダからの相対パス（例：./yolov7/）で記述する。
+
+トップページのREADME.mdにはモデル個別の記載はしない。
+カテゴリ一覧の表にあるモデル数と、その上のモデル総数を更新する。
+新しいカテゴリを作成した場合のみ、トップページのREADME.mdに行を追加する。
+
+一部のカテゴリのフォルダには、精度比較用のMETRICS.mdがある。
+精度を計測した場合はそちらに追加する。
