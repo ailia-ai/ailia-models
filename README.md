@@ -38,8 +38,6 @@ If you would like to try on your computer:
 
 # Models
 
-418 models are available. The model list is split by category. Click a category to see the models it contains.
-
 | Category | Models | Sub categories |
 |:---|:---:|:---|
 | [Action recognition](/action_recognition/) | 6 | Action recognition |
