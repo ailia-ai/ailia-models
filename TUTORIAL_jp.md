@@ -6,7 +6,7 @@
 
 ## 動作条件
 
-- Python 3.7 以降
+- Python 3.9 〜 3.12（requirements.txt の `numpy<2.0` に3.13以降のwheelがないため）
 - git
 
 python、pip、gitの準備ができていない場合は、OSごとの手順を参照してください。

@@ -6,7 +6,7 @@ To use ailia from another language (C++ / C# (Unity) / JNI / Kotlin / Rust / Flu
 
 ## Requirements
 
-- Python 3.7 and later
+- Python 3.9 to 3.12 (`numpy<2.0` in requirements.txt has no wheel for 3.13 and later)
 - git
 
 If Python, pip or git are not set up yet, follow the guide for your OS:
