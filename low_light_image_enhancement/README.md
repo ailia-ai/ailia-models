@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Low Light Image Enhancement
+[ailia MODELS](../README.md) > Low light image enhancement
 
-# ailia MODELS : Low Light Image Enhancement
+# ailia MODELS : Low light image enhancement
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

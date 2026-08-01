@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Vision Language Model
+[ailia MODELS](../README.md) > Vision language model
 
-# ailia MODELS : Vision Language Model
+# ailia MODELS : Vision language model
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

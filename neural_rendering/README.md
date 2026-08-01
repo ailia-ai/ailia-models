@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Neural Rendering
+[ailia MODELS](../README.md) > Neural rendering
 
-# ailia MODELS : Neural Rendering
+# ailia MODELS : Neural rendering
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

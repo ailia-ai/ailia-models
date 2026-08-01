@@ -1,6 +1,6 @@
 [Model list](./README.md)
 
-# ailia MODELS : Object Detection
+# ailia MODELS : Object detection
 
 ## Models for bounding box
 

@@ -1,6 +1,6 @@
 [Model list](./README.md)
 
-# ailia MODELS : FaceIdentification
+# ailia MODELS : Face identification
 
 ## Models for face identification
 

@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Feature Extraction
+[ailia MODELS](../README.md) > Feature extraction
 
-# ailia MODELS : Feature Extraction
+# ailia MODELS : Feature extraction
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

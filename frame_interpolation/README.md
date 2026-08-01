@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Frame Interpolation
+[ailia MODELS](../README.md) > Frame interpolation
 
-# ailia MODELS : Frame Interpolation
+# ailia MODELS : Frame interpolation
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

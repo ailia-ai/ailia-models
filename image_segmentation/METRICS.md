@@ -1,6 +1,6 @@
 [Model list](./README.md)
 
-# ailia MODELS : ImageSegmentation
+# ailia MODELS : Image segmentation
 
 ## Models for image segmentation
 

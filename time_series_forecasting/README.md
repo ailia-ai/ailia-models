@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Time-Series Forecasting
+[ailia MODELS](../README.md) > Time-series forecasting
 
-# ailia MODELS : Time-Series Forecasting
+# ailia MODELS : Time-series forecasting
 
 | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

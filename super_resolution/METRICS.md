@@ -1,6 +1,6 @@
 [Model list](./README.md)
 
-# ailia MODELS : SuperResolution
+# ailia MODELS : Super resolution
 
 ## Models for super resolution
 

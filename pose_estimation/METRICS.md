@@ -1,6 +1,6 @@
 [Model list](./README.md)
 
-# ailia MODELS : PoseEstimation
+# ailia MODELS : Pose estimation
 
 ## Models for pose estimation
 

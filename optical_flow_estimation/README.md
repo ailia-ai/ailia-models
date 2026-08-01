@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Optical Flow Estimation
+[ailia MODELS](../README.md) > Optical flow estimation
 
-# ailia MODELS : Optical Flow Estimation
+# ailia MODELS : Optical flow estimation
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

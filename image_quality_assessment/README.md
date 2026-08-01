@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Image Quality Assessment
+[ailia MODELS](../README.md) > Image quality assessment
 
-# ailia MODELS : Image Quality Assessment
+# ailia MODELS : Image quality assessment
 
 | | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|

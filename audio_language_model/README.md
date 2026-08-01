@@ -1,6 +1,6 @@
-[ailia MODELS](../README.md) > Audio Language Model
+[ailia MODELS](../README.md) > Audio language model
 
-# ailia MODELS : Audio Language Model
+# ailia MODELS : Audio language model
 
 | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
 |------------:|:------------:|:------------:|:------------:|:------------:|:------------:|
