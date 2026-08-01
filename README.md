@@ -21,12 +21,14 @@ The collection of pre-trained, state-of-the-art AI models.
 
 # How to use
 
-Try now on [Google Colaboratory](https://www.ailia.ai/launch_to_colab)
-
-If you would like to try on your computer:
+To try on your computer:
 
 [ailia MODELS tutorial](TUTORIAL.md)  
 [ailia MODELS tutorial 日本語版](TUTORIAL_jp.md)  
+
+If you would like to try without setting up your computer:
+
+[Try now on Google Colaboratory](https://www.ailia.ai/launch_to_colab)  
 
 # Documentation
 
