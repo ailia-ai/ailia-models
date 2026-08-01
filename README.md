@@ -30,6 +30,7 @@ If you would like to try on your computer:
 
 # Documentation
 
+[ailia SDK documentation](https://docs.ailia.ai/en/)  
 [ailia MODELS deepwiki](https://deepwiki.com/ailia-ai/ailia-models)  
 
 # Latest update
