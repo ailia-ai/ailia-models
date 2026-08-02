@@ -1,23 +1,30 @@
 [<img src="ailia-models_B_241211.png">](ABOUT_AINYAN.md)
 
-The collection of pre-trained, state-of-the-art AI models.
+[![GitHub stars](https://img.shields.io/github/stars/ailia-ai/ailia-models)](https://github.com/ailia-ai/ailia-models/stargazers)
+[![PyPI](https://img.shields.io/pypi/v/ailia)](https://pypi.org/project/ailia/)
+![Python](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android%20%7C%20Jetson%20%7C%20Raspberry%20Pi-lightgrey)
+
+The collection of pre-trained, state-of-the-art AI models: 418 models covering object detection, speech recognition, image generation, LLMs and more — all runnable from the same simple CLI.
+
+| [<img src="object_detection/yolox/output.jpg">](/object_detection/) | [<img src="depth_estimation/zoe_depth/output_k.png">](/depth_estimation/) | [<img src="diffusion/control_net/output.png">](/diffusion/) | [<img src="background_removal/u2net/output.png">](/background_removal/) |
+|:---:|:---:|:---:|:---:|
+| [Object detection](/object_detection/) | [Depth estimation](/depth_estimation/) | [Diffusion](/diffusion/) | [Background removal](/background_removal/) |
+
+Every model works the same way: no arguments needed, weights download automatically.
+
+```
+pip3 install ailia
+git clone https://github.com/ailia-ai/ailia-models
+cd ailia-models
+pip3 install -r requirements.txt
+cd object_detection/yolox
+python3 yolox.py
+```
 
 # About ailia SDK
 
 [ailia SDK](https://ailia.ai/en/sdk/) is a cross-platform, high-speed inference SDK for AI. It supports Windows, Mac, Linux, iOS, Android, Jetson, and Raspberry Pi with GPU acceleration via Vulkan and Metal. Bindings are available for C++, Python, Unity (C#), Kotlin, Rust, and Flutter.
-
-# Why ailia SDK
-
-|  | ailia SDK | ONNX Runtime |
-|:---|:---:|:---:|
-| GPU inference via Vulkan and Metal | ✓ | − |
-| ailia Speech / Voice / LLM / Tokenizer / Tracker | ✓ | − |
-| 400+ verified model library with sample code | ✓ | − |
-| Non-OS / RTOS inference support | ✓ | − |
-| Unity bindings and model collection | ✓ | △ |
-| Model‑specific optimization | ✓ | △ |
-
-△ = Supported but limited due to general-purpose implementation.
 
 # How to use
 
