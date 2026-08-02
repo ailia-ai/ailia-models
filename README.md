@@ -7,9 +7,7 @@
 
 The collection of pre-trained, state-of-the-art AI models: 418 models covering object detection, speech recognition, image generation, LLMs and more — all runnable from the same simple CLI.
 
-| [<img src="object_detection/yolox/output.jpg">](/object_detection/) | [<img src="depth_estimation/zoe_depth/output_k.png">](/depth_estimation/) | [<img src="diffusion/control_net/output.png">](/diffusion/) | [<img src="background_removal/u2net/output.png">](/background_removal/) |
-|:---:|:---:|:---:|:---:|
-| [Object detection](/object_detection/) | [Depth estimation](/depth_estimation/) | [Diffusion](/diffusion/) | [Background removal](/background_removal/) |
+[Tutorial](TUTORIAL.md) · [チュートリアル](TUTORIAL_jp.md) · [Google Colaboratory](https://www.ailia.ai/launch_to_colab) · [Documentation](https://docs.ailia.ai/en/) · [deepwiki](https://deepwiki.com/ailia-ai/ailia-models) · [Update history](https://github.com/ailia-ai/ailia-models/wiki)
 
 Every model works the same way: no arguments needed, weights download automatically.
 
@@ -21,30 +19,6 @@ pip3 install -r requirements.txt
 cd object_detection/yolox
 python3 yolox.py
 ```
-
-# About ailia SDK
-
-[ailia SDK](https://ailia.ai/en/sdk/) is a cross-platform, high-speed inference SDK for AI. It supports Windows, Mac, Linux, iOS, Android, Jetson, and Raspberry Pi with GPU acceleration via Vulkan and Metal. Bindings are available for C++, Python, Unity (C#), Kotlin, Rust, and Flutter.
-
-# How to use
-
-To try on your computer:
-
-[ailia MODELS tutorial](TUTORIAL.md)  
-[ailia MODELS tutorial 日本語版](TUTORIAL_jp.md)  
-
-If you would like to try without setting up your computer:
-
-[Try now on Google Colaboratory](https://www.ailia.ai/launch_to_colab)  
-
-# Documentation
-
-[ailia SDK documentation](https://docs.ailia.ai/en/)  
-[ailia MODELS deepwiki](https://deepwiki.com/ailia-ai/ailia-models)  
-
-# Latest update
-
-[See update history](https://github.com/ailia-ai/ailia-models/wiki)
 
 # Models
 
@@ -103,6 +77,10 @@ If you would like to try without setting up your computer:
 | [<img src="vehicle_recognition/vehicle-attributes-recognition-barrier/demo.png" width=96px>](/vehicle_recognition/) | [Vehicle recognition](/vehicle_recognition/) | 2 |  |
 | [<img src="vision_language_model/llava/view.jpg" width=96px>](/vision_language_model/) | [Vision language model](/vision_language_model/) | 7 |  |
 |  | [Commercial model](/commercial_model/) | 1 |  |
+
+# About ailia SDK
+
+[ailia SDK](https://ailia.ai/en/sdk/) is a cross-platform, high-speed inference SDK for AI. It supports Windows, Mac, Linux, iOS, Android, Jetson, and Raspberry Pi with GPU acceleration via Vulkan and Metal. Bindings are available for C++, Python, Unity (C#), Kotlin, Rust, and Flutter.
 
 # Other platforms
 
