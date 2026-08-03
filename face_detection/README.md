@@ -1,0 +1,17 @@
+[ailia MODELS](../README.md) > Face detection
+
+# ailia MODELS : Face detection
+
+| | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
+|:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|
+| [<img src="./mtcnn/output.jpg" width=128px>](./mtcnn/)| [mtcnn](./mtcnn/) | [mtcnn](https://github.com/ipazc/mtcnn) | Keras | 1.2.10 and later | Apr 2016 | |
+| [<img src="./yolov1-face/output.png" width=128px>](./yolov1-face/) | [yolov1-face](./yolov1-face/) | [YOLO-Face-detection](https://github.com/dannyblueliu/YOLO-Face-detection/) | Darknet | 1.1.0 and later | Mar 2017 | |
+| [<img src="./face-detection-adas/output.png" width=128px>](./face-detection-adas/)| [face-detection-adas](./face-detection-adas/) | [face-detection-adas-0001](https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/face-detection-adas-0001) | OpenVINO | 1.2.5 and later | Oct 2018 | |
+| [<img src="./retinaface/selfie_output.png" width=128px>](./retinaface/)| [retinaface](./retinaface/) | [RetinaFace: Single-stage Dense Face Localisation in the Wild.](https://github.com/biubug6/Pytorch_Retinaface) | Pytorch | 1.2.5 and later | May 2019 | [EN](https://tech.ailia.ai/en/retinaface-a-face-detection-model-designed-for-high-resolution-6c3900771a01/) [JP](https://tech.ailia.ai/retinaface-%E9%AB%98%E8%A7%A3%E5%83%8F%E5%BA%A6%E3%81%AB%E5%AF%BE%E5%BF%9C%E3%81%97%E3%81%9F%E9%A1%94%E6%A4%9C%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-37d0807581ce) |
+| [<img src="./blazeface/result.png" width=128px>](./blazeface/) |[blazeface](./blazeface/)| [BlazeFace-PyTorch](https://github.com/hollance/BlazeFace-PyTorch) | Pytorch | 1.2.1 and later | Jul 2019 | [EN](https://tech.ailia.ai/en/blazeface-a-machine-learning-model-for-fast-detection-of-face-positions-and-key-points-5dcfb9429d72) [JP](https://tech.ailia.ai/blazeface-%E9%A1%94%E3%81%AE%E4%BD%8D%E7%BD%AE%E3%81%A8%E3%82%AD%E3%83%BC%E3%83%9D%E3%82%A4%E3%83%B3%E3%83%88%E3%82%92%E9%AB%98%E9%80%9F%E3%81%AB%E6%A4%9C%E5%87%BA%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-e851c348a32b) |
+| [<img src="./yolov3-face/output.png" width=128px>](./yolov3-face/) | [yolov3-face](./yolov3-face/) | [Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face) | Keras | 1.2.1 and later | Dec 2019 | |
+| [<img src="./face-mask-detection/output.png" width=128px>](./face-mask-detection/)| [face-mask-detection](./face-mask-detection/) | [Face detection using keras-yolov3](https://github.com/ailia-ai/yolov3-face) | Keras | 1.2.1 and later | Dec 2019 | [EN](https://tech.ailia.ai/en/facemaskdetection-a-machine-learning-model-to-determine-if-a-person-is-wearing-a-mask-e5a581ea8af9) [JP](https://tech.ailia.ai/facemaskdetection-%E3%83%9E%E3%82%B9%E3%82%AF%E3%82%92%E4%BB%98%E3%81%91%E3%81%A6%E3%81%84%E3%82%8B%E3%81%8B%E3%82%92%E5%88%A4%E5%AE%9A%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-b06793f79a97) |
+| [<img src="./dbface/selfie_output.png" width=128px>](./dbface/)| [dbface](./dbface/) | [DBFace : real-time, single-stage detector for face detection, <br/>with faster speed and higher accuracy](https://github.com/dlunion/DBFace) | Pytorch | 1.2.2 and later | Mar 2020 | |
+| [<img src="./anime-face-detector/output.png" width=128px>](./anime-face-detector/)| [anime-face-detector](./anime-face-detector/) | [Anime Face Detector](https://github.com/hysts/anime-face-detector) | Pytorch | 1.2.6 and later | Oct 2021 | |
+
+[Back to the model list](../README.md)

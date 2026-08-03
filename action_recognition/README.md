@@ -1,0 +1,14 @@
+[ailia MODELS](../README.md) > Action recognition
+
+# ailia MODELS : Action recognition
+
+| | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
+|:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|
+| [<img src="./va-cnn/image/f-0.png" width=128px>](./va-cnn/) | [va-cnn](./va-cnn/) | [View Adaptive Neural Networks (VA) for Skeleton-based Human Action Recognition](https://github.com/microsoft/View-Adaptive-Neural-Networks-for-Skeleton-based-Human-Action-Recognition) | Pytorch | 1.2.7 and later | Mar 2017 ||
+| [<img src="./st_gcn/input.png" width=128px>](./st_gcn/) | [st-gcn](./st_gcn/) | [ST-GCN](https://github.com/yysijie/st-gcn) | Pytorch | 1.2.5 and later | Jan 2018 | [EN](https://tech.ailia.ai/en/st-gcn-a-machine-learning-model-for-detecting-human-actions-from-skeletons-46a95b31b5db) [JP](https://tech.ailia.ai/st-gcn-%E9%AA%A8%E6%A0%BC%E3%81%8B%E3%82%89%E4%BA%BA%E7%89%A9%E3%81%AE%E3%82%A2%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E3%82%92%E6%A4%9C%E5%87%BA%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-af3196e38d1f) |
+| [<img src="./mars/inputs/input0.jpg" width=128px>](./mars/) | [mars](./mars/) | [MARS: Motion-Augmented RGB Stream for Action Recognition](https://github.com/craston/MARS) | Pytorch | 1.2.4 and later | Nov 2018 | [EN](https://tech.ailia.ai/en/mars-a-machine-learning-model-for-identifying-actions-from-videos-6b93c06ac6a5) [JP](https://tech.ailia.ai/mars-%E5%8B%95%E7%94%BB%E3%81%8B%E3%82%89%E3%82%A2%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E3%82%92%E8%AD%98%E5%88%A5%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-c03b0b8804a8) |
+| [<img src="./ax_action_recognition/punch_03-12-09-21-27-876_out.gif" width=128px>](./ax_action_recognition/) | [ax_action_recognition](./ax_action_recognition/) | [Realtime-Action-Recognition](https://github.com/felixchenfy/Realtime-Action-Recognition) | Pytorch | 1.2.7 and later | Mar 2019 | |
+| [<img src="./driver-action-recognition-adas/img/out_030.png" width=128px>](./driver-action-recognition-adas/) | [driver-action-recognition-adas](./driver-action-recognition-adas/) | [driver-action-recognition-adas-0002](https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/driver-action-recognition-adas-0002) | OpenVINO | 1.2.5 and later | Mar 2019 | |
+| [<img src="./action_clip/action_recognition.gif" width=128px>](./action_clip/) | [action_clip](./action_clip/) | [ActionCLIP](https://github.com/sallymmx/ActionCLIP) | Pytorch | 1.2.7 and later | Sep 2021 | [JP](https://tech.ailia.ai/actionclip-%E4%BB%BB%E6%84%8F%E3%81%AE%E3%82%A2%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E3%82%92%E6%A4%9C%E7%9F%A5%E3%81%A7%E3%81%8D%E3%82%8B%E3%82%A2%E3%82%AF%E3%82%B7%E3%83%A7%E3%83%B3%E6%A4%9C%E7%9F%A5%E3%83%A2%E3%83%87%E3%83%AB-d12f8b513f53) |
+
+[Back to the model list](../README.md)

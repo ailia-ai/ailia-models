@@ -1,26 +1,21 @@
-# ailia MODELS : PoseEstimation
+[ailia MODELS](../README.md) > Pose estimation
 
-## Models for pose estimation
+# ailia MODELS : Pose estimation
 
-Estimate human pose keypoints from single image.
+[Accuracy metrics](./METRICS.md)
 
-### Coco
+| | Model | Reference | Exported From | Supported Ailia Version | Date | Blog |
+|:-----------|------------:|:------------:|:------------:|:------------:|:------------:|:------------:|
+| [<img src="./openpose/output.png" width=128px>](./openpose/) |[openpose](./openpose/) | [Code repo for realtime multi-person pose estimation in CVPR'17 (Oral)](https://github.com/ZheC/Realtime_Multi-Person_Pose_Estimation) | Caffe | 1.2.1 and later | Nov 2016 | |
+| [<img src="./posenet/output.png" width=128px>](./posenet/) |[posenet](./posenet/) | [PoseNet Pytorch](https://github.com/rwightman/posenet-pytorch) | Pytorch | 1.2.10 and later | Jan 2017 | |
+| [<img src="./pose_resnet/output.png" width=128px>](./pose_resnet/) |[pose_resnet](./pose_resnet/) | [Simple Baselines for Human Pose Estimation and Tracking](https://github.com/microsoft/human-pose-estimation.pytorch) | Pytorch | 1.2.1 and later | Apr 2018 | [EN](https://tech.ailia.ai/en/poseresnet-a-top-down-machine-learning-model-for-skeletal-detection-9454f391ae4d) [JP](https://tech.ailia.ai/poseresnet-%E3%83%88%E3%83%83%E3%83%97%E3%83%80%E3%82%A6%E3%83%B3%E3%81%A7%E9%AA%A8%E6%A0%BC%E6%A4%9C%E5%87%BA%E3%82%92%E8%A1%8C%E3%81%86%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-9e0d20396d1e) |
+| [<img src="./lightweight-human-pose-estimation/output.png" width=128px>](./lightweight-human-pose-estimation/)  |[lightweight-human-pose-estimation](./lightweight-human-pose-estimation/) | [Fast and accurate human pose estimation in PyTorch.<br/>Contains implementation of <br/>"Real-time 2D Multi-Person Pose Estimation on CPU: Lightweight OpenPose" paper.](https://github.com/Daniil-Osokin/lightweight-human-pose-estimation.pytorch) | Pytorch | 1.2.1 and later | Nov 2018 | [EN](https://tech.ailia.ai/en/lightweighthumanpose-a-machine-learning-model-for-fast-multi-person-skeleton-detection-631c042bed50) [JP](https://tech.ailia.ai/lightweighthumanpose-%E9%AB%98%E9%80%9F%E3%81%AB%E8%A4%87%E6%95%B0%E4%BA%BA%E3%81%AE%E9%AA%A8%E6%A0%BC%E3%82%92%E6%A4%9C%E5%87%BA%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-bc34d420e6e2) |
+| [<img src="./animalpose/output.png" width=128px>](./animalpose/) |[animalpose](./animalpose/) | [MMPose - 2D animal pose estimation](https://github.com/open-mmlab/mmpose) | Pytorch | 1.2.7 and later | Aug 2019 | [EN](https://tech.ailia.ai/en/animalpose-pose-esimation-for-animals-700603e0dbae) [JP](https://tech.ailia.ai/animalpose-%E5%8B%95%E7%89%A9%E3%81%AE%E9%AA%A8%E6%A0%BC%E6%A4%9C%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-f7f667c0e69d) |
+| [<img src="./efficientpose/output.png" width=128px>](./efficientpose/) |[efficientpose](./efficientpose/) | [Code repo for EfficientPose](https://github.com/daniegr/EfficientPose) | TensorFlow | 1.2.6 and later | Apr 2020 | |
+| [<img src="./blazepose/output.png" width=128px>](./blazepose/) |[blazepose](./blazepose/) | [MediaPipePyTorch](https://github.com/zmurez/MediaPipePyTorch) | Pytorch | 1.2.5 and later | Jun 2020 | |
+| [<img src="./mediapipe_holistic/output.png" width=128px>](./mediapipe_holistic/) |[mediapipe_holistic](./mediapipe_holistic/) | [MediaPipe Holistic](https://google.github.io/mediapipe/solutions/holistic.html) | TensorFlow | 1.2.9 and later | Dec 2020 | |
+| [<img src="./movenet/output.png" width=128px>](./movenet/) |[movenet](./movenet/) | [Code repo for movenet](https://www.tensorflow.org/hub/tutorials/movenet) | TensorFlow | 1.2.8 and later | May 2021 | [EN](https://tech.ailia.ai/en/movenet-pose-estimation-for-video-with-intense-motion-2b92f53f3c8) [JP](https://tech.ailia.ai/movenet-%E5%8B%95%E3%81%8D%E3%81%AE%E6%BF%80%E3%81%97%E3%81%84%E5%8B%95%E7%94%BB%E5%90%91%E3%81%91%E9%AA%A8%E6%A0%BC%E6%A4%9C%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-d26d9e06126c)|
+| [<img src="./ap-10k/output.png" width=128px>](./ap-10k/) |[ap-10k](./ap-10k/) | [AP-10K](https://github.com/AlexTheBad/AP-10K)  | Pytorch | 1.2.4 and later | Aug 2021 | |
+| [<img src="./e2pose/output.png" width=128px>](./e2pose/) |[e2pose](./e2pose/) | [E2Pose](https://github.com/AISIN-TRC/E2Pose)  | Tensorflow | 1.2.5 and later | Oct 2022 | |
 
-|Name|AP|Method|Publish Date|
-|-----|-----|-----|-----|
-|[pose_resnet (256x192_pose_resnet_50)](./pose_resnet/)|0.704 (coco2017)|TopDown|2019|
-|[openpose](./openpose/)|0.618 (coco2016)|BottomUp|2017|
-|[lightweight-human-pose-estimation (mobilenetv1)](./lightweight-human-pose-estimation/)|0.428 (coco2016)|BottomUp|2018|
-
-## Metrics
-
-### AP
-
-- PoseResnet https://github.com/microsoft/human-pose-estimation.pytorch
-- LightWeightHumanPose https://arxiv.org/pdf/1811.12004.pdf
-- OpenPose https://arxiv.org/pdf/1611.08050.pdf
-
-## Leader board
-
-Pose Estimation
-https://paperswithcode.com/task/pose-estimation
+[Back to the model list](../README.md)

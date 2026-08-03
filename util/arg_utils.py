@@ -78,9 +78,9 @@ def get_base_parser(
     )
     parser.add_argument(
         '-v', '--video', metavar='VIDEO', default=None,
-        help=('You can convert the input video by entering style image.'
-              'If the int variable is given, '
-              'corresponding webcam input will be used.')
+        help=('Run the inference against a video file or a live camera '
+              'image. If an integer value is given, the corresponding '
+              'webcam input will be used.')
     )
     parser.add_argument(
         '-s', '--savepath', metavar='SAVE_PATH', default=default_save,
