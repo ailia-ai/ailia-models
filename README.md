@@ -91,6 +91,7 @@ Prototype with ailia MODELS (Python), then deploy to production.
 - [c++ version](https://github.com/ailia-ai/ailia-models-cpp)
 - [flutter version](https://github.com/ailia-ai/ailia-models-flutter)
 - [rust version](https://github.com/ailia-ai/ailia-models-rust)
+- [js version](https://github.com/ailia-ai/ailia-models-js)
 
 # Contact
 
