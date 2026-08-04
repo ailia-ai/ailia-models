@@ -22,7 +22,7 @@ python3 yolox.py
 
 # Models
 
-418 models are available.
+418 models are available. Use [🔍 Search models](https://github.com/ailia-ai/ailia-models/find/master) to find a model by name.
 
 | | Category | Models | Sub categories |
 |:---|:---|:---:|:---|
