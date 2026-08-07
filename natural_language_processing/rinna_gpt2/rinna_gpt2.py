@@ -29,6 +29,26 @@ parser.add_argument(
     '--outlength', '-o', default=50
 )
 parser.add_argument(
+    '--top_k', type=int, default=50,
+    help='number of highest probability tokens to keep for sampling'
+)
+parser.add_argument(
+    '--top_p', type=float, default=0.95,
+    help='cumulative probability threshold for nucleus sampling'
+)
+parser.add_argument(
+    '--temperature', type=float, default=1.0,
+    help='softmax temperature applied to the logits before sampling'
+)
+parser.add_argument(
+    '--seed', type=int, default=42,
+    help='random seed for sampling'
+)
+parser.add_argument(
+    '--greedy', action='store_true',
+    help='always pick the most probable token instead of sampling'
+)
+parser.add_argument(
     '--onnx',
     action='store_true',
     help='By default, the ailia SDK is used, but with this option, you can switch to using ONNX Runtime'
@@ -67,16 +87,21 @@ def main():
         tokenizer = T5Tokenizer.from_pretrained("./tokenizer/")
     logger.info("Input : "+args.input)
 
+    sampling_args = dict(
+        greedy=args.greedy, top_k=args.top_k, top_p=args.top_p,
+        temperature=args.temperature, seed=args.seed
+    )
+
     # inference
     if args.benchmark:
         logger.info('BENCHMARK mode')
         for i in range(5):
             start = int(round(time.time() * 1000))
-            output = generate_text(tokenizer, ailia_model, args.input, int(args.outlength), args.onnx)
+            output = generate_text(tokenizer, ailia_model, args.input, int(args.outlength), args.onnx, **sampling_args)
             end = int(round(time.time() * 1000))
             logger.info("\tailia processing time {} ms".format(end - start))
     else:
-        output = generate_text(tokenizer, ailia_model, args.input, int(args.outlength), args.onnx)
+        output = generate_text(tokenizer, ailia_model, args.input, int(args.outlength), args.onnx, **sampling_args)
 
     logger.info("output : "+output)
     logger.info('Script finished successfully.')

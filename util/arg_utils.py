@@ -29,6 +29,13 @@ except ImportError:
                    '[--env_id N]')
     AILIA_EXIST = False
 
+# On Windows on ARM (WoA) only the headless build of OpenCV is available, so
+# cv2.imshow raises "The function is not implemented". Only in that case, import
+# woa_imshow, which overwrites the highgui functions with a tkinter based
+# fallback on import so the sample video/webcam viewers keep working.
+if platform.system() == 'Windows' and platform.machine().lower() in ('arm64', 'aarch64'):
+    from woa import woa_imshow  # noqa: F401
+
 
 def check_file_existance(filename):
     if os.path.isfile(filename):
@@ -71,9 +78,9 @@ def get_base_parser(
     )
     parser.add_argument(
         '-v', '--video', metavar='VIDEO', default=None,
-        help=('You can convert the input video by entering style image.'
-              'If the int variable is given, '
-              'corresponding webcam input will be used.')
+        help=('Run the inference against a video file or a live camera '
+              'image. If an integer value is given, the corresponding '
+              'webcam input will be used.')
     )
     parser.add_argument(
         '-s', '--savepath', metavar='SAVE_PATH', default=default_save,

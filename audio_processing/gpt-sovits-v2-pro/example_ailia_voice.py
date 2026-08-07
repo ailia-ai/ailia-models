@@ -2,6 +2,11 @@
 
 import ailia_voice
 
+import os, sys, platform
+if (platform.system(), platform.machine().lower()) in {('Windows', 'arm64'), ('Windows', 'aarch64')}:
+	sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'util', 'woa'))
+	import woa_librosa
+
 import librosa
 import time
 import soundfile
@@ -21,7 +26,7 @@ audio_waveform, sampling_rate = librosa.load(ref_file_path, mono=True)
 
 # Infer
 voice = ailia_voice.GPTSoVITSV2Pro()
-voice.initialize_model(model_path = "./models/")
+voice.initialize_model(model_path = "./models/", distill = "small") # 蒸留モデル
 voice.set_reference_audio(ref_text, ailia_voice.AILIA_VOICE_G2P_TYPE_GPT_SOVITS_JA, audio_waveform, sampling_rate)
 buf, sampling_rate = voice.synthesize_voice("こんにちは。今日はいい天気ですね。", ailia_voice.AILIA_VOICE_G2P_TYPE_GPT_SOVITS_JA)
 #buf, sampling_rate = voice.synthesize_voice("Hello world.", ailia_voice.AILIA_VOICE_G2P_TYPE_GPT_SOVITS_EN)

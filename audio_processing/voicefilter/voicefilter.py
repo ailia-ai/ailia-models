@@ -24,8 +24,12 @@ logger = getLogger(__name__)
 
 WEIGHT_PATH = 'model.onnx'
 MODEL_PATH = 'model.onnx.prototxt'
-WEIGHT_EMB_PATH = 'embedder.onnx'
-MODEL_EMB_PATH = 'embedder.onnx.prototxt'
+WEIGHT_VOICESPLIT_PATH = 'voicesplit.onnx'
+MODEL_VOICESPLIT_PATH = 'voicesplit.onnx.prototxt'
+WEIGHT_EMB_PATH = 'embedder_dynamic.onnx'
+MODEL_EMB_PATH = 'embedder_dynamic.onnx.prototxt'
+WEIGHT_EMB_LEGACY_PATH = 'embedder.onnx'
+MODEL_EMB_LEGACY_PATH = 'embedder.onnx.prototxt'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/voicefilter/'
 
 WAVE_PATH = "mixed.wav"
@@ -45,6 +49,17 @@ parser.add_argument(
     '-r', '--reference_file',
     default="ref-voice.wav", type=str,
     help='path of reference wav file'
+)
+parser.add_argument(
+    '-m', '--model', metavar='MODEL',
+    default='voicefilter', choices=('voicefilter', 'voicesplit'),
+    help='model to use: voicefilter (original) or voicesplit '
+         '(VoiceSplit checkpoint trained with the power-law compressed loss)'
+)
+parser.add_argument(
+    '--legacy',
+    action='store_true',
+    help='use the legacy embedder model (requires 3 sec or longer reference audio)'
 )
 args = update_parser(parser)
 
@@ -78,6 +93,16 @@ def audio_recognition(net, embedder):
     # prepare reference wav
     dvec_wav = read_wave(reference_file)
     dvec_mel = audio.get_mel(dvec_wav)
+    if dvec_mel.shape[1] < 80:
+        # the embedder slides a 80 frame (0.8 sec) window over the mel
+        # spectrogram, so at least one full window is required
+        logger.error('the reference audio must be 0.8 sec or longer.')
+        sys.exit(-1)
+    if args.legacy and dvec_mel.shape[1] < 280:
+        logger.error(
+            'the legacy embedder requires 2.8 sec or longer reference audio. '
+            'use a longer reference_file or remove the --legacy option.')
+        sys.exit(-1)
     output = embedder.predict([dvec_mel])
     dvec = output[0]
     dvec = np.expand_dims(dvec, axis=0)
@@ -123,16 +148,25 @@ def audio_recognition(net, embedder):
 
 
 def main():
+    if args.model == 'voicesplit':
+        weight_path, model_path = WEIGHT_VOICESPLIT_PATH, MODEL_VOICESPLIT_PATH
+    else:
+        weight_path, model_path = WEIGHT_PATH, MODEL_PATH
+    if args.legacy:
+        weight_emb_path, model_emb_path = WEIGHT_EMB_LEGACY_PATH, MODEL_EMB_LEGACY_PATH
+    else:
+        weight_emb_path, model_emb_path = WEIGHT_EMB_PATH, MODEL_EMB_PATH
+
     # model files check and download
-    logger.info('Checking voicefilter model...')
-    check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+    logger.info('Checking %s model...' % args.model)
+    check_and_download_models(weight_path, model_path, REMOTE_PATH)
     logger.info('Checking embedder model...')
-    check_and_download_models(WEIGHT_EMB_PATH, MODEL_EMB_PATH, REMOTE_PATH)
+    check_and_download_models(weight_emb_path, model_emb_path, REMOTE_PATH)
 
     env_id = args.env_id
 
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-    embedder = ailia.Net(MODEL_EMB_PATH, WEIGHT_EMB_PATH, env_id=env_id)
+    net = ailia.Net(model_path, weight_path, env_id=env_id)
+    embedder = ailia.Net(model_emb_path, weight_emb_path, env_id=env_id)
 
     audio_recognition(net, embedder)
 

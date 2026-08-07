@@ -50,6 +50,7 @@ cd ../../audio_processing/cosyvoice2/; python3 cosyvoice2.py ${OPTION}
 cd ../../audio_processing/sensevoice/; python3 sensevoice.py ${OPTION}
 cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
 cd ../../audio_processing/lite-whisper/; python3 lite-whisper.py ${OPTION}
+cd ../../audio_processing/qwen3-tts/; python3 qwen3-tts.py ${OPTION}
 cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
 cd ../../autonomous_driving/segformer; python3 segformer.py ${OPTION}
 #cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}
@@ -77,6 +78,7 @@ cd ../../diffusion/daclip-sde; python3 daclipsde.py ${OPTION}
 cd ../../diffusion/riffusion; python3 riffusion.py ${OPTION}
 cd ../../diffusion/marigold; python3 marigold.py ${OPTION}
 cd ../../diffusion/sdxl-turbo; python3 sdxl-turbo.py ${OPTION}
+cd ../../diffusion/sdxl; python3 sdxl.py ${OPTION}
 cd ../../diffusion/sd-turbo; python3 sd-turbo.py ${OPTION}
 cd ../../diffusion/anything_v3; python3 anything_v3.py ${OPTION}
 cd ../../diffusion/depth_anything_controlnet; python3 depth_anything_controlnet.py ${OPTION}
@@ -138,8 +140,9 @@ cd ../../face_recognition/gazelle; python3 gazelle.py ${OPTION}
 cd ../../face_restoration/codeformer; python3 codeformer.py ${OPTION}
 cd ../../face_restoration/gfpgan; python3 gfpgan.py ${OPTION}
 cd ../../face_swapping/facefusion; python3 facefusion.py ${OPTION}
-cd ../../face-swapping/sber-swap; python3 sber-swap.py ${OPTION}
-cd ../../face-swapping/deepfacelive; python3 deepfacelive.py ${OPTION}
+cd ../../face_swapping/sber-swap; python3 sber-swap.py ${OPTION}
+cd ../../face_swapping/deepfacelive; python3 deepfacelive.py ${OPTION}
+cd ../../feature_extraction/dinov3; python3 dinov3.py ${OPTION}
 cd ../../frame_interpolation/flavr; python3 flavr.py ${OPTION}
 cd ../../frame_interpolation/cain; python3 cain.py ${OPTION}
 cd ../../frame_interpolation/film; python3 film.py ${OPTION}
@@ -190,6 +193,7 @@ cd ../../image_classification/mobileone; python3 mobileone.py ${OPTION}
 cd ../../image_classification/imagenet21k; python3 imagenet21k.py ${OPTION}
 cd ../../image_classification/volo; python3 volo.py ${OPTION}
 cd ../../image_classification/siglip2; python3 siglip2.py ${OPTION}
+cd ../../image_classification/siglip-multilingual; python3 siglip-multilingual.py ${OPTION}
 cd ../../image_inpainting/3d-photo-inpainting; python3 3d-photo-inpainting.py ${OPTION}
 cd ../../image_inpainting/inpainting_gmcnn; python3 inpainting_gmcnn.py ${OPTION}
 cd ../../image_inpainting/pytorch-inpainting-with-partial-conv; python3 pytorch-inpainting-with-partial-conv.py ${OPTION}
@@ -410,5 +414,7 @@ cd ../../vehicle_recognition/vehicle-license-plate-detection-barrier; python3 ve
 cd ../../vision_language_model/llava; python3 llava.py ${OPTION}
 cd ../../vision_language_model/florence2; python3 florence2.py ${OPTION}
 cd ../../vision_language_model/qwen2_vl; python3 qwen2_vl.py ${OPTION}
+cd ../../vision_language_model/qwen2.5_vl; python3 qwen2.5_vl.py ${OPTION}
+cd ../../vision_language_model/qwen3_vl; python3 qwen3_vl.py ${OPTION}
 cd ../../vision_language_model/llava-jp; python3 llava-jp.py ${OPTION}
 cd ../../vision_language_model/mobilevlm; python3 mobilevlm.py ${OPTION}

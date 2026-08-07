@@ -1,0 +1,16 @@
+{
+  "<|box_end|>": 151649,
+  "<|box_start|>": 151648,
+  "<|endoftext|>": 151643,
+  "<|im_end|>": 151645,
+  "<|im_start|>": 151644,
+  "<|image_pad|>": 151655,
+  "<|object_ref_end|>": 151647,
+  "<|object_ref_start|>": 151646,
+  "<|quad_end|>": 151651,
+  "<|quad_start|>": 151650,
+  "<|video_pad|>": 151656,
+  "<|vision_end|>": 151653,
+  "<|vision_pad|>": 151654,
+  "<|vision_start|>": 151652
+}

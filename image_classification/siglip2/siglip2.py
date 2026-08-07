@@ -31,9 +31,19 @@ MODEL_LARGE_P16_256_PATH = "siglip2-large-patch16-256.onnx.prototxt"
 MODEL_GIANT_P16_256_PATH = "siglip2-giant-opt-patch16-256.onnx.prototxt"
 PB_LARGE_P16_256_PATH = "siglip2-large-patch16-256_weights.pb"
 PB_GIANT_P16_256_PATH = "siglip2-giant-opt-patch16-256_weights.pb"
+
+WEIGHT_BASE_P16_224_IMAGE_PATH = "siglip2-base-patch16-224-encode_image.onnx"
+MODEL_BASE_P16_224_IMAGE_PATH = "siglip2-base-patch16-224-encode_image.onnx.prototxt"
+WEIGHT_BASE_P16_224_TEXT_PATH = "siglip2-base-patch16-224-encode_text.onnx"
+MODEL_BASE_P16_224_TEXT_PATH = "siglip2-base-patch16-224-encode_text.onnx.prototxt"
+
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/siglip2/"
 
 IMAGE_PATH = "demo.jpg"
+
+# The model was trained with fixed-length text and has no attention_mask
+# input, so input_ids must be padded to this length.
+SEQ_LENGTH = 64
 
 
 # ======================
@@ -55,6 +65,12 @@ parser.add_argument(
     default="base-patch16-224",
     choices=("base-patch16-224", "large-patch16-256", "giant-patch16-256"),
     help="model type",
+)
+parser.add_argument(
+    "--separate",
+    action="store_true",
+    help="use models separated into an image encoder and a text encoder. "
+    "(base-patch16-224 only)",
 )
 parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
@@ -102,16 +118,43 @@ def postprocess_result(logits_per_image, top_k: int = 5):
     return top_labels, top_probs
 
 
+def predict_text_feature(models, input_ids):
+    # feedforward
+    net_text = models["net_text"]
+    if not args.onnx:
+        output = net_text.predict([input_ids])
+    else:
+        output = net_text.run(None, {"input_ids": input_ids})
+    text_embeds, logit_scale, logit_bias = output
+
+    return text_embeds, logit_scale, logit_bias
+
+
 def predict(models, img, input_ids):
     pixel_values = preprocess(img, models["model_type"])
 
     # feedforward
-    net = models["net"]
-    if not args.onnx:
-        output = net.predict([input_ids, pixel_values])
+    if args.separate:
+        net_image = models["net_image"]
+        if not args.onnx:
+            output = net_image.predict([pixel_values])
+        else:
+            output = net_image.run(None, {"pixel_values": pixel_values})
+        image_embeds = output[0]
+
+        text_embeds = models["text_embeds"]
+        logits_per_image = (
+            image_embeds @ text_embeds.T * models["logit_scale"] + models["logit_bias"]
+        )
     else:
-        output = net.run(None, {"input_ids": input_ids, "pixel_values": pixel_values})
-    logits_per_image = output[0]
+        net = models["net"]
+        if not args.onnx:
+            output = net.predict([input_ids, pixel_values])
+        else:
+            output = net.run(
+                None, {"input_ids": input_ids, "pixel_values": pixel_values}
+            )
+        logits_per_image = output[0]
 
     return logits_per_image
 
@@ -124,17 +167,25 @@ def recognize_from_image(models):
     text_descriptions = [f"This is a photo of a {label}" for label in input_labels]
 
     tokenizer = models["tokenizer"]
+    # ailia tokenizer adds a bos token which is removed below,
+    # so pad to one more token
+    max_length = SEQ_LENGTH if args.disable_ailia_tokenizer else SEQ_LENGTH + 1
     encoded = tokenizer(
         text_descriptions,
         return_tensors="np",
-        padding=True,
+        padding="max_length",
+        max_length=max_length,
         truncation=True,
     )
     input_ids = encoded["input_ids"]
     if not args.disable_ailia_tokenizer:
         input_ids = input_ids[:,1:] # remove bos token
 
-    net = models["net"]
+    if args.separate:
+        text_embeds, logit_scale, logit_bias = predict_text_feature(models, input_ids)
+        models["text_embeds"] = text_embeds
+        models["logit_scale"] = logit_scale
+        models["logit_bias"] = logit_bias
 
     # input image loop
     for image_path in args.input:
@@ -191,22 +242,54 @@ def main():
             PB_GIANT_P16_256_PATH,
         ),
     }
+    dic_model_separate = {
+        "base-patch16-224": (
+            (WEIGHT_BASE_P16_224_IMAGE_PATH, MODEL_BASE_P16_224_IMAGE_PATH),
+            (WEIGHT_BASE_P16_224_TEXT_PATH, MODEL_BASE_P16_224_TEXT_PATH),
+        ),
+    }
     model_type = args.model_type
-    WEIGTH_PATH, MODEL_PATH, PB_PATH = dic_model[model_type]
-
-    check_and_download_models(WEIGTH_PATH, MODEL_PATH, REMOTE_PATH)
-    if PB_PATH:
-        check_and_download_file(PB_PATH, REMOTE_PATH)
 
     env_id = args.env_id
 
-    # initialize
-    if not args.onnx:
-        net = ailia.Net(MODEL_PATH, WEIGTH_PATH, env_id=env_id)
-    else:
-        import onnxruntime
+    if args.separate:
+        if model_type not in dic_model_separate:
+            logger.error(f"--separate is not supported for {model_type}.")
+            sys.exit(1)
 
-        net = onnxruntime.InferenceSession(WEIGTH_PATH)
+        (
+            (WEIGHT_IMAGE_PATH, MODEL_IMAGE_PATH),
+            (WEIGHT_TEXT_PATH, MODEL_TEXT_PATH),
+        ) = dic_model_separate[model_type]
+
+        logger.info("Checking encode_image model...")
+        check_and_download_models(WEIGHT_IMAGE_PATH, MODEL_IMAGE_PATH, REMOTE_PATH)
+        logger.info("Checking encode_text model...")
+        check_and_download_models(WEIGHT_TEXT_PATH, MODEL_TEXT_PATH, REMOTE_PATH)
+
+        # initialize
+        if not args.onnx:
+            net_image = ailia.Net(MODEL_IMAGE_PATH, WEIGHT_IMAGE_PATH, env_id=env_id)
+            net_text = ailia.Net(MODEL_TEXT_PATH, WEIGHT_TEXT_PATH, env_id=env_id)
+        else:
+            import onnxruntime
+
+            net_image = onnxruntime.InferenceSession(WEIGHT_IMAGE_PATH)
+            net_text = onnxruntime.InferenceSession(WEIGHT_TEXT_PATH)
+    else:
+        WEIGTH_PATH, MODEL_PATH, PB_PATH = dic_model[model_type]
+
+        check_and_download_models(WEIGTH_PATH, MODEL_PATH, REMOTE_PATH)
+        if PB_PATH:
+            check_and_download_file(PB_PATH, REMOTE_PATH)
+
+        # initialize
+        if not args.onnx:
+            net = ailia.Net(MODEL_PATH, WEIGTH_PATH, env_id=env_id)
+        else:
+            import onnxruntime
+
+            net = onnxruntime.InferenceSession(WEIGTH_PATH)
 
     if args.disable_ailia_tokenizer:
         from transformers import AutoTokenizer
@@ -219,7 +302,15 @@ def main():
 
         tokenizer = GemmaTokenizer.from_pretrained("tokenizer" if model_type == "giant-patch16-256" else "tokenizer-giant")
 
-    models = dict(model_type=model_type, tokenizer=tokenizer, net=net)
+    if args.separate:
+        models = dict(
+            model_type=model_type,
+            tokenizer=tokenizer,
+            net_image=net_image,
+            net_text=net_text,
+        )
+    else:
+        models = dict(model_type=model_type, tokenizer=tokenizer, net=net)
 
     recognize_from_image(models)
 

@@ -3,10 +3,15 @@
 
 import ailia_speech
 
+import os, sys, platform
+if (platform.system(), platform.machine().lower()) in {('Windows', 'arm64'), ('Windows', 'aarch64')}:
+	sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'util', 'woa'))
+	import woa_librosa
+
 import librosa
 import time
 
-env_id = 1
+env_id = -1 # auto
 is_fp16 = True
 model_type = ailia_speech.AILIA_SPEECH_MODEL_TYPE_WHISPER_MULTILINGUAL_LARGE_V3_TURBO
 input_file = "ax.wav"

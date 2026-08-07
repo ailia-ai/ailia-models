@@ -145,7 +145,15 @@ parser.add_argument(
     '--onnx', action='store_true',
     help='Use ONNX Runtime instead of ailia SDK.'
 )
+parser.add_argument(
+    '--quantize', type=str, default=None, choices=["int8", "int4"],
+    help='Use int8 or int4 quantized model.',
+)
 args = update_parser(parser)
+
+if args.quantize is not None:
+    WEIGHT_PATH = 'bevformer_tiny_' + args.quantize + '.onnx'
+    MODEL_PATH = WEIGHT_PATH + '.prototxt'
 
 
 # ======================
