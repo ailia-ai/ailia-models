@@ -717,7 +717,7 @@ def imshow_keypoints(img,
 
     for kpts in pose_result:
 
-        kpts = np.array(kpts, copy=False)
+        kpts = np.asarray(kpts)
 
         # draw each point on image
         if pose_kpt_color is not None:

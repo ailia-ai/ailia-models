@@ -118,9 +118,9 @@ def recognize_from_image():
             print('Head pose estimation: %2f ms' % ((end - start) * 1000.))
 
             euler = utils.compute_euler_angles_from_rotation_matrices(R_pred) * 180 / np.pi
-            p_pred_deg = euler[:, 0]
-            y_pred_deg = euler[:, 1]
-            r_pred_deg = euler[:, 2]
+            p_pred_deg = euler[:, 0][0]
+            y_pred_deg = euler[:, 1][0]
+            r_pred_deg = euler[:, 2][0]
             results.append({'yaw': y_pred_deg, 'pitch': p_pred_deg, 'roll': r_pred_deg})
 
             utils.plot_pose_cube(resize_img, y_pred_deg, p_pred_deg, r_pred_deg, x_min + int(.5 * (

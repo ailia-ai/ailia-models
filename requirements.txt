@@ -1,6 +1,6 @@
 ailia>=1.6.1
 ailia_tokenizer>=1.6.0
-numpy<2.0
+numpy
 matplotlib>=3.2.1
 opencv-python>=4.4.0.42
 pillow>=7.1.2

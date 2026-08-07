@@ -84,7 +84,7 @@ class Dataset_Pred():
         
         df_stamp = pd.DataFrame(columns = ['date'])
         df_stamp.date = list(tmp_stamp.date.values) + list(pred_dates[1:])
-        data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq[-1:])
+        data_stamp = time_features(df_stamp, timeenc=self.timeenc, freq=self.freq)
 
         self.data_x = data[border1:border2]
         if self.inverse:

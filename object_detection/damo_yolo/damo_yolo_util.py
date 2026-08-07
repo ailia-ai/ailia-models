@@ -103,7 +103,7 @@ def multiclass_nms(multi_bboxes,
 
     if bboxes.size == 0:
         bboxes = np.zeros((0, 5))
-        labels = np.zeros((0, ), dtype=np.long)
+        labels = np.zeros((0, ), dtype=np.int64)
         scores = np.zeros((0, ))
 
         return bboxes, scores, labels

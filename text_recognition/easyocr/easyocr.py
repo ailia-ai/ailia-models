@@ -14,6 +14,7 @@ import webcamera_utils  # noqa: E402
 from image_utils import imread  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -85,6 +86,7 @@ def recognize_from_image():
         result = predict(img, img_gray)
 
         # print result
+        result = numpy_type_to_builtin_type(result)
         print('==============================================================')
         for r in result:
             print(f'  word={r[1]} confidence={r[2]} bbox={r[0]}')
@@ -122,6 +124,7 @@ def recognize_from_video():
         result = predict(frame, frame_gray)
 
         # print result
+        result = numpy_type_to_builtin_type(result)
         print('==============================================================')
         for r in result:
             print(f'  word={r[1]} confidence={r[2]} bbox={r[0]}')

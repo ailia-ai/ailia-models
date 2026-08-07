@@ -1,7 +1,7 @@
 tokenizers
 langid
 unidecode
-pyopenjtalk-prebuilt
+pyopenjtalk-plus
 SoundFile
 librosa
 pypinyin # for chinese

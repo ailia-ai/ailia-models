@@ -8,8 +8,12 @@ from logging import getLogger  # noqa
 
 logger = getLogger(__name__)
 
+# for nltk<=3.8.1
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
+# for nltk>=3.8.2
+nltk.download('punkt_tab')
+nltk.download('averaged_perceptron_tagger_eng')
 
 
 def run_ner(caption):

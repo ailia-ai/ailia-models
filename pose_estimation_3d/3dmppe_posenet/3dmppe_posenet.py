@@ -303,8 +303,9 @@ def vis_3d_multiple_skeleton(kpt_3d, kpt_3d_vis, kps_lines, fig_h, fig_w):
     ax.set_ylim(5000, 25000)
     ax.set_zlim(-2000, 2000)
     fig.canvas.draw()
-    vis_img = np.fromstring(plt.gcf().canvas.tostring_rgb(), 
-                            dtype='uint8').reshape(fig_h, fig_w, -1)
+    # tostring_rgb was removed in matplotlib 3.10, use buffer_rgba instead
+    vis_img = np.asarray(plt.gcf().canvas.buffer_rgba())[:, :, :3].copy()
+    vis_img = vis_img.reshape(fig_h, fig_w, -1)
     plt.close()
 
     return vis_img

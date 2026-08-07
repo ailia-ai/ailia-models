@@ -218,7 +218,7 @@ def main():
     if args.data == 'ETTm1':
         args.data_path='ETTm1.csv'
         args.freq='t'
-        args.detail_freq = '15t'
+        args.detail_freq = '15min'
     elif args.data == 'ETTh1':
         args.data_path = 'ETTh1.csv'
         args.freq = 'h'

@@ -32,6 +32,6 @@ def transform(rgb, output_size):
         ]
     )
     rgb_np = transformer(rgb)
-    rgb_np = np.asfarray(rgb_np, dtype="float") / 255
+    rgb_np = np.asarray(rgb_np, dtype="float") / 255
 
     return rgb_np

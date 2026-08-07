@@ -15,6 +15,7 @@ import ailia
 sys.path.append('../../util')
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa
 from model_utils import check_and_download_models, check_and_download_file  # noqa
+from dtype_utils import numpy_type_to_builtin_type  # noqa
 
 logger = getLogger(__name__)
 
@@ -121,7 +122,7 @@ def correct_text(model):
     else:
         output = predict(model, input_text)
 
-    logger.info(f"corrected_tokens:\n{pprint.pformat(output)}")
+    logger.info(f"corrected_tokens:\n{pprint.pformat(numpy_type_to_builtin_type(output))}")
 
     logger.info('Script finished successfully.')
 

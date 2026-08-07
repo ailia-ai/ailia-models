@@ -662,7 +662,8 @@ def recognize_from_video(predictor, predict_fn):
 
         fig = draw_bev_detections(detections, imgs)
         fig.canvas.draw()
-        buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        # tostring_rgb was removed in matplotlib 3.10, use buffer_rgba instead
+        buf = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy()
         w, h = fig.canvas.get_width_height()
         vis_img = buf.reshape(h, w, 3)
         vis_img = cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR)

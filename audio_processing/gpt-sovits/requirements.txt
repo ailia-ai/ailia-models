@@ -1,6 +1,6 @@
 langid
 unidecode
-pyopenjtalk-prebuilt
+pyopenjtalk-plus
 SoundFile
 librosa
 g2p_en

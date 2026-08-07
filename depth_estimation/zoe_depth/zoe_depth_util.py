@@ -46,7 +46,7 @@ def postprocess(
         cmapper = matplotlib.cm.get_cmap(cmap)
     pred = cmapper(pred, bytes=True)
     img = pred[...]
-    img[invalid_mask] = (128, 128, 128, 256)
+    img[invalid_mask] = (128, 128, 128, 0)
     img = cv2.resize(img, (original_width, original_height))
     return img
 

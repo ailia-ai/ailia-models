@@ -164,7 +164,7 @@ class BaseMetric:
                         if total > 0:
                             row[key, "%"] = 100 * value / total
                         else:
-                            row[key, "%"] = np.NaN
+                            row[key, "%"] = np.nan
 
             report.append(row)
             uris.append(uri)
@@ -186,7 +186,7 @@ class BaseMetric:
                     if total > 0:
                         row[key, "%"] = 100 * value / total
                     else:
-                        row[key, "%"] = np.NaN
+                        row[key, "%"] = np.nan
 
         row[self.name, "%"] = 100 * abs(self)
         report.append(row)

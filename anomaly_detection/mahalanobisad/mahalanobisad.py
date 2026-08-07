@@ -180,7 +180,8 @@ def plot_fig(test_filename, score, threshold, savepath,
     plt.tick_params(bottom=False, labelbottom=False)
 
     plt.gcf().canvas.draw()
-    img_figure = np.fromstring(plt.gcf().canvas.tostring_rgb(), dtype='uint8')
+    # tostring_rgb was removed in matplotlib 3.10, use buffer_rgba instead
+    img_figure = np.asarray(plt.gcf().canvas.buffer_rgba())[:, :, :3].copy()
     img_figure = img_figure.reshape(400, -1, 3)
     plt.close()
 

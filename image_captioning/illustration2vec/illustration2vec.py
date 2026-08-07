@@ -15,6 +15,7 @@ from arg_utils import check_file_existance  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from image_utils import load_image  # noqa: E402
 import webcamera_utils  # noqa: E402
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 
 # logger
 from logging import getLogger   # noqa: E402
@@ -159,7 +160,7 @@ def recognize_tag_from_image():
 
         prob = preds_ailia.reshape(preds_ailia.shape[0], -1)
         preds = estimate_top_tags(prob, tags, 512)  # TODO how to decide n_tag?
-        pprint(apply_threshold(preds, THRESHOLD))
+        pprint(numpy_type_to_builtin_type(apply_threshold(preds, THRESHOLD)))
     logger.info('Script finished successfully.')
 
 
@@ -240,7 +241,7 @@ def recognize_tag_from_video():
         prob = preds_ailia.reshape(preds_ailia.shape[0], -1)
         preds = estimate_top_tags(prob, tags, 512)
         logger.info('=' * 80)
-        pprint(apply_threshold(preds, THRESHOLD))
+        pprint(numpy_type_to_builtin_type(apply_threshold(preds, THRESHOLD)))
         cv2.imshow('frame', frame)
         frame_shown = True
         time.sleep(SLEEP_TIME)
