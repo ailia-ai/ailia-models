@@ -186,11 +186,11 @@ class MotionTracker:
             memo_ids.append(k)
             memo_labels.append(v['label'].reshape(1, 1))
             memo_vs.append(v['velocity'][None, :])
-        memo_ids = np.array(memo_ids, dtype=np.long).reshape(1, -1)
+        memo_ids = np.array(memo_ids, dtype=np.int64).reshape(1, -1)
 
         for backdrop in self.backdrops:
             backdrop_ids = np.full(
-                (1, backdrop['embeds'].shape[0]), -1, dtype=np.long)
+                (1, backdrop['embeds'].shape[0]), -1, dtype=np.int64)
             backdrop_vs = np.zeros_like(backdrop['boxes_3d'])
             memo_bboxes.append(backdrop['bboxes'])
             memo_boxes_3d.append(backdrop['boxes_3d'])
@@ -259,7 +259,7 @@ class MotionTracker:
             ids = np.arange(
                 self.num_tracklets,
                 self.num_tracklets + bboxes.shape[0],
-                dtype=np.long)
+                dtype=np.int64)
             self.num_tracklets += bboxes.shape[0]
 
             return bboxes, labels, boxes_3d, ids, inds, valids
@@ -282,7 +282,7 @@ class MotionTracker:
         depth_uncertainty = depth_uncertainty[valids]
 
         # init ids container
-        ids = np.full((bboxes.shape[0],), -1, dtype=np.long)
+        ids = np.full((bboxes.shape[0],), -1, dtype=np.int64)
 
         # match if buffer is not empty
         if bboxes.shape[0] > 0 and not self.empty:
@@ -443,7 +443,7 @@ class MotionTracker:
         ids[new_inds] = np.arange(
             self.num_tracklets,
             self.num_tracklets + num_news,
-            dtype=np.long)
+            dtype=np.int64)
         self.num_tracklets += num_news
 
         self.update_memo(

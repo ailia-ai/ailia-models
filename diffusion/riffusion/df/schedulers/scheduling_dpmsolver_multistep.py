@@ -134,8 +134,8 @@ class DPMSolverMultistepScheduler(ConfigMixin):
         dtype = sample.dtype
         batch_size, channels, height, width = sample.shape
 
-        if dtype not in (np.float, np.float64):
-            sample = sample.astype(np.float)  # upcast for quantile calculation, and clamp not implemented for cpu half
+        if dtype not in (float, np.float64):
+            sample = sample.astype(np.float64)  # upcast for quantile calculation, and clamp not implemented for cpu half
 
         # Flatten sample for doing quantile calculation along each image
         sample = sample.reshape(batch_size, channels * height * width)

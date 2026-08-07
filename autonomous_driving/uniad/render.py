@@ -120,7 +120,8 @@ class BaseRender:
             plt.savefig(filename)
         # Return image as numpy array
         self.fig.canvas.draw()
-        img = np.frombuffer(self.fig.canvas.tostring_rgb(), dtype=np.uint8)
+        # tostring_rgb was removed in matplotlib 3.10, use buffer_rgba instead
+        img = np.asarray(self.fig.canvas.buffer_rgba())[:, :, :3].copy()
         img = img.reshape(self.fig.canvas.get_width_height()[::-1] + (3,))
         return img
 

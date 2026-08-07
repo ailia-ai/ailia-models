@@ -5,7 +5,7 @@ import numpy as np
 
 def load_image(path):
     with path.open("rb") as reader:
-        data = np.fromstring(reader.read(), dtype=np.uint8)
+        data = np.frombuffer(reader.read(), dtype=np.uint8)
         img = cv2.imdecode(data, cv2.IMREAD_COLOR)
         if img is None:
             return

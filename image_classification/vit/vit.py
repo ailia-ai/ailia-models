@@ -141,8 +141,9 @@ def visualize_result(image, mask, probs, labels):
     plt.title('Attention Map and Image')
     # draw and write
     plt.draw()
-    image_figure = np.frombuffer(plt.gcf().canvas.tostring_argb(),
-                                 dtype=np.uint8)
+    # tostring_rgb was removed in matplotlib 3.10, use buffer_rgba instead
+    # (keep 3 channels, cv2.VideoWriter silently drops RGBA frames)
+    image_figure = np.asarray(plt.gcf().canvas.buffer_rgba())[:, :, :3].copy()
     image_figure = image_figure.reshape(FIGURE_HEIGHT,
                                         FIGURE_WIDTH, -1)
     # close figure

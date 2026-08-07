@@ -83,7 +83,7 @@ def invert_spectrogram(spectrogram):
 """Get test data"""
 def get_test_data(sentence, max_n):
     normalized_sentences = [text_normalize(line).strip() + "E" for line in sentence]  # text normalization, E: EOS
-    texts = np.zeros((len(normalized_sentences), max_n + 1), np.long)
+    texts = np.zeros((len(normalized_sentences), max_n + 1), np.int64)
     vocab = "PE abcdefghijklmnopqrstuvwxyz'.?"  # P: Padding, E: EOS.
     char2idx = {char: idx for idx, char in enumerate(vocab)}
     for i, sent in enumerate(normalized_sentences):
