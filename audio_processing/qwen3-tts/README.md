@@ -46,7 +46,7 @@ Both released Base model sizes are available and selected with
 python3 qwen3-tts.py -p 1.7B
 ```
 
-The model files add up to about 4.5GB for `0.6B` and about 8.7GB for `1.7B`.
+The model files add up to about 4.3GB for `0.6B` and about 8.4GB for `1.7B`.
 
 ### Language
 

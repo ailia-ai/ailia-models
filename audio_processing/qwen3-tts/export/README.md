@@ -1,7 +1,7 @@
 # Qwen3-TTS ONNX export
 
-Scripts that produce the ONNX, prototxt and npy files used by
-`../qwen3-tts.py` from the official Qwen3-TTS 12Hz Base checkpoints.
+Scripts that produce the ONNX and prototxt files used by `../qwen3-tts.py` from
+the official Qwen3-TTS 12Hz Base checkpoints.
 
 | parameter_num | Hugging Face model |
 |---|---|
@@ -37,8 +37,8 @@ snapshot. `--output_dir` selects where the files are written (default: the
 current directory). Each module is exported in a separate process, since the
 1.7B talker needs about twice its weight size in RAM while ONNX serializes it.
 
-Everything is exported as float32, which comes to about 4.5GB of output for
-0.6B and about 8.7GB for 1.7B.
+Everything is exported as float32, which comes to about 4.3GB of output for
+0.6B and about 8.4GB for 1.7B.
 
 `onnx2prototxt.py` is downloaded from
 [ailia-ai/export-to-onnx](https://github.com/ailia-ai/export-to-onnx) on first
@@ -49,11 +49,18 @@ use and generates the `.prototxt` next to every `.onnx`.
 `verify_onnx.py` runs every exported graph through onnxruntime and compares it
 with the PyTorch reference module. The talker is checked for a prefill and a
 decode step with a KV cache, the code predictor for all 15 code groups of a
-frame, the codec tables row block by row block, and the speech tokenizer at two
-different lengths:
+frame, the codec embedding for every group and a whole frame, and the speech
+tokenizer at two different lengths:
 
 ```bash
 python3 verify_onnx.py --parameter_num 1.7B --onnx_dir .
+```
+
+`ailia_gather_repro.py` is a standalone reproduction of the ailia bug that shapes
+this split; see the note under Files.
+
+```bash
+python3 ailia_gather_repro.py
 ```
 
 ## Files
@@ -64,18 +71,24 @@ python3 verify_onnx.py --parameter_num 1.7B --onnx_dir .
 | file | input | output |
 |---|---|---|
 | `qwen3_tts_encoder_<p>.onnx` | waveform `[1, 1, L]`, mel `[1, frames, 128]` | audio codes `[1, 32, T]`, speaker embedding `[1, H]` |
-| `qwen3_tts_prompt_<p>.onnx` | text token ids `[1, n]`, codec tag ids `[1, m]`, reference codes `[1, 16, T]` | projected text `[1, n, H]`, codec embeddings `[1, m, H]`, summed reference frames `[1, T, H]` |
+| `qwen3_tts_prompt_<p>.onnx` | text token ids `[1, n]` | projected text `[1, n, H]` |
+| `qwen3_tts_codec_embedding_<p>.onnx` | codec table rows `[n, 16]` | their sums `[1, n, H]` |
 | `qwen3_tts_talker_<p>.onnx` | hidden states `[1, seq, H]`, 4D mask, position ids, KV cache | codec logits `[1, 1, 3072]`, hidden state `[1, 1, H]`, KV cache |
 | `qwen3_tts_code_predictor_<p>.onnx` | hidden states `[1, seq, H]`, head rows `[2048]`, 4D mask, position ids, KV cache | code group logits `[1, 1, 2048]`, KV cache |
 | `qwen3_tts_tokenizer_decoder_<p>.onnx` | audio codes `[B, 16, T]` | waveform `[1, 1, L]` |
-| `qwen3_tts_codec_tables_<p>.npy` | | the 16 codec embedding tables, `[3072 + 15 * 2048, H]` |
 
-Every matmul is part of a graph, including the text projection and all 16 output
-heads, so `../qwen3-tts.py` only gathers rows of `codec_tables`, adds them up and
-samples tokens. Keeping the matmuls out of the runtime is not only tidier: numpy's
-BLAS keeps its threads spinning after a matmul and starves ailia on the next call,
-which cost about 6x on a code predictor step when the output heads were still on
-the Python side.
+Every weight is in a graph, including the text projection, the 16 codec embedding
+tables and all 16 output heads, so `../qwen3-tts.py` only reshapes arrays and
+samples tokens. That is not only tidier: numpy's BLAS keeps its threads spinning
+after a matmul and starves ailia on the next call, which cost about 6x on a code
+predictor step when the output heads were still on the Python side.
+
+`qwen3_tts_codec_embedding_<p>.onnx` holds the 16 tables as one, the talker's 3072
+rows first, then the code predictor's 15 tables of 2048, then one all zero row. A
+call takes 16 row indices per position and returns their sum, which covers both
+callers: a talker step is a whole frame's 16 groups summed, and a code predictor
+step is one group with the other 15 pointing at the zero row. It is called ~16
+times per audio frame and costs 0.2 ms a call.
 
 Notes:
 
@@ -84,16 +97,14 @@ Notes:
   `../qwen3-tts.py` can drive the auto regressive loop from Python. The number of
   cached layers is read back from the ONNX input count at runtime rather than from
   the config.
-- **The codec embedding tables cannot live in the two decode loop graphs.** They
-  did, which removed the npy entirely, but on ailia 1.6.1 a table lookup inside
-  those graphs returns rows from an earlier call once the loop is a few steps in:
-  the code predictor's first two calls match onnxruntime to 1e-4 and every call
-  after that is wrong by ~1e+1, and the talker behaves the same way. The lookup is
-  correct in isolation, correct as a graph output, and correct on the first calls,
-  so the graphs keep every matmul and hand the lookup back to the runtime. With
-  the embedding passed in through `inputs_embeds` instead, all 15 code predictor
-  calls match onnxruntime to 2e-3, including the 15 different `head_rows`, which
-  is why the output heads could stay.
+- **The codec embedding tables cannot live in the two decode loop graphs**, which
+  is why they get a model of their own. With them inside, ailia stops following the
+  gather's index a few calls into a decode loop: the code predictor's first two
+  calls match onnxruntime to 1e-4 and every call after that is wrong by ~1e+1, and
+  the talker behaves the same way. `ailia_gather_repro.py` is a 90KB reproduction
+  and shows the two halves it takes -- a gather feeding the graph, and rotary
+  embeddings; drop either and the same graph is correct. A model that only gathers
+  is correct however many times it is called, which is what this layout relies on.
 - The code predictor picks its output head from `head_rows`, the 2048 rows of the
   combined head matrix that step needs, rather than deriving them from
   `position_ids`. Indices that come straight from an input are what the other

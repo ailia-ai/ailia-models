@@ -19,10 +19,9 @@ Usage:
     python3 export_onnx.py --parameter_num 1.7B --only talker_decoder
 
 The model is split so that the auto regressive loop can be driven from Python
-(see ../qwen3-tts.py). Every matmul is part of a graph, including the output
-heads, so the runtime only gathers rows of one embedding table, reshapes arrays
-and samples tokens. ``<p>`` is the parameter_num (0.6B or 1.7B) and ``H`` the
-talker hidden size (1024 for 0.6B, 2048 for 1.7B).
+(see ../qwen3-tts.py). Every weight is in a graph and there are no npy files, so
+the runtime only reshapes arrays and samples tokens. ``<p>`` is the parameter_num
+(0.6B or 1.7B) and ``H`` the talker hidden size (1024 for 0.6B, 2048 for 1.7B).
 
     qwen3_tts_encoder_<p>.onnx
         (waveform [1, 1, L], mel [1, frames, 128])
@@ -30,8 +29,9 @@ talker hidden size (1024 for 0.6B, 2048 for 1.7B).
     qwen3_tts_tokenizer_decoder_<p>.onnx
         audio codes [B, 16, T]                  -> waveform [1, 1, L]
     qwen3_tts_prompt_<p>.onnx
-        (text token ids, codec tag ids, reference codes [1, 16, T])
-            -> (projected text, codec embeddings, summed reference frames)
+        text token ids [1, n]                   -> projected text [1, n, H]
+    qwen3_tts_codec_embedding_<p>.onnx
+        codec table rows [n, 16]                -> their sums [1, n, H]
     qwen3_tts_talker_<p>.onnx
         talker transformer (28 layers) with a KV cache passed in/out and its
         output head included, so a step returns logits and the hidden state
@@ -39,13 +39,11 @@ talker hidden size (1024 for 0.6B, 2048 for 1.7B).
         code predictor (5 layers) with a KV cache passed in/out and its 15 output
         heads included, so a step takes the rows of the head to use and returns
         logits
-    qwen3_tts_codec_tables_<p>.npy
-        the 16 codec embedding tables in one array, [3072 + 15 * 2048, H]
 
-The codec embedding tables are the one thing the runtime still looks up itself.
-They belong in the two decode loop graphs, and were there, but ailia returns
-wrong values for a table lookup inside those graphs from the third call of a
-decode loop on; see the note in export/README.md.
+The codec embedding tables are a model of their own rather than part of the two
+decode loop graphs, where they belong and briefly were: ailia stops following a
+gather's index a few calls into a decode loop. ailia_gather_repro.py is a 90KB
+reproduction, and export/README.md has the details.
 
 The speech tokenizer weights are identical for 0.6B and 1.7B, so the two
 qwen3_tts_tokenizer_decoder_*.onnx have the same content. They are exported per
@@ -94,7 +92,7 @@ MODEL_ID = {
 }
 
 TARGETS = [
-    "codec_tables",
+    "codec_embedding",
     "encoder",
     "tokenizer_decoder",
     "prompt",
@@ -250,42 +248,43 @@ class TokenizerDecoder(nn.Module):
 
 
 class CodecEmbedding(nn.Module):
-    """The talker's codec embedding table plus the code predictor's 15 tables.
+    """The 16 codec embedding tables, and nothing else.
 
-    Group 0 of a codec frame is embedded with the talker's own table (vocabulary
-    3072) and groups 1..15 with the code predictor's tables (vocabulary 2048), so
-    they are kept apart rather than padded to a common size.
+    Group 0 of a codec frame is embedded with the talker's table (vocabulary 3072)
+    and groups 1..15 with the code predictor's tables (vocabulary 2048). All 16 sit
+    in one table so a lookup is a single gather:
 
-    ../qwen3-tts.py needs the same tables to build the talker's decode input, and
-    gets them from qwen3_tts_codec_tables_<p>.npy, which combined() writes in the
-    layout it indexes.
+        row t                       group 0, token t
+        row 3072 + (g-1)*2048 + t   group g, token t
+        row 3072 + 15*2048          all zeros, for a group with nothing to add
+
+    A call takes 16 row indices per position and returns their sum, which is what
+    both callers want: the talker's decode input is a whole frame's 16 groups
+    summed, and a code predictor step is one group with the other 15 pointing at
+    the zero row.
+
+    This is a model of its own rather than part of the two decode loop graphs
+    because ailia stops following a gather's index a few calls into a decode loop;
+    see ailia_gather_repro.py. A graph that only gathers stays correct.
     """
 
     def __init__(self, talker, code_predictor):
         super().__init__()
+        talker_codec = talker.model.codec_embedding.weight.detach()
+        group_codec = torch.stack(
+            [emb.weight.detach() for emb in code_predictor.model.codec_embedding]
+        ).flatten(0, 1)
         self.register_buffer(
-            "group0", talker.model.codec_embedding.weight.detach(), persistent=False
-        )
-        self.register_buffer(
-            "groups",
-            torch.stack([emb.weight.detach() for emb in code_predictor.model.codec_embedding]),
+            "table",
+            torch.cat(
+                [talker_codec, group_codec, talker_codec.new_zeros(1, talker_codec.shape[1])]
+            ),
             persistent=False,
         )
 
-    def combined(self):
-        """The 16 tables in one array: the talker's 3072 rows, then 15 x 2048."""
-        return torch.cat([self.group0, self.groups.flatten(0, 1)]).numpy()
-
-    def group0_embedding(self, tokens):
-        """tokens [1, n] -> [1, n, H]"""
-        return self.group0[tokens[0]][None]
-
-    def frame_sum(self, codec_tokens):
-        """Sum a frame's 16 group embeddings. codec_tokens [1, 16, T] -> [1, T, H]"""
-        total = self.group0[codec_tokens[0, 0]]
-        for group in range(self.groups.shape[0]):
-            total = total + self.groups[group][codec_tokens[0, group + 1]]
-        return total[None]
+    def forward(self, codec_rows):
+        """codec_rows [n, 16] -> [1, n, H], each position's 16 rows summed"""
+        return self.table[codec_rows].sum(dim=1)[None]
 
 
 class Talker(nn.Module):
@@ -327,30 +326,22 @@ class Talker(nn.Module):
 
 
 class TalkerPrompt(nn.Module):
-    """Everything needed to assemble the talker's prompt, in one graph.
+    """The text side of the talker's prompt: the text embedding and its projection.
 
-    All three outputs are produced on every call because they are only needed a
-    handful of times before the decode loop starts:
-
-        projected_text   text token ids run through the text embedding and
-                         text_projection
-        codec_embeds     the talker's codec embedding of a few tag ids
-        ref_codec_sum    the reference frames' 16 group embeddings, summed
+    The prompt needs codec embeddings as well, but those come from
+    qwen3_tts_codec_embedding_<p>.onnx, so one text token id sequence in and its
+    projection out is all this is.
     """
 
-    def __init__(self, talker, code_predictor):
+    def __init__(self, talker):
         super().__init__()
         self.register_buffer(
             "text_embedding", talker.model.text_embedding.weight.detach(), persistent=False
         )
         self.text_projection = talker.text_projection
-        self.codec_embedding = CodecEmbedding(talker, code_predictor)
 
-    def forward(self, text_tokens, codec_ids, ref_codes):
-        projected_text = self.text_projection(self.text_embedding[text_tokens[0]][None])
-        codec_embeds = self.codec_embedding.group0_embedding(codec_ids)
-        ref_codec_sum = self.codec_embedding.frame_sum(ref_codes)
-        return projected_text, codec_embeds, ref_codec_sum
+    def forward(self, text_tokens):
+        return self.text_projection(self.text_embedding[text_tokens])
 
 
 class CodePredictor(nn.Module):
@@ -620,29 +611,22 @@ def export_tokenizer_decoder(model_dir, out, parameter_num):
 
 def export_prompt(model_dir, out, parameter_num):
     model = load_tts_model(model_dir)
-    wrapper = TalkerPrompt(model.talker, model.talker.code_predictor)
-    num_code_groups = model.config.talker_config.num_code_groups
+    wrapper = TalkerPrompt(model.talker)
 
     del model
     gc.collect()
 
     text_tokens = torch.zeros(1, 8, dtype=torch.int64)
-    codec_ids = torch.zeros(1, 3, dtype=torch.int64)
-    ref_codes = torch.zeros(1, num_code_groups, 5, dtype=torch.int64)
 
     export(
         wrapper,
-        (text_tokens, codec_ids, ref_codes),
+        (text_tokens,),
         out("prompt", "onnx"),
-        ["text_tokens", "codec_ids", "ref_codes"],
-        ["projected_text", "codec_embeds", "ref_codec_sum"],
+        ["text_tokens"],
+        ["projected_text"],
         {
             "text_tokens": {1: "text_len"},
-            "codec_ids": {1: "codec_len"},
-            "ref_codes": {2: "ref_len"},
             "projected_text": {1: "text_len"},
-            "codec_embeds": {1: "codec_len"},
-            "ref_codec_sum": {1: "ref_len"},
         },
         # the text embedding table alone is over 1GB, and the TorchScript
         # exporter cannot serialize a model this large
@@ -650,22 +634,24 @@ def export_prompt(model_dir, out, parameter_num):
     )
 
 
-def export_codec_tables(model_dir, out, parameter_num):
-    """The 16 codec embedding tables, as one npy the runtime indexes.
-
-    ../qwen3-tts.py sums a codec frame's 16 group embeddings to build the talker's
-    decode input, and looks up one of them per code predictor step.
-    """
-    import numpy as np
-
+def export_codec_embedding(model_dir, out, parameter_num):
     model = load_tts_model(model_dir)
-    tables = CodecEmbedding(model.talker, model.talker.code_predictor).combined()
+    num_code_groups = model.config.talker_config.num_code_groups
+    wrapper = CodecEmbedding(model.talker, model.talker.code_predictor)
+
     del model
     gc.collect()
 
-    path = out("codec_tables", "npy")
-    print(f"writing {os.path.basename(path)} {tables.shape} ...")
-    np.save(path, tables)
+    codec_rows = torch.zeros(5, num_code_groups, dtype=torch.int64)
+
+    export(
+        wrapper,
+        (codec_rows,),
+        out("codec_embedding", "onnx"),
+        ["codec_rows"],
+        ["codec_embeds"],
+        {"codec_rows": {0: "num_positions"}, "codec_embeds": {1: "num_positions"}},
+    )
 
 
 def export_talker(model_dir, out, parameter_num):
@@ -760,7 +746,7 @@ def export_code_predictor(model_dir, out, parameter_num):
 
 
 EXPORTERS = {
-    "codec_tables": export_codec_tables,
+    "codec_embedding": export_codec_embedding,
     "encoder": export_encoder,
     "tokenizer_decoder": export_tokenizer_decoder,
     "prompt": export_prompt,

@@ -132,10 +132,11 @@ else:
 
 CONFIG_PATH = f"config_{parameter_num}.json"
 
-# ONNX は 5 つ。行列積はすべてどれかのグラフに入っているので、サンプル側は
-# codec 埋め込みテーブルの参照と配列の組み立て、トークンのサンプリングだけを行う。
+# ONNX は 6 つで、weight はすべてどれかのグラフに入っている。サンプル側は配列の
+# 組み立てとトークンのサンプリングだけを行う。
 #   encoder           参照音声 -> codec トークン + speaker embedding
-#   prompt            テキスト/codec のトークン ID -> talker のプロンプト用埋め込み
+#   prompt            テキストのトークン ID -> talker の hidden への投影
+#   codec_embedding   codec 埋め込みテーブル (16 グループ分をまとめて 1 つ)
 #   talker            自己回帰本体 (出力ヘッド入り)
 #   code_predictor    グループ 1〜15 の予測 (15 個の出力ヘッド入り)
 #   tokenizer_decoder codec トークン -> 波形
@@ -143,19 +144,19 @@ WEIGHT_PATH_ENCODER           = f"qwen3_tts_encoder_{parameter_num}.onnx"
 MODEL_PATH_ENCODER            = WEIGHT_PATH_ENCODER + ".prototxt"
 WEIGHT_PATH_PROMPT            = f"qwen3_tts_prompt_{parameter_num}.onnx"
 MODEL_PATH_PROMPT             = WEIGHT_PATH_PROMPT + ".prototxt"
+WEIGHT_PATH_CODEC_EMBEDDING   = f"qwen3_tts_codec_embedding_{parameter_num}.onnx"
+MODEL_PATH_CODEC_EMBEDDING    = WEIGHT_PATH_CODEC_EMBEDDING + ".prototxt"
 WEIGHT_PATH_TALKER            = f"qwen3_tts_talker_{parameter_num}.onnx"
 MODEL_PATH_TALKER             = WEIGHT_PATH_TALKER + ".prototxt"
 WEIGHT_PATH_CODE_PREDICTOR    = f"qwen3_tts_code_predictor_{parameter_num}.onnx"
 MODEL_PATH_CODE_PREDICTOR     = WEIGHT_PATH_CODE_PREDICTOR + ".prototxt"
 WEIGHT_PATH_TOKENIZER_DECODER = f"qwen3_tts_tokenizer_decoder_{parameter_num}.onnx"
 MODEL_PATH_TOKENIZER_DECODER  = WEIGHT_PATH_TOKENIZER_DECODER + ".prototxt"
-# 16 個の codec 埋め込みテーブルを 1 つにまとめたもの。talker の 1 ステップ分の
-# 入力を作るのに 16 グループ分を合算するので、ここだけはサンプル側で参照する。
-WEIGHT_PATH_CODEC_TABLES      = f"qwen3_tts_codec_tables_{parameter_num}.npy"
 
 onnx_list = [
     (WEIGHT_PATH_ENCODER, MODEL_PATH_ENCODER),
     (WEIGHT_PATH_PROMPT, MODEL_PATH_PROMPT),
+    (WEIGHT_PATH_CODEC_EMBEDDING, MODEL_PATH_CODEC_EMBEDDING),
     (WEIGHT_PATH_TALKER, MODEL_PATH_TALKER),
     (WEIGHT_PATH_CODE_PREDICTOR, MODEL_PATH_CODE_PREDICTOR),
     (WEIGHT_PATH_TOKENIZER_DECODER, MODEL_PATH_TOKENIZER_DECODER),
@@ -166,9 +167,7 @@ EXTERNAL_DATA = {
     "0.6B": [WEIGHT_PATH_PROMPT, WEIGHT_PATH_TOKENIZER_DECODER],
     "1.7B": [WEIGHT_PATH_PROMPT, WEIGHT_PATH_TALKER, WEIGHT_PATH_TOKENIZER_DECODER],
 }
-file_list = [WEIGHT_PATH_CODEC_TABLES] + [
-    name + ".data" for name in EXTERNAL_DATA[parameter_num]
-]
+file_list = [name + ".data" for name in EXTERNAL_DATA[parameter_num]]
 
 # copy_blob_data で KV cache を ailia 内部だけで受け渡すには 1.2.15 以降が必要
 version = ailia.get_version().split(".")
@@ -414,11 +413,13 @@ class Qwen3TTS:
         self.cfg = load_qwen_config()
         self.hidden_size = self.cfg["hidden_size"]
         self.num_code_groups = self.cfg["num_code_groups"]
-        # 1 つにまとまった codec 埋め込みテーブル。先頭 3072 行が talker の
-        # グループ 0 用、そのあと 2048 行ずつがグループ 1〜15 用。
-        self.codec_tables = np.load(WEIGHT_PATH_CODEC_TABLES)
+        # codec_embedding の入力は 1 つにまとまったテーブルの行番号。先頭 3072 行
+        # が talker のグループ 0 用、そのあと 2048 行ずつがグループ 1〜15 用、
+        # 最後の 1 行がゼロ (足すものが無いグループ用)。
         self.talker_vocab_size = self.cfg["codec_vocab_size"]
         self.group_vocab_size = self.cfg["group_vocab_size"]
+        self.zero_row = (self.talker_vocab_size
+                         + (self.num_code_groups - 1) * self.group_vocab_size)
         # code predictor のヘッドは 15 個をつないだ 1 つの行列になっているので、
         # ステップごとに使う 2048 行を渡す
         self.head_rows = [
@@ -428,6 +429,7 @@ class Qwen3TTS:
         ]
         self.encoder           = create_net(MODEL_PATH_ENCODER, WEIGHT_PATH_ENCODER, memory_mode, env_id)
         self.prompt            = create_net(MODEL_PATH_PROMPT, WEIGHT_PATH_PROMPT, memory_mode, env_id)
+        self.codec_embedding   = create_net(MODEL_PATH_CODEC_EMBEDDING, WEIGHT_PATH_CODEC_EMBEDDING, memory_mode, env_id)
         self.talker            = create_net(MODEL_PATH_TALKER, WEIGHT_PATH_TALKER, memory_mode, env_id)
         self.code_predictor    = create_net(MODEL_PATH_CODE_PREDICTOR, WEIGHT_PATH_CODE_PREDICTOR, memory_mode, env_id)
         self.tokenizer_decoder = create_net(MODEL_PATH_TOKENIZER_DECODER, WEIGHT_PATH_TOKENIZER_DECODER, memory_mode, env_id)
@@ -443,6 +445,7 @@ class Qwen3TTS:
         self.nets = {
             "encoder":           self.encoder,
             "prompt":            self.prompt,
+            "codec_embedding":   self.codec_embedding,
             "talker":            self.talker,
             "code_predictor":    self.code_predictor,
             "tokenizer_decoder": self.tokenizer_decoder,
@@ -538,37 +541,38 @@ class Qwen3TTS:
         return outputs[0], kv_caches
 
     # ------------------------------------------------------------------
-    # codec_frame_embedding: 1 フレーム 16 グループの埋め込みを合算する
-    #   グループ 0 は talker のテーブル、1〜15 は code predictor のテーブル
+    # _run_codec_embedding: codec 埋め込みテーブルを引く
+    #   codec_rows [n, 16] を渡すと、各位置の 16 行分を合算した [1, n, H] が返る
     # ------------------------------------------------------------------
-    def codec_frame_embedding(self, group_tokens):
-        rows = [group_tokens[0]] + [
-            self.talker_vocab_size + (group - 1) * self.group_vocab_size
-            + group_tokens[group]
-            for group in range(1, self.num_code_groups)
-        ]
-        return self.codec_tables[rows].sum(0)[np.newaxis, np.newaxis, :]
+    def _run_codec_embedding(self, codec_rows):
+        with self.benchmark.measure("codec_embedding"):
+            self.codec_embedding.set_input_blob_shape(codec_rows.shape, 0)
+            return self.codec_embedding.run([codec_rows])[0]
 
-    def group_embedding(self, group, token):
-        """グループ group のトークン token の埋め込み。group 0 は talker のテーブル。"""
+    def codec_row(self, group, token):
+        """グループ group のトークン token が入っている行番号。"""
         if group == 0:
-            row = token
-        else:
-            row = self.talker_vocab_size + (group - 1) * self.group_vocab_size + token
-        return self.codec_tables[row][np.newaxis, np.newaxis, :]
+            return token
+        return self.talker_vocab_size + (group - 1) * self.group_vocab_size + token
+
+    def frame_rows(self, group_tokens):
+        """1 フレーム 16 グループ分の行番号。"""
+        return [self.codec_row(group, token)
+                for group, token in enumerate(group_tokens)]
+
+    def group_rows(self, group, token):
+        """1 グループだけの行番号。残りはゼロ行を指す。"""
+        return [self.codec_row(group, token)] + [self.zero_row] * (self.num_code_groups - 1)
 
     # ------------------------------------------------------------------
-    # _run_prompt: プロンプト用の埋め込みをまとめて 1 回で取得する
-    #   text_tokens / codec_ids は必要な ID を全部つないで渡し、返ってきた
-    #   埋め込みを用途ごとに切り出す。
-    # returns (projected_text [1,text,H], codec_embeds [1,codec,H],
-    #          ref_codec_sum [1,ref,H])
+    # _run_prompt: テキストのトークン ID をまとめて 1 回で投影する
+    #   必要な ID を全部つないで渡し、返ってきた埋め込みを用途ごとに切り出す。
+    # returns projected_text [1, text_len, H]
     # ------------------------------------------------------------------
-    def _run_prompt(self, text_tokens, codec_ids, ref_codes):
+    def _run_prompt(self, text_tokens):
         with self.benchmark.measure("prompt"):
-            for index, value in enumerate([text_tokens, codec_ids, ref_codes]):
-                self.prompt.set_input_blob_shape(value.shape, index)
-            return self.prompt.run([text_tokens, codec_ids, ref_codes])
+            self.prompt.set_input_blob_shape(text_tokens.shape, 0)
+            return self.prompt.run([text_tokens])[0]
 
     # ------------------------------------------------------------------
     # _predict_subgroups: グループ 1〜15 を code predictor で順に予測する
@@ -585,8 +589,10 @@ class Qwen3TTS:
         sub_kv = [np.zeros((1, NKV, 0, HDIM), dtype=np.float32) for _ in range(NSL * 2)]
 
         # ── Prefill (seq=2): position 0 は hidden、position 1 はグループ 0 ──
+        group0_emb = self._run_codec_embedding(
+            np.array([self.group_rows(0, group0_token)], dtype=np.int64))
         prefill_emb = np.concatenate(
-            [past_hidden, self.group_embedding(0, group0_token)], axis=1
+            [past_hidden, group0_emb], axis=1
         ).astype(np.float32)
 
         logits, sub_kv = self._run_code_predictor(
@@ -597,7 +603,9 @@ class Qwen3TTS:
 
         # ── Decode (seq=1 × 14) ──
         for k in range(1, self.num_code_groups - 1):
-            embed = self.group_embedding(k, group_tokens[k - 1]).astype(np.float32)
+            embed = self._run_codec_embedding(
+                np.array([self.group_rows(k, group_tokens[k - 1])], dtype=np.int64)
+            ).astype(np.float32)
             logits, sub_kv = self._run_code_predictor(
                 embed, self.head_rows[k],
                 self._sub_attn_decode[k - 1], self._sub_pos_decode[k - 1], sub_kv
@@ -715,7 +723,7 @@ class Qwen3TTS:
         num_tts_pad = len(tag_ids_0) + 1
         codec_ids = tag_ids_0 + [cfg["codec_pad_id"], cfg["codec_bos_id"]]
 
-        # ---- 必要な埋め込みを 1 回の prompt 推論でまとめて取得 ----
+        # ---- テキスト側の埋め込みを 1 回の prompt 推論でまとめて取得 ----
         #   special (2) + role (3) + tag base (num_tts_pad+1) + ICL テキスト
         special_ids  = [cfg["tts_eos_id"], cfg["tts_pad_id"]]
         role_ids     = [cfg["im_start_id"], cfg["assistant_id"], 198]  # 198=\n
@@ -723,11 +731,17 @@ class Qwen3TTS:
         icl_text_ids = ref_ids[3:-2] + all_text_ids[3:-5]
         text_ids     = special_ids + role_ids + tag_base_ids + icl_text_ids
 
-        projected, codec_embeds, ref_codec_sum = self._run_prompt(
-            np.array([text_ids], dtype=np.int64),
-            np.array([codec_ids], dtype=np.int64),
-            voice_clone_prompt.ref_code[np.newaxis, :, :],
-        )
+        projected = self._run_prompt(np.array([text_ids], dtype=np.int64))
+
+        # ---- codec 側の埋め込みも 1 回でまとめて取得 ----
+        #   tag は 1 グループだけなので残りをゼロ行に、参照フレームは 16 グループ分
+        ref_code = voice_clone_prompt.ref_code            # [16, T_ref]
+        codec_rows = [self.group_rows(0, codec_id) for codec_id in codec_ids] + [
+            self.frame_rows(ref_code[:, frame]) for frame in range(ref_code.shape[1])
+        ]
+        codec_embeds = self._run_codec_embedding(np.array(codec_rows, dtype=np.int64))
+        ref_codec_sum = codec_embeds[:, len(codec_ids):, :]
+        codec_embeds = codec_embeds[:, : len(codec_ids), :]
 
         tts_eos_embed = projected[:, 0:1, :]
         tts_pad_embed = projected[:, 1:2, :]
@@ -813,9 +827,9 @@ class Qwen3TTS:
 
             # ── main talker decode ─────────────────────────────────
             #   16 グループの codec 埋め込みを合算し、テキストを足したものが入力
-            current_input = (
-                self.codec_frame_embedding(all_group_tokens) + text_feedback
-            ).astype(np.float32)
+            frame_emb = self._run_codec_embedding(
+                np.array([self.frame_rows(all_group_tokens)], dtype=np.int64))
+            current_input = (frame_emb + text_feedback).astype(np.float32)
 
             decode_pos  = prefill_len + step
             attn_mask_d = self.generate_attention_mask(1, decode_pos)
@@ -849,24 +863,18 @@ class Qwen3TTS:
         #   (model.py generate_voice_clone L612-631)
         #   decoder は causal なので、参照フレームを前置きして文脈を与え、
         #   生成した波形の先頭(参照分)を比率で切り落とす。
-        ref_code = voice_clone_prompt.ref_code   # [16, T_ref] or None
-        if ref_code is not None:
-            ref_T = ref_code.shape[1]
-            codes_for_decode = np.concatenate(
-                [ref_code[np.newaxis, :, :], all_codes], axis=2
-            )  # [1, 16, T_ref + T]
-        else:
-            ref_T = 0
-            codes_for_decode = np.ascontiguousarray(all_codes)
+        ref_T = ref_code.shape[1]
+        codes_for_decode = np.concatenate(
+            [ref_code[np.newaxis, :, :], all_codes], axis=2
+        )  # [1, 16, T_ref + T]
 
         with self.benchmark.measure("tokenizer_decoder"):
             self.tokenizer_decoder.set_input_blob_shape(codes_for_decode.shape, 0)
             wav = np.squeeze(self.tokenizer_decoder.run([codes_for_decode])[0])  # [L]
 
-        if ref_T > 0:
-            total_T = codes_for_decode.shape[2]
-            cut = int(ref_T / max(total_T, 1) * wav.shape[0])
-            wav = wav[cut:]
+        total_T = codes_for_decode.shape[2]
+        cut = int(ref_T / max(total_T, 1) * wav.shape[0])
+        wav = wav[cut:]
 
         return wav
 

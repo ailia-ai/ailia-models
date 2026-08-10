@@ -29,7 +29,7 @@ from transformers.cache_utils import DynamicCache
 import export_onnx as ex
 
 TARGETS = [
-    "codec_tables",
+    "codec_embedding",
     "encoder",
     "tokenizer_decoder",
     "prompt",
@@ -155,60 +155,68 @@ def check_tokenizer_decoder(model_dir, onnx_path):
 
 
 def check_prompt(model_dir, onnx_path):
-    """The embedding tables and text_projection used to build the talker prompt."""
+    """The text embedding table and text_projection."""
     model = ex.load_tts_model(model_dir)
     talker = model.talker
-    code_predictor = talker.code_predictor
-    num_code_groups = model.config.talker_config.num_code_groups
 
     rng = np.random.default_rng(0)
     text_tokens = rng.integers(0, 151000, size=(1, 9)).astype(np.int64)
-    codec_ids = rng.integers(0, 2048, size=(1, 5)).astype(np.int64)
-    ref_codes = rng.integers(0, 2048, size=(1, num_code_groups, 7)).astype(np.int64)
 
     with torch.no_grad():
-        text_embeds = talker.model.text_embedding(torch.from_numpy(text_tokens))
-        projected_text = talker.text_projection(text_embeds)
-        codec_embeds = talker.model.codec_embedding(torch.from_numpy(codec_ids))
-        codes = torch.from_numpy(ref_codes)
-        ref_codec_sum = talker.model.codec_embedding(codes[:, 0])
-        for group in range(num_code_groups - 1):
-            ref_codec_sum = ref_codec_sum + code_predictor.model.codec_embedding[group](
-                codes[:, group + 1]
-            )
-    reference = [projected_text.numpy(), codec_embeds.numpy(), ref_codec_sum.numpy()]
+        reference = talker.text_projection(
+            talker.model.text_embedding(torch.from_numpy(text_tokens))).numpy()
 
-    del model, talker, code_predictor
+    del model, talker
     gc.collect()
 
-    actual = run(session(onnx_path), [text_tokens, codec_ids, ref_codes])
-    ok = report("projected_text", reference[0], actual[0])
-    ok &= report("codec_embeds", reference[1], actual[1])
-    ok &= report("ref_codec_sum", reference[2], actual[2])
-    return ok
+    actual = run(session(onnx_path), [text_tokens])[0]
+    return report("projected_text", reference, actual)
 
 
-def check_codec_tables(model_dir, onnx_path):
-    """The npy the runtime looks codec embeddings up in."""
-    tables = np.load(onnx_path)
+def check_codec_embedding(model_dir, onnx_path):
+    """One row per group, and a whole frame's 16 rows summed."""
     model = ex.load_tts_model(model_dir)
     talker = model.talker
     code_predictor = talker.code_predictor
     num_code_groups = model.config.talker_config.num_code_groups
     talker_vocab = talker.model.codec_embedding.weight.shape[0]
     group_vocab = code_predictor.model.codec_embedding[0].weight.shape[0]
+    zero_row = talker_vocab + (num_code_groups - 1) * group_vocab
 
-    ok = report(
-        "group 0 table", talker.model.codec_embedding.weight.detach().numpy(),
-        tables[:talker_vocab], tolerance=0.0,
-    )
-    for group in range(num_code_groups - 1):
-        start = talker_vocab + group * group_vocab
-        ok &= report(
-            f"group {group + 1} table",
-            code_predictor.model.codec_embedding[group].weight.detach().numpy(),
-            tables[start:start + group_vocab], tolerance=0.0,
-        )
+    rng = np.random.default_rng(0)
+    tokens = rng.integers(0, group_vocab, size=num_code_groups).astype(np.int64)
+
+    def row(group, token):
+        if group == 0:
+            return int(token)
+        return talker_vocab + (group - 1) * group_vocab + int(token)
+
+    with torch.no_grad():
+        singles = [talker.model.codec_embedding(torch.tensor([int(tokens[0])]))]
+        for group in range(1, num_code_groups):
+            singles.append(code_predictor.model.codec_embedding[group - 1](
+                torch.tensor([int(tokens[group])])))
+        reference = [tensor.numpy() for tensor in singles]
+        frame_sum = torch.cat(singles).sum(0, keepdim=True).numpy()
+        zeros = np.zeros_like(reference[0])
+
+    del model, talker, code_predictor
+    gc.collect()
+
+    sess = session(onnx_path)
+    # one group per position, the other 15 pointing at the zero row
+    rows = [[row(group, tokens[group])] + [zero_row] * (num_code_groups - 1)
+            for group in range(num_code_groups)]
+    # then a position with nothing at all, and the whole frame at once
+    rows.append([zero_row] * num_code_groups)
+    rows.append([row(group, tokens[group]) for group in range(num_code_groups)])
+    actual = run(sess, [np.array(rows, dtype=np.int64)])[0]
+
+    ok = True
+    for group in range(num_code_groups):
+        ok &= report(f"group {group}", reference[group], actual[:, group])
+    ok &= report("zero row", zeros, actual[:, num_code_groups])
+    ok &= report("frame sum", frame_sum, actual[:, num_code_groups + 1])
     return ok
 
 
@@ -343,7 +351,7 @@ def check_code_predictor(model_dir, onnx_path):
 
 
 CHECKS = {
-    "codec_tables": check_codec_tables,
+    "codec_embedding": check_codec_embedding,
     "encoder": check_encoder,
     "tokenizer_decoder": check_tokenizer_decoder,
     "prompt": check_prompt,
@@ -388,9 +396,8 @@ def main():
         print("all modules match the reference implementation")
         return
 
-    suffix = "npy" if args.only == "codec_tables" else "onnx"
     onnx_path = os.path.join(
-        args.onnx_dir, f"qwen3_tts_{args.only}_{args.parameter_num}.{suffix}"
+        args.onnx_dir, f"qwen3_tts_{args.only}_{args.parameter_num}.onnx"
     )
     print(f"[{args.only}]")
     if not CHECKS[args.only](model_dir, onnx_path):
