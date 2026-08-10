@@ -3,10 +3,10 @@
 Two ONNX models under 100KB each, identical except for where the input embedding
 comes from:
 
-    gather.onnx   the embedding is gathered from a constant table inside the
-                  graph, by a row index that comes in as an input
-    input.onnx    the same embedding arrives as a graph input, gathered on the
-                  Python side
+    gather_rope.onnx   the embedding is gathered from a constant table inside the
+                       graph, by a row index that comes in as an input
+    input_rope.onnx    the same embedding arrives as a graph input, gathered on
+                       the Python side
 
 Everything else matches: one attention layer with a rotary embedding, a KV cache
 passed in and out, and a 4D additive mask. Both are driven the way a decode loop
@@ -14,17 +14,18 @@ drives a model, with a seq=2 prefill and then seq=1 steps, a growing cache and a
 different table row every step.
 
 Both models produce the same values, so the two runs should agree to rounding.
-ailia 1.6.1 does on input.onnx and does not on gather.onnx, where the first two
-calls match and every call after that is off by six orders of magnitude more:
+ailia 1.6.1 does on input_rope.onnx and does not on gather_rope.onnx, where the
+first two calls match and every call after that is off by six orders of magnitude
+more:
 
-    gather.onnx   call 0 0.0e+00  call 1 5.6e-09  call 2 1.3e-02  call 3 1.7e-02 ...
-    input.onnx    call 0 0.0e+00  call 1 5.6e-09  call 2 1.0e-08  call 3 4.7e-09 ...
+    gather_rope.onnx   call 0 0.0e+00  call 1 5.6e-09  call 2 1.3e-02  call 3 1.7e-02 ...
+    input_rope.onnx    call 0 0.0e+00  call 1 5.6e-09  call 2 1.0e-08  call 3 4.7e-09 ...
 
-Both halves are needed to see it: with the rotary embedding dropped
-(--stage attn) gather.onnx is correct too, and so is a graph that gathers without
-a KV cache. In the real model, where the weights are trained rather than random,
-the same shape of error comes out as O(1) on logits of O(10), which is enough to
-change every sampled token.
+Both halves are needed to see it: with the rotary embedding dropped the same
+graph is correct, which the _attn pair of models shows, and so is a graph that
+gathers without a KV cache. In the real model, where the weights are trained
+rather than random, the same shape of error comes out as O(1) on logits of O(10),
+which is enough to change every sampled token.
 
 This is why qwen3_tts_talker_*.onnx and qwen3_tts_code_predictor_*.onnx take
 their codec embeddings as an input instead of holding the tables, and why
@@ -32,8 +33,12 @@ qwen3_tts_codec_embedding_*.onnx is a separate model: a graph that only gathers
 is correct, however many times it is called.
 
 Usage:
-    python3 ailia_gather_repro.py
-    python3 ailia_gather_repro.py --stage attn     # the variant that stays correct
+    python3 ailia_gather_repro.py                  # builds and checks the rope pair
+    python3 ailia_gather_repro.py --stage attn     # the pair that stays correct
+    python3 ailia_gather_repro.py --stage both     # builds all four models
+
+ailia_gather_check.py runs the same comparison on models that already exist, and
+needs neither torch nor this script to build them.
 """
 
 import argparse
@@ -115,7 +120,7 @@ def causal_mask(seq_len, past_len=0):
 
 
 def build(stage, gather, out_dir):
-    path = os.path.join(out_dir, f"{'gather' if gather else 'input'}.onnx")
+    path = os.path.join(out_dir, f"{'gather' if gather else 'input'}_{stage}.onnx")
     torch.manual_seed(0)
     model = Layer(stage, gather).eval()
     with torch.no_grad():
@@ -198,7 +203,7 @@ def sweep_ailia(path, gather, table, env_id):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--stage", default="rope", choices=STAGES,
+    parser.add_argument("--stage", default="rope", choices=STAGES + ["both"],
                         help="rope reproduces the bug, attn does not")
     parser.add_argument("--output_dir", default=".")
     parser.add_argument("-e", "--env_id", type=int, default=1)
@@ -206,16 +211,18 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
     table = make_table().numpy()
-    print(f"ailia {ailia.get_version()}  env_id {args.env_id}  stage {args.stage}")
-    for gather in (True, False):
-        path = build(args.stage, gather, args.output_dir)
-        reference = sweep_onnxruntime(path, gather, table)
-        actual = sweep_ailia(path, gather, table, args.env_id)
-        diffs = [float(np.abs(a - o).max()) for a, o in zip(actual, reference)]
-        first_bad = next((i for i, d in enumerate(diffs) if d > 1e-3), None)
-        print(f"  {os.path.basename(path):<12} {os.path.getsize(path) / 1e3:6.1f} KB  "
-              f"first wrong call {first_bad}")
-        print("     " + "  ".join(f"call {i} {d:.1e}" for i, d in enumerate(diffs)))
+    print(f"ailia {ailia.get_version()}  env_id {args.env_id}")
+    stages = STAGES if args.stage == "both" else [args.stage]
+    for stage in stages:
+        for gather in (True, False):
+            path = build(stage, gather, args.output_dir)
+            reference = sweep_onnxruntime(path, gather, table)
+            actual = sweep_ailia(path, gather, table, args.env_id)
+            diffs = [float(np.abs(a - o).max()) for a, o in zip(actual, reference)]
+            first_bad = next((i for i, d in enumerate(diffs) if d > 1e-3), None)
+            print(f"  {os.path.basename(path):<18} {os.path.getsize(path) / 1e3:6.1f} KB  "
+                  f"first wrong call {first_bad}")
+            print("     " + "  ".join(f"call {i} {d:.1e}" for i, d in enumerate(diffs)))
 
 
 if __name__ == "__main__":

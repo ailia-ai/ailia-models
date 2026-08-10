@@ -56,11 +56,43 @@ tokenizer at two different lengths:
 python3 verify_onnx.py --parameter_num 1.7B --onnx_dir .
 ```
 
-`ailia_gather_repro.py` is a standalone reproduction of the ailia bug that shapes
-this split; see the note under Files.
+## The ailia gather bug
+
+The split above is shaped by an ailia bug, and two scripts pin it down. Both
+compare a model against itself on onnxruntime and on ailia, driving it the way a
+decode loop does: a seq=2 prefill, then seq=1 steps with a growing KV cache.
+
+`ailia_gather_check.py` runs the sample models that are published next to the
+Qwen3-TTS ONNX. It needs only numpy, onnxruntime and ailia, so it is the one to
+hand to someone looking at the SDK:
 
 ```bash
-python3 ailia_gather_repro.py
+python3 ailia_gather_check.py --download
+```
+
+```
+ailia 1.6.1.45  onnxruntime 1.28.0  env_id 1
+  gather_rope  MISMATCH from call 2   worst 1.7e-02
+     call 0 0.0e+00  call 1 5.6e-09  call 2 1.3e-02  call 3 1.7e-02  ...
+  input_rope   match                  worst 4.7e-09
+  gather_attn  match                  worst 7.5e-09
+  input_attn   match                  worst 6.5e-09
+```
+
+Four models under 100KB each, in two pairs. The `gather_` half of a pair reads its
+input embedding from a table inside the graph, indexed by an input; the `input_`
+half takes the embedding as an input instead. `_rope` has one attention layer with
+rotary embeddings and `_attn` is the same with the rope dropped. Only
+`gather_rope` disagrees, so the bug needs both halves: a gather feeding the graph,
+and the rotary embeddings. It also needs the KV cache -- a graph that only gathers
+is correct however many times it is called, which is what
+`qwen3_tts_codec_embedding_<p>.onnx` relies on.
+
+`ailia_gather_repro.py` builds those four models from scratch with torch, and runs
+the same comparison:
+
+```bash
+python3 ailia_gather_repro.py --stage both
 ```
 
 ## Files
@@ -101,10 +133,8 @@ Notes:
   is why they get a model of their own. With them inside, ailia stops following the
   gather's index a few calls into a decode loop: the code predictor's first two
   calls match onnxruntime to 1e-4 and every call after that is wrong by ~1e+1, and
-  the talker behaves the same way. `ailia_gather_repro.py` is a 90KB reproduction
-  and shows the two halves it takes -- a gather feeding the graph, and rotary
-  embeddings; drop either and the same graph is correct. A model that only gathers
-  is correct however many times it is called, which is what this layout relies on.
+  the talker behaves the same way. See The ailia gather bug above for the sample
+  models that isolate it.
 - The code predictor picks its output head from `head_rows`, the 2048 rows of the
   combined head matrix that step needs, rather than deriving them from
   `position_ids`. Indices that come straight from an input are what the other
@@ -139,4 +169,6 @@ Notes:
 ## Upload
 
 The generated files go to the `qwen3-tts/` folder of the
-[ailia-models bucket](https://console.cloud.google.com/storage/browser/ailia-models).
+[ailia-models bucket](https://console.cloud.google.com/storage/browser/ailia-models),
+and the four gather bug models to `qwen3-tts/gather_bug/` in the same folder,
+which is where `ailia_gather_check.py --download` looks for them.
