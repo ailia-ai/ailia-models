@@ -1,3 +1,17 @@
+import os
+
+# numpy の BLAS はスレッドプールを持ち、行列積のあともしばらくスピンウェイトで
+# CPU を占有する。このサンプルは ailia の推論と numpy の演算を細かく交互に呼ぶ
+# ため、そのままでは ailia 側がコアを奪われて数倍遅くなる (subtalker 1 呼び出し
+# あたり 16ms -> 103ms)。numpy 側の演算量はごく僅かなのでシングルスレッドで十分。
+# numpy の import より前に設定する必要がある。
+# OMP_NUM_THREADS / MKL_NUM_THREADS は ailia の MKL バックエンドにも効いてしまい
+# 逆に遅くなる (talker 1 呼び出しあたり 302ms -> 540ms) ので触らない。
+for _blas_threads in (
+    "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
+):
+    os.environ.setdefault(_blas_threads, "1")
+
 import ailia
 import time
 import sys
@@ -11,7 +25,6 @@ import librosa.filters
 from scipy.io.wavfile import write, read
 from librosa.util import normalize
 from librosa.filters import mel as librosa_mel_fn
-import os
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
