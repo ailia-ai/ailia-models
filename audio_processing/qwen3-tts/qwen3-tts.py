@@ -33,7 +33,7 @@ logger = getLogger(__name__)
 OUTPUT_WAV_PATH = 'output.wav'
 TEXT_STR = "Good one. Okay, fine, I'm just gonna leave this sock monkey here. Goodbye."
 INPUT_WAV_PATH = "clone_2.wav"
-INPUT_TEXT_PATH = "clone_2.txt"
+INPUT_TEXT_STR = "Okay. Yeah. I resent you. I love you. I respect you. But you know what? You blew it! And thanks to you."
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/qwen3-tts/"
 
 
@@ -53,10 +53,10 @@ parser.add_argument(
     help='Reference audio file path for Voice Clone mode (e.g. clone_2.wav)'
 )
 
-# 参照音声のキャプション（書き起こし）テキストのパス
+# 参照音声のキャプション（書き起こし）テキスト
 parser.add_argument(
-    '--ref_text', type=str, default=INPUT_TEXT_PATH,
-    help='Reference text file path for Voice Clone mode (e.g. clone_2.txt)'
+    '--ref_text', type=str, default=INPUT_TEXT_STR,
+    help='Reference text for Voice Clone mode (e.g. Okay. Yeah.)'
 )
 
 
@@ -323,17 +323,17 @@ class Qwen3TTS:
     NUM_LAYERS = 24
     NUM_SUB_LAYERS = 5
 
-    def __init__(self, memory_mode):
+    def __init__(self, memory_mode, env_id):
         self.cfg = load_qwen_config("config.json")
-        self.speaker_encoder   = ailia.Net(stream=MODEL_PATH_SPEAKER_ENCODER, weight=WEIGHT_PATH_SPEAKER_ENCODER,   memory_mode=memory_mode)
-        self.talker_io         = ailia.Net(stream=MODEL_PATH_TALKER_IO, weight=WEIGHT_PATH_TALKER_IO,         memory_mode=memory_mode)
-        self.talker_decoder    = ailia.Net(stream=MODEL_PATH_TALKER_DECODER, weight=WEIGHT_PATH_TALKER_DECODER,    memory_mode=memory_mode) 
-        self.tokenizer_encoder = ailia.Net(stream=MODEL_PATH_TOKENIZER_ENCODER, weight=WEIGHT_PATH_TOKENIZER_ENCODER, memory_mode=memory_mode)
-        self.tokenizer_decoder = ailia.Net(stream=MODEL_PATH_TOKENIZER_DECODER, weight=WEIGHT_PATH_TOKENIZER_DECODER, memory_mode=memory_mode)
+        self.speaker_encoder   = ailia.Net(stream=MODEL_PATH_SPEAKER_ENCODER, weight=WEIGHT_PATH_SPEAKER_ENCODER,   memory_mode=memory_mode,   env_id=env_id)
+        self.talker_io         = ailia.Net(stream=MODEL_PATH_TALKER_IO, weight=WEIGHT_PATH_TALKER_IO,         memory_mode=memory_mode,   env_id=env_id)
+        self.talker_decoder    = ailia.Net(stream=MODEL_PATH_TALKER_DECODER, weight=WEIGHT_PATH_TALKER_DECODER,    memory_mode=memory_mode,   env_id=env_id)
+        self.tokenizer_encoder = ailia.Net(stream=MODEL_PATH_TOKENIZER_ENCODER, weight=WEIGHT_PATH_TOKENIZER_ENCODER, memory_mode=memory_mode,   env_id=env_id)
+        self.tokenizer_decoder = ailia.Net(stream=MODEL_PATH_TOKENIZER_DECODER, weight=WEIGHT_PATH_TOKENIZER_DECODER, memory_mode=memory_mode,   env_id=env_id)
         self.text_emb_weight   = np.load(WEIGHT_PATH_TEXT_EMB)
         self.codec_emb_weight  = np.load(WEIGHT_PATH_CODEC_EMB)
         self.text_tokenizer    = create_tokenizer()
-        self.subtalker_decoder  = ailia.Net(stream=MODEL_PATH_SUBTALKER_DECODER, weight=WEIGHT_PATH_SUBTALKER_DECODER, memory_mode=memory_mode)
+        self.subtalker_decoder  = ailia.Net(stream=MODEL_PATH_SUBTALKER_DECODER, weight=WEIGHT_PATH_SUBTALKER_DECODER, memory_mode=memory_mode,   env_id=env_id)
         self.text_emb_weight    = np.load(WEIGHT_PATH_TEXT_EMB)
         self.codec_emb_weight   = np.load(WEIGHT_PATH_CODEC_EMB)
         self.subtalker_lm_heads  = np.load(WEIGHT_PATH_SUBTALKER_LM_HEADS)   # [15, 2048, 1024]
@@ -763,11 +763,10 @@ def main():
         np.random.seed(args.seed)
 
     # 1. セットアップ
-    tts_engine = Qwen3TTS(memory_mode)
+    tts_engine = Qwen3TTS(memory_mode, args.env_id)
 
     # 2. 検証用データの指定
-    with open(args.ref_text, "r", encoding="utf-8") as f:
-                wav_text = f.read()
+    wav_text = args.ref_text
 
     # 3. 推論実行
     print("Generating speech...")

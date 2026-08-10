@@ -2,9 +2,9 @@
 
 ## Input
 
-- Input text (String or Text file)
+- Input text (String)
 - Reference audio (WAV file) - For Voice Clone
-- Reference text (Text file) - Transcript of the reference audio
+- Reference text (String) - Transcript of the reference audio
 
 ## Output
 
@@ -23,7 +23,7 @@ pip install -r requirements.txt
 
 This model supports **Voice Clone (Zero-shot Voice Conversion)** by default. You need to provide a text to synthesize, a reference audio file of the target speaker, and its corresponding text transcript.
 
-The bundled sample reference audio (`clone_2.wav`) and transcript (`clone_2.txt`) are based on the official Qwen3-TTS Voice Clone example. The original reference audio is published as `clone.wav` at:
+The bundled sample reference audio (`clone_2.wav`) and transcript are based on the official Qwen3-TTS Voice Clone example. The original reference audio is published as `clone.wav` at:
 `https://qianwen-res.oss-cn-beijing.aliyuncs.com/Qwen3-TTS-Repo/clone.wav`
 
 For the sample wav,
@@ -34,7 +34,7 @@ $ python3 qwen3-tts.py
 You can directly pass the text you want to synthesize using the `--input` argument.
 
 ```bash
-python qwen3-tts.py --input "Hello, this is a test of voice cloning." --ref_audio clone_2.wav --ref_text clone_2.txt --savepath output.wav
+python3 qwen3-tts.py --input "Hello, this is a test of voice cloning." --ref_audio clone_2.wav --ref_text "Okay. Yeah. I resent you. I love you. I respect you. But you know what? You blew it! And thanks to you." --savepath output.wav
 ```
 
 ### Language
