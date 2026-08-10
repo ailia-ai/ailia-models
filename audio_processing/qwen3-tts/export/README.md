@@ -88,6 +88,13 @@ Notes:
   encoder and the talker IO units, and `../qwen3-tts.py` downloads exactly that
   set of files, so `PUBLISHED_EXTERNAL_DATA` in `export_onnx.py` keeps a
   re-exported 0.6B on the same layout.
+- **A model using external data has to keep at least one initializer inline.**
+  ailia reads every weight as zero when all of them live in the data file, which
+  silently produces zero outputs (and NaN once a graph is run twice under
+  CPU-IntelMKL). `external_data_threshold()` derives the `size_threshold` from
+  the model so the smallest initializer always stays in the ONNX itself. Note
+  that onnx compares `sys.getsizeof(raw_data)`, the payload plus the bytes object
+  overhead, against that threshold.
 - The talker uses an mRoPE with three sections, but Qwen3-TTS Base gives all
   three the same position id, which makes it equivalent to the plain rotary
   embedding. The exported graph therefore takes 2D `[B, seq]` position ids.
