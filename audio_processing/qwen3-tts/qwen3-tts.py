@@ -465,13 +465,16 @@ class Qwen3TTS:
 
         input_blobs  = net.get_input_blob_list()
         output_blobs = net.get_output_blob_list()
+        # 入力の shape を変えると ailia が全体の形状を再推論し、コピー元にする
+        # 出力ブロブの shape も変わってしまうので、先に全部読み出しておく
+        kv_shapes = [
+            net.get_blob_shape(output_blobs[1 + i]) for i in range(num_layers * 2)
+        ]
         for index, value in enumerate([inputs_embeds, attention_mask, position_ids]):
             net.set_input_blob_data(value, input_blobs[index])
         for i in range(num_layers * 2):
-            src = output_blobs[1 + i]
-            dst = input_blobs[3 + i]
-            net.set_input_blob_shape(net.get_blob_shape(src), dst)
-            net.copy_blob_data(dst, src, net)
+            net.set_input_blob_shape(kv_shapes[i], input_blobs[3 + i])
+            net.copy_blob_data(input_blobs[3 + i], output_blobs[1 + i], net)
         net.update()
         return net.get_blob_data(output_blobs[0]), None
 
