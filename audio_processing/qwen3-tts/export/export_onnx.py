@@ -105,10 +105,6 @@ ONNX2PROTOTXT_URL = (
     "https://raw.githubusercontent.com/ailia-ai/export-to-onnx/master/onnx2prototxt.py"
 )
 
-# Weights only have to live in a separate .onnx.data file when the model does not
-# fit in the 2GB protobuf limit, which is the case for the talker only.
-
-
 
 # ======================================================================
 # monkey patches needed to make the reference modules exportable

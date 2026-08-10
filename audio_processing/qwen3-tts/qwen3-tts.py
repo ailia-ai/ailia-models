@@ -1,17 +1,4 @@
 import os
-
-# numpy の BLAS はスレッドプールを持ち、行列積のあともしばらくスピンウェイトで
-# CPU を占有する。このサンプルは ailia の推論と numpy の演算を細かく交互に呼ぶ
-# ため、そのままでは ailia 側がコアを奪われて数倍遅くなる (code predictor 1 呼び
-# 出しあたり 16ms -> 103ms)。numpy 側の演算量はごく僅かなのでシングルスレッドで
-# 十分。numpy の import より前に設定する必要がある。
-# OMP_NUM_THREADS / MKL_NUM_THREADS は ailia の MKL バックエンドにも効いてしまい
-# 逆に遅くなる (talker 1 呼び出しあたり 302ms -> 540ms) ので触らない。
-for _blas_threads in (
-    "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS",
-):
-    os.environ.setdefault(_blas_threads, "1")
-
 import ailia
 import time
 import sys
@@ -22,13 +9,11 @@ import librosa
 from librosa.filters import mel as librosa_mel_fn
 import json
 from contextlib import contextmanager
-from dataclasses import dataclass
-from typing import Any
 
 
 # import original modules
 sys.path.append('../../util')
-from arg_utils import get_base_parser, update_parser, get_savepath  # noqa: E402
+from arg_utils import get_base_parser, update_parser  # noqa: E402
 from model_utils import check_and_download_models, check_and_download_file  # noqa: E402
 
 # logger
@@ -180,18 +165,13 @@ COPY_BLOB_DATA = not (
     and AILIA_VERSION_REVISION < 15
 )
 
-#Parameters reqired to create mell spectograms
-sampling_rate = 24000
-segment_size = 8192
+# speaker encoder に渡す mel spectrogram のパラメータ
 num_mels = 128
-num_freq = 1025
 n_fft = 1024
 hop_size = 256
 win_size = 1024
-
 fmin = 0
 fmax = 12000
-MAX_WAV_VALUE = 32768.0
 
 
 class Benchmark:
@@ -246,33 +226,21 @@ def _sample_token(logits_1d: np.ndarray, temperature: float = 0.9, top_k: int = 
 def dynamic_range_compression(x, C=1, clip_val=1e-5):
     return np.log(np.clip(x, clip_val, None) * C)
 
-def mel_spectrogram(y, n_fft, num_mels, sr, hop_size, win_size, fmin, fmax, center=False):
+def mel_spectrogram(y, n_fft, num_mels, sr, hop_size, win_size, fmin, fmax):
     if np.min(y) < -1.:
-        print('min value is ', np.min(y))
+        logger.warning('min value is {}'.format(np.min(y)))
     if np.max(y) > 1.:
-        print('max value is ', np.max(y))
+        logger.warning('max value is {}'.format(np.max(y)))
 
-    mel_basis = {}
-    hann_window = {}
-    if fmax not in mel_basis:
-        mel_X = librosa_mel_fn(sr=sr, n_fft=n_fft, n_mels=num_mels, fmin=fmin, fmax=fmax)
-
-        mel_basis[str(fmax)] = mel_X
-        hann_window[str(1)] = np.hanning(win_size)
+    mel_basis = librosa_mel_fn(sr=sr, n_fft=n_fft, n_mels=num_mels, fmin=fmin, fmax=fmax)
     padding = (n_fft - hop_size) // 2
-    y = np.pad(y, [(0, 0),(padding, padding)], mode='reflect')
+    y = np.pad(y, [(0, 0), (padding, padding)], mode='reflect')
 
-    spec = librosa.stft(y, n_fft=n_fft, hop_length=hop_size, win_length=win_size, window=hann_window["1"],
-                       center=False, pad_mode='reflect')
-    spec = np.squeeze(spec)
-
-    spec = np.abs(spec)
-
-    spec = np.dot(mel_basis[str(fmax)], spec,)
-
-    spec = dynamic_range_compression(spec)
-    spec = spec.T # (Time, 128)
-    return np.expand_dims(spec, 0).astype(np.float32) # (1, Time, 128)
+    spec = np.abs(np.squeeze(librosa.stft(
+        y, n_fft=n_fft, hop_length=hop_size, win_length=win_size,
+        window=np.hanning(win_size), center=False, pad_mode='reflect')))
+    spec = dynamic_range_compression(np.dot(mel_basis, spec)).T   # (Time, 128)
+    return np.expand_dims(spec, 0).astype(np.float32)             # (1, Time, 128)
 
 def load_qwen_config(config_path=CONFIG_PATH):
     with open(config_path, 'r') as f:
@@ -356,15 +324,6 @@ def create_tokenizer():
         return tokenizer
 
 
-@dataclass
-class VoiceClonePromptItem:
-    ref_code: Any
-    ref_spk_embedding: Any
-    x_vector_only_mode: bool
-    icl_mode: bool
-    ref_text: str = ""
-
-
 class OnnxNet:
     """--onnx 用に onnxruntime を ailia.Net と同じ形で使えるようにするラッパー。"""
 
@@ -378,9 +337,6 @@ class OnnxNet:
 
     def get_input_blob_list(self):
         return list(range(len(self.input_names)))
-
-    def get_output_blob_list(self):
-        return list(range(len(self.session.get_outputs())))
 
     def set_input_blob_shape(self, shape, index):
         # onnxruntime は入力そのものから shape を決めるので何もしない
@@ -617,8 +573,9 @@ class Qwen3TTS:
     # ------------------------------------------------------------------
     # create_voice_clone_prompt
     #   参照音声から codec トークンと speaker embedding を 1 回の推論で得る
+    # returns (ref_code [16, T_ref], speaker embedding [1, 1, H])
     # ------------------------------------------------------------------
-    def create_voice_clone_prompt(self, ref_audio, ref_text=None, x_vector_only_mode=False):
+    def create_voice_clone_prompt(self, ref_audio):
         wav, sr = librosa.load(ref_audio, sr=24000, mono=True)
         wav_input = wav[np.newaxis, np.newaxis, :].astype(np.float32)
         mel = mel_spectrogram(wav[np.newaxis, :], n_fft, num_mels, 24000,
@@ -632,13 +589,7 @@ class Qwen3TTS:
         ref_code = ref_code[0, : self.num_code_groups, :].astype(np.int64)  # [16, T]
         spk_emb = spk_emb.reshape(1, 1, -1).astype(np.float32)              # [1, 1, H]
 
-        return [VoiceClonePromptItem(
-            ref_code          = None if x_vector_only_mode else ref_code,
-            ref_spk_embedding = spk_emb,
-            x_vector_only_mode= bool(x_vector_only_mode),
-            icl_mode          = bool(not x_vector_only_mode),
-            ref_text          = ref_text,
-        )]
+        return ref_code, spk_emb
 
     # ------------------------------------------------------------------
     # generate_icl_prompt: テキストと参照 codec を足し合わせて ICL プロンプトを作る
@@ -692,8 +643,7 @@ class Qwen3TTS:
             language_id = cfg["codec_language_id"][language.lower()]
 
         # ---- 参照音声: codec トークンと speaker embedding ----
-        voice_clone_prompt = self.create_voice_clone_prompt(ref_audio, ref_text)[0]
-        spk_emb = voice_clone_prompt.ref_spk_embedding    # [1, 1, H]
+        ref_code, spk_emb = self.create_voice_clone_prompt(ref_audio)
 
         # ---- テキストのトークン化 ----
         if ref_text is None:
@@ -735,7 +685,6 @@ class Qwen3TTS:
 
         # ---- codec 側の埋め込みも 1 回でまとめて取得 ----
         #   tag は 1 グループだけなので残りをゼロ行に、参照フレームは 16 グループ分
-        ref_code = voice_clone_prompt.ref_code            # [16, T_ref]
         codec_rows = [self.group_rows(0, codec_id) for codec_id in codec_ids] + [
             self.frame_rows(ref_code[:, frame]) for frame in range(ref_code.shape[1])
         ]
