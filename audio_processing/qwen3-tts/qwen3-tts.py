@@ -68,7 +68,7 @@ parser.add_argument(
 parser.add_argument(
     '-p', '--parameter_num',
     default='0.6B',
-    help='[0.6B, 1.8B]'
+    help='[0.6B, 1.7B]'
 )
 parser.add_argument(
     '--language', type=str, default='Auto',
@@ -109,12 +109,14 @@ if  not args.model == "base":
     logger.error("unknown model")
     sys.exit()
 
-if args.parameter_num == "0.6B" or args.parameter_num == "1.8B":
+if args.parameter_num == "0.6B" or args.parameter_num == "1.7B":
     parameter_num = args.parameter_num
 else:
     logger.error("invalid parameter_num")
     sys.exit()
-    
+
+CONFIG_PATH = f"config_{parameter_num}.json"
+
 
 WEIGHT_PATH_SPEAKER_ENCODER  = f"qwen3_tts_speaker_encoder_{parameter_num}.onnx"
 WEIGHT_PATH_SPEAKER_ENCODER_DATA  = f"qwen3_tts_speaker_encoder_{parameter_num}.onnx.data"
@@ -123,6 +125,7 @@ WEIGHT_PATH_TALKER_IO        = f"qwen3_tts_talker_io_units_{parameter_num}.onnx"
 WEIGHT_PATH_TALKER_IO_DATA   = f"qwen3_tts_talker_io_units_{parameter_num}.onnx.data"
 MODEL_PATH_TALKER_IO         =  WEIGHT_PATH_TALKER_IO + ".prototxt"
 WEIGHT_PATH_TALKER_DECODER   = f"qwen3_tts_talker_decoder_{parameter_num}.onnx"
+WEIGHT_PATH_TALKER_DECODER_DATA = WEIGHT_PATH_TALKER_DECODER + ".data"
 MODEL_PATH_TALKER_DECODER    = WEIGHT_PATH_TALKER_DECODER + ".prototxt"
 WEIGHT_PATH_TOKENIZER_ENCODER = f"qwen3_tts_tokenizer_encoder_{parameter_num}.onnx"
 MODEL_PATH_TOKENIZER_ENCODER  = WEIGHT_PATH_TOKENIZER_ENCODER + ".prototxt"
@@ -148,10 +151,20 @@ file_list = [
     WEIGHT_PATH_CODEC_EMB,
     WEIGHT_PATH_SUBTALKER_LM_HEADS,
     WEIGHT_PATH_SUBTALKER_CODEC_EMB,
-    WEIGHT_PATH_SPEAKER_ENCODER_DATA,
-    WEIGHT_PATH_TALKER_IO_DATA,
-    WEIGHT_PATH_TOKENIZER_DECODER_DATA
 ]
+# ONNX files whose weights are stored in a separate external data file
+if parameter_num == "0.6B":
+    file_list += [
+        WEIGHT_PATH_SPEAKER_ENCODER_DATA,
+        WEIGHT_PATH_TALKER_IO_DATA,
+        WEIGHT_PATH_TOKENIZER_DECODER_DATA,
+    ]
+else:
+    # the 1.7B talker exceeds the 2GB protobuf limit
+    file_list += [
+        WEIGHT_PATH_TOKENIZER_DECODER_DATA,
+        WEIGHT_PATH_TALKER_DECODER_DATA,
+    ]
 
 #Parameters reqired to create mell spectograms
 sampling_rate = 24000
@@ -220,7 +233,7 @@ def mel_spectrogram(y, n_fft, num_mels, sr, hop_size, win_size, fmin, fmax, cent
     spec = spec.T # (Time, 128)
     return np.expand_dims(spec, 0).astype(np.float32) # (1, Time, 128)
 
-def load_qwen_config(config_path="config.json"):
+def load_qwen_config(config_path=CONFIG_PATH):
     with open(config_path, 'r') as f:
         raw = json.load(f)
     tc = raw["talker_config"]
@@ -246,6 +259,10 @@ def load_qwen_config(config_path="config.json"):
         "head_dim":           tc.get("head_dim", 128),            # 128
         "rope_theta":         tc["rope_theta"],                   # 1000000
         "mrope_section":      rs.get("mrope_section", [24, 20, 20]),
+        # talker の hidden size (0.6B: 1024, 1.7B: 2048)
+        "hidden_size":        tc["hidden_size"],
+        # text embedding の次元 (0.6B / 1.7B ともに 2048)
+        "text_hidden_size":   tc["text_hidden_size"],
     }
 TOKENIZER_DIR = "./tokenizer"
 
@@ -320,11 +337,12 @@ def _sample_token(logits_1d: np.ndarray, temperature: float = 0.9, top_k: int = 
 
 
 class Qwen3TTS:
-    NUM_LAYERS = 24
-    NUM_SUB_LAYERS = 5
-
     def __init__(self, memory_mode, env_id):
-        self.cfg = load_qwen_config("config.json")
+        self.cfg = load_qwen_config()
+        self.hidden_size = self.cfg["hidden_size"]
+        # talker_io は text_projection と codec_head を 1 つの ONNX にまとめて
+        # いるため、片方だけ使うときは他方の入力にゼロを渡す
+        self.zero_hidden = np.zeros((1, 1, self.hidden_size), dtype=np.float32)
         self.speaker_encoder   = ailia.Net(stream=MODEL_PATH_SPEAKER_ENCODER, weight=WEIGHT_PATH_SPEAKER_ENCODER,   memory_mode=memory_mode,   env_id=env_id)
         self.talker_io         = ailia.Net(stream=MODEL_PATH_TALKER_IO, weight=WEIGHT_PATH_TALKER_IO,         memory_mode=memory_mode,   env_id=env_id)
         self.talker_decoder    = ailia.Net(stream=MODEL_PATH_TALKER_DECODER, weight=WEIGHT_PATH_TALKER_DECODER,    memory_mode=memory_mode,   env_id=env_id)
@@ -336,9 +354,13 @@ class Qwen3TTS:
         self.subtalker_decoder  = ailia.Net(stream=MODEL_PATH_SUBTALKER_DECODER, weight=WEIGHT_PATH_SUBTALKER_DECODER, memory_mode=memory_mode,   env_id=env_id)
         self.text_emb_weight    = np.load(WEIGHT_PATH_TEXT_EMB)
         self.codec_emb_weight   = np.load(WEIGHT_PATH_CODEC_EMB)
-        self.subtalker_lm_heads  = np.load(WEIGHT_PATH_SUBTALKER_LM_HEADS)   # [15, 2048, 1024]
-        self.subtalker_codec_emb = np.load(WEIGHT_PATH_SUBTALKER_CODEC_EMB)  # [15, 2048, 1024]
+        self.subtalker_lm_heads  = np.load(WEIGHT_PATH_SUBTALKER_LM_HEADS)   # [15, 2048, subtalker hidden]
+        self.subtalker_codec_emb = np.load(WEIGHT_PATH_SUBTALKER_CODEC_EMB)  # [15, 2048, talker hidden]
         self.text_tokenizer      = create_tokenizer()
+        # KV cache を持つ層数は ONNX の入力数から求める (inputs_embeds,
+        # attention_mask, position_ids の 3 入力 + 層ごとに key/value の 2 入力)
+        self.NUM_LAYERS     = (len(self.talker_decoder.get_input_blob_list()) - 3) // 2
+        self.NUM_SUB_LAYERS = (len(self.subtalker_decoder.get_input_blob_list()) - 3) // 2
         self._sub_attn_prefill = self.generate_attention_mask(2)          # [1,1,2,2]
         self._sub_pos_prefill  = np.array([[0, 1]], dtype=np.int64)
         self._sub_attn_decode  = [self.generate_attention_mask(1, 1+k) for k in range(1, 15)]
@@ -357,12 +379,12 @@ class Qwen3TTS:
         return mask[np.newaxis, np.newaxis, :, :]   # [1, 1, seq_len, total_len]
 
     # ------------------------------------------------------------------
-    # _run_talker_decoder: full 24-layer ONNX を 1回呼ぶ
-    #   inputs_embeds : [1, seq, 1024]
+    # _run_talker_decoder: talker の全層 ONNX を 1回呼ぶ
+    #   inputs_embeds : [1, seq, hidden_size]
     #   attention_mask: [1, 1, seq, total]
     #   position_ids  : [1, seq]  int64
-    #   kv_caches     : list of 48 tensors [1, 8, past, 128]
-    # returns (last_hidden [1, seq, 1024], new kv_caches list of 48)
+    #   kv_caches     : list of NUM_LAYERS*2 tensors [1, num_kv_heads, past, head_dim]
+    # returns (last_hidden [1, seq, hidden_size], new kv_caches list of NUM_LAYERS*2)
     # ------------------------------------------------------------------
     def _run_talker_decoder(self, inputs_embeds, attention_mask, position_ids, kv_caches):
         NL = self.NUM_LAYERS
@@ -376,7 +398,7 @@ class Qwen3TTS:
         outputs = self.talker_decoder.run(
             [inputs_embeds, attention_mask, position_ids] + kv_caches
         )
-        last_hidden  = outputs[0]                       # [1, seq, 1024]
+        last_hidden  = outputs[0]                       # [1, seq, hidden_size]
         new_kv_caches = [outputs[1 + i] for i in range(NL * 2)]
         return last_hidden, new_kv_caches
     
@@ -398,8 +420,8 @@ class Qwen3TTS:
     def _predict_subgroups(self, group0_token: int, past_hidden: np.ndarray,
                            temperature: float = 0.9, top_k: int = 50) -> list:
         NSL  = self.NUM_SUB_LAYERS
-        NKV  = 8
-        HDIM = 128
+        NKV  = self.cfg["num_kv_heads"]
+        HDIM = self.cfg["head_dim"]
         sub_kv = [np.zeros((1, NKV, 0, HDIM), dtype=np.float32) for _ in range(NSL * 2)]
 
         # ── Prefill (seq=2) ──
@@ -434,7 +456,7 @@ class Qwen3TTS:
 
         mel     = mel_spectrogram(wav[np.newaxis, :], n_fft, num_mels, 24000, hop_size, win_size, fmin, fmax)
         spk_emb = self.speaker_encoder.run([mel])[0]
-        spk_emb = np.squeeze(spk_emb, axis=0)  # [1024]
+        spk_emb = np.squeeze(spk_emb, axis=0)  # [hidden_size]
 
         return [VoiceClonePromptItem(
             ref_code          = None if x_vector_only_mode else ref_code,
@@ -452,12 +474,12 @@ class Qwen3TTS:
         text_emb = self.text_emb_weight[combined_text_ids].astype(np.float32)
  
         self.talker_io.set_input_blob_shape(text_emb.shape, 0)
-        self.talker_io.set_input_blob_shape((1, 1, 1024), 1)
-        text_proj = self.talker_io.run([text_emb, np.zeros((1, 1, 1024), dtype=np.float32)])[0]
-        text_proj = np.concatenate([text_proj, tts_eos_embed], axis=1)   # [1, text_lens, 1024]
+        self.talker_io.set_input_blob_shape(self.zero_hidden.shape, 1)
+        text_proj = self.talker_io.run([text_emb, self.zero_hidden])[0]
+        text_proj = np.concatenate([text_proj, tts_eos_embed], axis=1)   # [1, text_lens, hidden_size]
  
         ref_T = ref_code.shape[1]
-        codec_sum_emb = np.zeros((ref_T, 1024), dtype=np.float32)
+        codec_sum_emb = np.zeros((ref_T, self.hidden_size), dtype=np.float32)
         # ★ Group 0: main talker embedding (codec_emb_weight[0])
         # ★ Groups 1-15: subtalker embedding (subtalker_codec_emb[i-1])
         #   PyTorch: i==0 → talker.get_input_embeddings()
@@ -470,7 +492,7 @@ class Qwen3TTS:
         bos_id          = self.cfg["codec_bos_id"]
         codec_bos_emb   = self.codec_emb_weight[0][[bos_id]]
         codec_bos_emb   = np.expand_dims(codec_bos_emb, axis=0)
-        codec_final_emb = np.concatenate([codec_bos_emb, codec_sum_emb], axis=1)  # [1, codec_lens, 1024]
+        codec_final_emb = np.concatenate([codec_bos_emb, codec_sum_emb], axis=1)  # [1, codec_lens, hidden_size]
  
         text_lens  = text_proj.shape[1]
         codec_lens = codec_final_emb.shape[1]
@@ -482,8 +504,8 @@ class Qwen3TTS:
             if num_pads > 0:
                 pads      = np.tile(tts_pad_embed, (1, num_pads, 1))
                 text_proj = np.concatenate([text_proj, pads], axis=1)
-            icl_embed            = text_proj + codec_final_emb   # [1, codec_lens, 1024]
-            trailing_text_hidden = tts_pad_embed                  # [1, 1, 1024] → 全ステップ tts_pad_embed
+            icl_embed            = text_proj + codec_final_emb   # [1, codec_lens, hidden_size]
+            trailing_text_hidden = tts_pad_embed                  # [1, 1, hidden_size] → 全ステップ tts_pad_embed
         else:
             # 稀ケース: text の方が長い → codec 長でカット、余りをtrailing に
             icl_embed            = text_proj[:, :codec_lens, :] + codec_final_emb
@@ -530,9 +552,9 @@ class Qwen3TTS:
         all_text_emb = np.expand_dims(self.text_emb_weight[all_text_ids], axis=0).astype(np.float32)
 
         self.talker_io.set_input_blob_shape(all_text_emb.shape, 0)
-        self.talker_io.set_input_blob_shape((1, 1, 1024), 1)
+        self.talker_io.set_input_blob_shape(self.zero_hidden.shape, 1)
         projected_text = self.talker_io.run(
-            [all_text_emb, np.zeros((1, 1, 1024), dtype=np.float32)]
+            [all_text_emb, self.zero_hidden]
         )[0]
 
         # ---- voice clone prompt ----
@@ -543,9 +565,9 @@ class Qwen3TTS:
         special_ids  = [cfg["tts_bos_id"], cfg["tts_eos_id"], cfg["tts_pad_id"]]   # ★ config
         special_embs = self.text_emb_weight[special_ids][np.newaxis, :, :].astype(np.float32)
         self.talker_io.set_input_blob_shape(special_embs.shape, 0)
-        self.talker_io.set_input_blob_shape((1, 1, 1024), 1)
+        self.talker_io.set_input_blob_shape(self.zero_hidden.shape, 1)
         projected_specials = self.talker_io.run(
-            [special_embs, np.zeros((1, 1, 1024), dtype=np.float32)]
+            [special_embs, self.zero_hidden]
         )[0]
         tts_bos_embed = projected_specials[:, 0:1, :]
         tts_eos_embed = projected_specials[:, 1:2, :]
@@ -565,19 +587,19 @@ class Qwen3TTS:
                          cfg["codec_think_eos_id"]]  # 2157
         tag_ids_1 = [cfg["codec_pad_id"],        # 2148
                      cfg["codec_bos_id"]]         # 2149
-        tag_part0   = self.codec_emb_weight[0][tag_ids_0]          # [3 or 4, 1024]
-        tag_part_spk = spk_emb[np.newaxis, :]                      # [1, 1024]
-        tag_part1   = self.codec_emb_weight[0][tag_ids_1]          # [2, 1024]
+        tag_part0   = self.codec_emb_weight[0][tag_ids_0]          # [3 or 4, hidden_size]
+        tag_part_spk = spk_emb[np.newaxis, :]                      # [1, hidden_size]
+        tag_part1   = self.codec_emb_weight[0][tag_ids_1]          # [2, hidden_size]
         codec_tag_emb = np.expand_dims(
             np.concatenate([tag_part0, tag_part_spk, tag_part1], axis=0), axis=0
-        )  # [1, 6 or 7, 1024]
+        )  # [1, 6 or 7, hidden_size]
 
         # ---- role 投影 ----
         role_ids  = [cfg["im_start_id"], cfg["assistant_id"], 198]  # 198=\n
         role_proj = self.talker_io.run(
             [self.text_emb_weight[role_ids][np.newaxis, :].astype(np.float32),
-             np.zeros((1, 1, 1024), dtype=np.float32)]
-        )[0]  # [1, 3, 1024]
+             self.zero_hidden]
+        )[0]  # [1, 3, hidden_size]
 
         # ---- tag 投影 ----
         #   tts_pad * (codec_tag_len - 2) + tts_bos  → codec_tag_emb[:, :-1] と同じ長さ
@@ -585,11 +607,11 @@ class Qwen3TTS:
         tag_base_ids  = [cfg["tts_pad_id"]] * num_tts_pad + [cfg["tts_bos_id"]]
         tag_base_proj = self.talker_io.run(
             [self.text_emb_weight[tag_base_ids][np.newaxis, :].astype(np.float32),
-             np.zeros((1, 1, 1024), dtype=np.float32)]
-        )[0]  # [1, 5, 1024]
-        tags_combined = tag_base_proj + codec_tag_emb[:, :-1, :]  # [1, 5, 1024]
+             self.zero_hidden]
+        )[0]  # [1, 5, hidden_size]
+        tags_combined = tag_base_proj + codec_tag_emb[:, :-1, :]  # [1, 5, hidden_size]
 
-        talker_input_embed = np.concatenate([role_proj, tags_combined], axis=1)  # [1, 8, 1024]
+        talker_input_embed = np.concatenate([role_proj, tags_combined], axis=1)  # [1, 8, hidden_size]
 
         # ---- ICL prompt ----
         all_text_ids_np = np.array(all_text_ids, dtype=np.int64)[np.newaxis, :]
@@ -624,7 +646,7 @@ class Qwen3TTS:
         # ==============================================================
         # 最初のトークン予測 (prefill の最終 hidden から)
         # ==============================================================
-        dummy_text = np.zeros((1, 1, 2048), dtype=np.float32)
+        dummy_text = np.zeros((1, 1, self.cfg["text_hidden_size"]), dtype=np.float32)
         self.talker_io.set_input_blob_shape(dummy_text.shape,     0)
         self.talker_io.set_input_blob_shape(last_hidden.shape,    1)
         _, logits = self.talker_io.run([dummy_text, last_hidden])
@@ -634,7 +656,7 @@ class Qwen3TTS:
         pad_token_id  = self.text_tokenizer.encode("<|endoftext|>")[0]
         pad_emb_2048  = self.text_emb_weight[[pad_token_id]][np.newaxis, :, :].astype(np.float32)
         self.talker_io.set_input_blob_shape(pad_emb_2048.shape, 0)
-        self.talker_io.set_input_blob_shape((1, 1, 1024),       1)
+        self.talker_io.set_input_blob_shape(self.zero_hidden.shape, 1)
 
         EOS_TOKEN_ID  = cfg["codec_eos_id"]   # 2150
         MAX_NEW_TOKENS = 2048
@@ -667,7 +689,7 @@ class Qwen3TTS:
             token_counts[curr_token_id] = token_counts.get(curr_token_id, 0) + 1
  
             # ── 16グループの codec 埋め込みを合算 ──────────────────
-            codec_sum_emb = np.zeros((1, 1, 1024), dtype=np.float32)
+            codec_sum_emb = np.zeros((1, 1, self.hidden_size), dtype=np.float32)
             codec_sum_emb += self.codec_emb_weight[0, all_group_tokens[0], :][np.newaxis, np.newaxis, :]
             for g in range(1, 16):
                 codec_sum_emb += self.subtalker_codec_emb[g - 1, all_group_tokens[g], :][np.newaxis, np.newaxis, :]
@@ -680,7 +702,7 @@ class Qwen3TTS:
             else:
                 text_feedback = tts_pad_embed
  
-            current_input = (codec_sum_emb + text_feedback).astype(np.float32)  # [1, 1, 1024]
+            current_input = (codec_sum_emb + text_feedback).astype(np.float32)  # [1, 1, hidden_size]
  
             # ── main talker decode ─────────────────────────────────
             decode_pos  = prefill_len + step
@@ -692,7 +714,7 @@ class Qwen3TTS:
             )
  
             # 次ステップの subtalker 用 past_hidden
-            past_hidden = current_hidden.astype(np.float32)   # [1, 1, 1024]
+            past_hidden = current_hidden.astype(np.float32)   # [1, 1, hidden_size]
  
             # ── 次の group0 トークン予測 ───────────────────────────
             self.talker_io.set_input_blob_shape(dummy_text.shape,     0)
