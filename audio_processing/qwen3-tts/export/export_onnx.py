@@ -367,6 +367,25 @@ def export(
     generate_prototxt(path)
 
 
+def external_data_threshold(model):
+    """Pick a size_threshold that leaves at least one initializer inline.
+
+    ailia reads every weight as zero when all of a model's initializers live in
+    the external data file, so the smallest one is always kept in the ONNX
+    itself. Small tensors are kept inline anyway: onnx shape inference cannot
+    read external data, and ops such as Slice need their operand values to infer
+    shapes. onnx compares sys.getsizeof(raw_data) (the payload plus the bytes
+    object overhead) against the threshold, so the same measure is used here.
+    """
+    initializers = model.graph.initializer
+    sizes = [sys.getsizeof(t.raw_data) for t in initializers if t.HasField("raw_data")]
+    if not sizes or len(sizes) < len(initializers):
+        # an initializer without raw_data is never externalized, so one already
+        # stays inline
+        return 1024
+    return max(1024, min(sizes) + 1)
+
+
 def consolidate_external_data(path, force=False):
     """Merge external weights into a single <name>.onnx.data file.
 
@@ -398,9 +417,7 @@ def consolidate_external_data(path, force=False):
         save_as_external_data=True,
         all_tensors_to_one_file=True,
         location=location,
-        # small tensors stay inline: onnx shape inference cannot read external
-        # data, and some ops (Slice) need their operand values to infer shapes
-        size_threshold=1024,
+        size_threshold=external_data_threshold(model),
         convert_attribute=False,
     )
     # onnx writes the data file with the process umask, make it world readable
