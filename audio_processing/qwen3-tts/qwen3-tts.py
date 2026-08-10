@@ -169,6 +169,17 @@ else:
         WEIGHT_PATH_TALKER_DECODER_DATA,
     ]
 
+# copy_blob_data で KV cache を ailia 内部だけで受け渡すには 1.2.15 以降が必要
+version = ailia.get_version().split(".")
+AILIA_VERSION_MAJOR = int(version[0])
+AILIA_VERSION_MINOR = int(version[1])
+AILIA_VERSION_REVISION = int(version[2])
+COPY_BLOB_DATA = not (
+    AILIA_VERSION_MAJOR <= 1
+    and AILIA_VERSION_MINOR <= 2
+    and AILIA_VERSION_REVISION < 15
+)
+
 #Parameters reqired to create mell spectograms
 sampling_rate = 24000
 segment_size = 8192
@@ -404,6 +415,8 @@ class Qwen3TTS:
         # attention_mask, position_ids の 3 入力 + 層ごとに key/value の 2 入力)
         self.NUM_LAYERS     = (len(self.talker_decoder.get_input_blob_list()) - 3) // 2
         self.NUM_SUB_LAYERS = (len(self.subtalker_decoder.get_input_blob_list()) - 3) // 2
+        # onnxruntime には blob をコピーする API がないので ailia のときだけ使う
+        self.use_copy_blob_data = COPY_BLOB_DATA and not args.onnx
         self._sub_attn_prefill = self.generate_attention_mask(2)          # [1,1,2,2]
         self._sub_pos_prefill  = np.array([[0, 1]], dtype=np.int64)
         self._sub_attn_decode  = [self.generate_attention_mask(1, 1+k) for k in range(1, 15)]
@@ -422,44 +435,59 @@ class Qwen3TTS:
         return mask[np.newaxis, np.newaxis, :, :]   # [1, 1, seq_len, total_len]
 
     # ------------------------------------------------------------------
-    # _run_talker_decoder: talker の全層 ONNX を 1回呼ぶ
+    # _run_decoder: talker / subtalker 共通の 1 ステップ実行
     #   inputs_embeds : [1, seq, hidden_size]
     #   attention_mask: [1, 1, seq, total]
     #   position_ids  : [1, seq]  int64
-    #   kv_caches     : list of NUM_LAYERS*2 tensors [1, num_kv_heads, past, head_dim]
-    # returns (last_hidden [1, seq, hidden_size], new kv_caches list of NUM_LAYERS*2)
+    #   kv_caches     : list of num_layers*2 tensors [1, num_kv_heads, past, head_dim]
+    #                   None を渡すと、前ステップの出力ブロブを ailia 内部で
+    #                   そのまま次の入力ブロブへコピーして使う (copy_blob_data)。
+    #                   KV cache を Python 側に取り出して渡し直す往復が消えるので
+    #                   デコードが進んで cache が伸びるほど効果が大きい。
+    # returns (last_hidden [1, seq, hidden_size], next kv_caches or None)
     # ------------------------------------------------------------------
-    def _run_talker_decoder(self, inputs_embeds, attention_mask, position_ids, kv_caches):
-        NL = self.NUM_LAYERS
-        # shape 設定
-        self.talker_decoder.set_input_blob_shape(inputs_embeds.shape,   0)
-        self.talker_decoder.set_input_blob_shape(attention_mask.shape,  1)
-        self.talker_decoder.set_input_blob_shape(position_ids.shape,    2)
-        for i in range(NL * 2):
-            self.talker_decoder.set_input_blob_shape(kv_caches[i].shape, 3 + i)
+    def _run_decoder(self, net, num_layers, inputs_embeds, attention_mask, position_ids, kv_caches):
+        if kv_caches is not None:
+            net.set_input_blob_shape(inputs_embeds.shape,   0)
+            net.set_input_blob_shape(attention_mask.shape,  1)
+            net.set_input_blob_shape(position_ids.shape,    2)
+            for i in range(num_layers * 2):
+                net.set_input_blob_shape(kv_caches[i].shape, 3 + i)
 
-        outputs = self.talker_decoder.run(
-            [inputs_embeds, attention_mask, position_ids] + kv_caches
+            outputs = net.run(
+                [inputs_embeds, attention_mask, position_ids] + kv_caches
+            )
+            last_hidden = outputs[0]                    # [1, seq, hidden_size]
+            if self.use_copy_blob_data:
+                # 次のステップからは ailia 内部の出力ブロブをコピーする
+                return last_hidden, None
+            return last_hidden, [outputs[1 + i] for i in range(num_layers * 2)]
+
+        input_blobs  = net.get_input_blob_list()
+        output_blobs = net.get_output_blob_list()
+        for index, value in enumerate([inputs_embeds, attention_mask, position_ids]):
+            net.set_input_blob_data(value, input_blobs[index])
+        for i in range(num_layers * 2):
+            src = output_blobs[1 + i]
+            dst = input_blobs[3 + i]
+            net.set_input_blob_shape(net.get_blob_shape(src), dst)
+            net.copy_blob_data(dst, src, net)
+        net.update()
+        return net.get_blob_data(output_blobs[0]), None
+
+    def _run_talker_decoder(self, inputs_embeds, attention_mask, position_ids, kv_caches):
+        return self._run_decoder(
+            self.talker_decoder, self.NUM_LAYERS,
+            inputs_embeds, attention_mask, position_ids, kv_caches
         )
-        last_hidden  = outputs[0]                       # [1, seq, hidden_size]
-        new_kv_caches = [outputs[1 + i] for i in range(NL * 2)]
-        return last_hidden, new_kv_caches
-    
+
     def _run_subtalker_decoder(self, inputs_embeds, attention_mask, position_ids, kv_caches):
-        NSL = self.NUM_SUB_LAYERS
-        self.subtalker_decoder.set_input_blob_shape(inputs_embeds.shape,   0)
-        self.subtalker_decoder.set_input_blob_shape(attention_mask.shape,  1)
-        self.subtalker_decoder.set_input_blob_shape(position_ids.shape,    2)
-        for i in range(NSL * 2):
-            self.subtalker_decoder.set_input_blob_shape(kv_caches[i].shape, 3 + i)
- 
-        outputs = self.subtalker_decoder.run(
-            [inputs_embeds, attention_mask, position_ids] + kv_caches
+        return self._run_decoder(
+            self.subtalker_decoder, self.NUM_SUB_LAYERS,
+            inputs_embeds, attention_mask, position_ids, kv_caches
         )
-        last_hidden   = outputs[0]
-        new_kv_caches = [outputs[1 + i] for i in range(NSL * 2)]
-        return last_hidden, new_kv_caches
-    
+
+
     def _predict_subgroups(self, group0_token: int, past_hidden: np.ndarray,
                            temperature: float = 0.9, top_k: int = 50) -> list:
         NSL  = self.NUM_SUB_LAYERS
