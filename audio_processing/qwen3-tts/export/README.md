@@ -1,7 +1,7 @@
 # Qwen3-TTS ONNX export
 
-Scripts that produce the ONNX and prototxt files used by `../qwen3-tts.py` from
-the official Qwen3-TTS 12Hz Base checkpoints.
+Scripts that produce the ONNX, prototxt and npy files used by
+`../qwen3-tts.py` from the official Qwen3-TTS 12Hz Base checkpoints.
 
 | parameter_num | Hugging Face model |
 |---|---|
