@@ -19,32 +19,37 @@ Usage:
     python3 export_onnx.py --parameter_num 1.7B --only talker_decoder
 
 The model is split so that the auto regressive loop can be driven from Python
-(see ../qwen3-tts.py). ``<p>`` is the parameter_num (0.6B or 1.7B), ``H`` the
-talker hidden size (1024 for 0.6B, 2048 for 1.7B) and ``Hs`` the sub talker
-(code predictor) hidden size (1024 for both).
+(see ../qwen3-tts.py). Every matmul is part of a graph, including the output
+heads, so the runtime only gathers rows of one embedding table, reshapes arrays
+and samples tokens. ``<p>`` is the parameter_num (0.6B or 1.7B) and ``H`` the
+talker hidden size (1024 for 0.6B, 2048 for 1.7B).
 
-    qwen3_tts_speaker_encoder_<p>.onnx
-        mel [B, frames, 128]                    -> speaker embedding [B, H]
-    qwen3_tts_tokenizer_encoder_<p>.onnx
-        waveform [1, 1, L]                      -> audio codes [1, 32, T]
+    qwen3_tts_encoder_<p>.onnx
+        (waveform [1, 1, L], mel [1, frames, 128])
+            -> (audio codes [1, 32, T], speaker embedding [1, H])
     qwen3_tts_tokenizer_decoder_<p>.onnx
         audio codes [B, 16, T]                  -> waveform [1, 1, L]
-    qwen3_tts_talker_io_units_<p>.onnx
-        (text features [B, seq, 2048],          -> (projected text [B, seq, H],
-         talker hidden [B, 1, H])                   codec logits [B, 1, 3072])
-    qwen3_tts_talker_decoder_<p>.onnx
-        talker transformer (28 layers) with a KV cache passed in/out
+    qwen3_tts_prompt_<p>.onnx
+        (text token ids, codec tag ids, reference codes [1, 16, T])
+            -> (projected text, codec embeddings, summed reference frames)
+    qwen3_tts_talker_<p>.onnx
+        talker transformer (28 layers) with a KV cache passed in/out and its
+        output head included, so a step returns logits and the hidden state
     qwen3_tts_code_predictor_<p>.onnx
-        code predictor (5 layers) with a KV cache passed in/out. Its codec
-        embedding tables and its 15 output heads are part of the graph, so it
-        takes codec token ids and returns logits.
-    qwen3_tts_text_embedding_<p>.npy        [text_vocab_size, 2048]
-    qwen3_tts_codec_embeddings_<p>.npy      [1, 3072, H]
-    qwen3_tts_subtalker_codec_emb_<p>.npy   [15, 2048, H]
+        code predictor (5 layers) with a KV cache passed in/out and its 15 output
+        heads included, so a step takes the rows of the head to use and returns
+        logits
+    qwen3_tts_codec_tables_<p>.npy
+        the 16 codec embedding tables in one array, [3072 + 15 * 2048, H]
 
-The speech tokenizer weights are identical for 0.6B and 1.7B, so
-qwen3_tts_tokenizer_{encoder,decoder}_0.6B.onnx and the 1.7B ones have the same
-content. They are exported per size to keep the runtime file names uniform.
+The codec embedding tables are the one thing the runtime still looks up itself.
+They belong in the two decode loop graphs, and were there, but ailia returns
+wrong values for a table lookup inside those graphs from the third call of a
+decode loop on; see the note in export/README.md.
+
+The speech tokenizer weights are identical for 0.6B and 1.7B, so the two
+qwen3_tts_tokenizer_decoder_*.onnx have the same content. They are exported per
+size to keep the runtime file names uniform.
 """
 
 import argparse
@@ -56,7 +61,6 @@ import sys
 import types
 import urllib.request
 
-import numpy as np
 import onnx
 import torch
 from torch import nn
@@ -90,14 +94,13 @@ MODEL_ID = {
 }
 
 TARGETS = [
-    "npy",
-    "speaker_encoder",
-    "tokenizer_encoder",
+    "codec_tables",
+    "encoder",
     "tokenizer_decoder",
-    "talker_io_units",
+    "prompt",
     "code_predictor",
     # exported last: it is by far the largest module
-    "talker_decoder",
+    "talker",
 ]
 
 ONNX2PROTOTXT_URL = (
@@ -105,13 +108,8 @@ ONNX2PROTOTXT_URL = (
 )
 
 # Weights only have to live in a separate .onnx.data file when the model does not
-# fit in the 2GB protobuf limit, which is the case for the 1.7B talker only. The
-# published 0.6B files additionally use external data for these two modules, and
-# ../qwen3-tts.py downloads exactly that set, so a re-export has to keep it.
-PUBLISHED_EXTERNAL_DATA = {
-    "0.6B": {"speaker_encoder": True, "talker_io_units": True},
-    "1.7B": {"speaker_encoder": False, "talker_io_units": False},
-}
+# fit in the 2GB protobuf limit, which is the case for the talker only.
+
 
 
 # ======================================================================
@@ -220,26 +218,24 @@ def decoder_layer_forward(layer, hidden_states, attention_mask, cos, sin, past_k
 # ======================================================================
 # wrappers
 # ======================================================================
-class SpeakerEncoder(nn.Module):
-    """ECAPA-TDNN speaker encoder: mel spectrogram -> speaker embedding."""
+class Encoder(nn.Module):
+    """Speech tokenizer encoder and ECAPA-TDNN speaker encoder in one graph.
 
-    def __init__(self, speaker_encoder):
-        super().__init__()
-        self.speaker_encoder = speaker_encoder
+    The reference audio always goes through both, so merging them costs nothing
+    and saves a file. The mel spectrogram is computed on the Python side and
+    passed in; only the speaker encoder needs it.
+    """
 
-    def forward(self, hidden_states):
-        return self.speaker_encoder(hidden_states)
-
-
-class TokenizerEncoder(nn.Module):
-    """Qwen3-TTS-Tokenizer-12Hz encoder: waveform -> audio codes."""
-
-    def __init__(self, tokenizer_model):
+    def __init__(self, tokenizer_model, speaker_encoder):
         super().__init__()
         self.encoder = tokenizer_model.encoder
+        self.speaker_encoder = speaker_encoder
 
-    def forward(self, audio_values):
-        return self.encoder.encode(input_values=audio_values, return_dict=True).audio_codes
+    def forward(self, audio_values, mel):
+        audio_codes = self.encoder.encode(
+            input_values=audio_values, return_dict=True
+        ).audio_codes
+        return audio_codes, self.speaker_encoder(mel)
 
 
 class TokenizerDecoder(nn.Module):
@@ -253,36 +249,66 @@ class TokenizerDecoder(nn.Module):
         return self.decoder(codes)
 
 
-class TalkerIOUnits(nn.Module):
-    """The two small talker units that surround the transformer.
+class CodecEmbedding(nn.Module):
+    """The talker's codec embedding table plus the code predictor's 15 tables.
 
-    text_projection maps a text embedding to the talker hidden size and
-    codec_head maps the talker hidden state to codec logits. They are bundled
-    into a single ONNX file because both are tiny.
+    Group 0 of a codec frame is embedded with the talker's own table (vocabulary
+    3072) and groups 1..15 with the code predictor's tables (vocabulary 2048), so
+    they are kept apart rather than padded to a common size.
+
+    ../qwen3-tts.py needs the same tables to build the talker's decode input, and
+    gets them from qwen3_tts_codec_tables_<p>.npy, which combined() writes in the
+    layout it indexes.
+    """
+
+    def __init__(self, talker, code_predictor):
+        super().__init__()
+        self.register_buffer(
+            "group0", talker.model.codec_embedding.weight.detach(), persistent=False
+        )
+        self.register_buffer(
+            "groups",
+            torch.stack([emb.weight.detach() for emb in code_predictor.model.codec_embedding]),
+            persistent=False,
+        )
+
+    def combined(self):
+        """The 16 tables in one array: the talker's 3072 rows, then 15 x 2048."""
+        return torch.cat([self.group0, self.groups.flatten(0, 1)]).numpy()
+
+    def group0_embedding(self, tokens):
+        """tokens [1, n] -> [1, n, H]"""
+        return self.group0[tokens[0]][None]
+
+    def frame_sum(self, codec_tokens):
+        """Sum a frame's 16 group embeddings. codec_tokens [1, 16, T] -> [1, T, H]"""
+        total = self.group0[codec_tokens[0, 0]]
+        for group in range(self.groups.shape[0]):
+            total = total + self.groups[group][codec_tokens[0, group + 1]]
+        return total[None]
+
+
+class Talker(nn.Module):
+    """Talker transformer, with its output head inside.
+
+    The prompt and the decode steps both arrive as inputs_embeds, so one graph
+    serves both. Only the last position is read out, which is all the decode loop
+    needs: logits to sample the next group 0 token, and the hidden state to seed
+    the code predictor.
     """
 
     def __init__(self, talker):
         super().__init__()
-        self.text_proj = talker.text_projection
+        self.layers = talker.model.layers
+        self.norm = talker.model.norm
+        self.register_buffer(
+            "inv_freq", talker.model.rotary_emb.inv_freq, persistent=False
+        )
         self.codec_head = talker.codec_head
 
-    def forward(self, text_features, last_hidden_states):
-        return self.text_proj(text_features), self.codec_head(last_hidden_states)
-
-
-class TalkerDecoder(nn.Module):
-    """Talker transformer with the KV cache as plain inputs / outputs."""
-
-    def __init__(self, talker_model):
-        super().__init__()
-        self.layers = talker_model.layers
-        self.norm = talker_model.norm
-        self.register_buffer("inv_freq", talker_model.rotary_emb.inv_freq, persistent=False)
-
     def forward(self, inputs_embeds, attention_mask, position_ids, *past_key_values):
-        cos, sin = rope_cos_sin(self.inv_freq, position_ids, inputs_embeds.dtype)
-
         hidden_states = inputs_embeds
+        cos, sin = rope_cos_sin(self.inv_freq, position_ids, hidden_states.dtype)
         present = []
         for i, layer in enumerate(self.layers):
             hidden_states, key, value = decoder_layer_forward(
@@ -296,31 +322,57 @@ class TalkerDecoder(nn.Module):
             )
             present += [key, value]
 
-        return (self.norm(hidden_states), *present)
+        last_hidden = self.norm(hidden_states)[:, -1:, :]
+        return (self.codec_head(last_hidden), last_hidden, *present)
 
 
-class SubTalkerDecoder(nn.Module):
+class TalkerPrompt(nn.Module):
+    """Everything needed to assemble the talker's prompt, in one graph.
+
+    All three outputs are produced on every call because they are only needed a
+    handful of times before the decode loop starts:
+
+        projected_text   text token ids run through the text embedding and
+                         text_projection
+        codec_embeds     the talker's codec embedding of a few tag ids
+        ref_codec_sum    the reference frames' 16 group embeddings, summed
+    """
+
+    def __init__(self, talker, code_predictor):
+        super().__init__()
+        self.register_buffer(
+            "text_embedding", talker.model.text_embedding.weight.detach(), persistent=False
+        )
+        self.text_projection = talker.text_projection
+        self.codec_embedding = CodecEmbedding(talker, code_predictor)
+
+    def forward(self, text_tokens, codec_ids, ref_codes):
+        projected_text = self.text_projection(self.text_embedding[text_tokens[0]][None])
+        codec_embeds = self.codec_embedding.group0_embedding(codec_ids)
+        ref_codec_sum = self.codec_embedding.frame_sum(ref_codes)
+        return projected_text, codec_embeds, ref_codec_sum
+
+
+class CodePredictor(nn.Module):
     """Code predictor: codec token in, logits for the next code group out.
 
-    The embedding tables and the 15 output heads are part of the graph, so the
-    runtime never has to gather an embedding or run a matmul of its own. That
-    matters beyond tidiness: numpy's BLAS holds onto its threads after a matmul
-    and starves ailia on the next call.
+    The 15 output heads are part of the graph, so the runtime never runs a matmul
+    of its own. That matters beyond tidiness: numpy's BLAS holds onto its threads
+    after a matmul and starves ailia on the next call.
 
-    Position 0 of the sequence is the talker hidden state, which arrives as
-    inputs_embeds; every later position is a codec token whose embedding is
-    looked up here. The two are selected per position with a where(), so the
-    prefill can still pass both in one call:
+Every position arrives as inputs_embeds: position 0 is the talker hidden state
+    and every later position is a codec embedding the runtime looked up.
 
-        position 0     inputs_embeds (the talker hidden state)
-        position 1     the talker's codec embedding of code group 0
-        position k+1   the code predictor's k-1 th codec embedding of group k
+    The 15 output heads are concatenated into one [15 * 2048, Hs] matrix and a
+    step passes head_rows, the 2048 rows of the head it needs. Naming the rows
+    from the runtime rather than deriving them from position_ids keeps the lookup
+    to a gather whose indices come straight from an input.
 
     inputs_embeds is in the talker hidden size; small_to_mtp_projection brings it
     down to the code predictor hidden size (an identity for 0.6B).
     """
 
-    def __init__(self, talker, code_predictor):
+    def __init__(self, code_predictor):
         super().__init__()
         self.small_to_mtp_projection = code_predictor.small_to_mtp_projection
         self.layers = code_predictor.model.layers
@@ -329,41 +381,19 @@ class SubTalkerDecoder(nn.Module):
             "inv_freq", code_predictor.model.rotary_emb.inv_freq, persistent=False
         )
 
-        # kept as two tables: the talker's vocabulary is 3072 and the code
-        # predictor's is 2048, and padding the latter up would ship 63MB of zeros
-        self.register_buffer(
-            "talker_codec", talker.model.codec_embedding.weight.detach(), persistent=False
-        )
-        self.register_buffer(
-            "group_codec",
-            torch.stack([emb.weight.detach() for emb in code_predictor.model.codec_embedding]),
-            persistent=False,
-        )
         self.register_buffer(
             "lm_heads",
-            torch.stack([head.weight.detach() for head in code_predictor.lm_head]),
+            torch.stack(
+                [head.weight.detach() for head in code_predictor.lm_head]
+            ).flatten(0, 1),
             persistent=False,
         )
-        self.num_heads = len(code_predictor.lm_head)
 
-    def forward(self, inputs_embeds, codec_tokens, attention_mask, position_ids,
+    def forward(self, inputs_embeds, head_rows, attention_mask, position_ids,
                 *past_key_values):
-        # position 0 keeps inputs_embeds, position 1 reads the talker's codec
-        # table, and position k+1 reads the code predictor's k-1 th table
-        group = (position_ids - 2).clamp(min=0)
-        from_talker = self.talker_codec[codec_tokens[0]][None]
-        from_group = self.group_codec[group[0], codec_tokens[0]][None]
-        gathered = torch.where(
-            (position_ids == 1)[..., None], from_talker, from_group
-        )
-        inputs_embeds = torch.where(
-            (position_ids == 0)[..., None], inputs_embeds, gathered
-        )
+        hidden_states = self.small_to_mtp_projection(inputs_embeds)
+        cos, sin = rope_cos_sin(self.inv_freq, position_ids, hidden_states.dtype)
 
-        inputs_embeds = self.small_to_mtp_projection(inputs_embeds)
-        cos, sin = rope_cos_sin(self.inv_freq, position_ids, inputs_embeds.dtype)
-
-        hidden_states = inputs_embeds
         present = []
         for i, layer in enumerate(self.layers):
             hidden_states, key, value = decoder_layer_forward(
@@ -378,9 +408,7 @@ class SubTalkerDecoder(nn.Module):
             present += [key, value]
         hidden_states = self.norm(hidden_states)
 
-        # the head for the group this step predicts, again named by the position
-        head = (position_ids[0, -1] - 1).clamp(0, self.num_heads - 1)
-        logits = hidden_states[:, -1:, :] @ self.lm_heads[head].t()
+        logits = hidden_states[:, -1:, :] @ self.lm_heads[head_rows].t()
         return (logits, *present)
 
 
@@ -435,6 +463,27 @@ def external_data_threshold(model):
     return max(1024, min(sizes) + 1)
 
 
+def graph_tensors(graph):
+    """Every tensor in a graph, including the ones held by node attributes.
+
+    Weights folded into a Constant node live in an attribute rather than in
+    graph.initializer, and the exporter writes those to their own external file
+    too, so they have to be walked as well to find all of them.
+    """
+    for tensor in graph.initializer:
+        yield tensor
+    for node in graph.node:
+        for attribute in node.attribute:
+            if attribute.HasField("t"):
+                yield attribute.t
+            for tensor in attribute.tensors:
+                yield tensor
+            if attribute.HasField("g"):
+                yield from graph_tensors(attribute.g)
+            for subgraph in attribute.graphs:
+                yield from graph_tensors(subgraph)
+
+
 def consolidate_external_data(path, force=False):
     """Merge external weights into a single <name>.onnx.data file.
 
@@ -447,7 +496,7 @@ def consolidate_external_data(path, force=False):
     model = onnx.load(path, load_external_data=False)
     externals = {
         entry.value
-        for tensor in model.graph.initializer
+        for tensor in graph_tensors(model.graph)
         if tensor.data_location == onnx.TensorProto.EXTERNAL
         for entry in tensor.external_data
         if entry.key == "location"
@@ -512,70 +561,37 @@ def load_speech_tokenizer(model_dir):
 # ======================================================================
 # per module export
 # ======================================================================
-def export_npy(model_dir, out, parameter_num):
-    model = load_tts_model(model_dir)
-    talker = model.talker
-    code_predictor = talker.code_predictor
+def export_encoder(model_dir, out, parameter_num):
+    """Speech tokenizer encoder and speaker encoder in one graph.
 
-    def save(name, array):
-        path = out(name, "npy")
-        print(f"saving {os.path.basename(path)} {array.shape} ...")
-        np.save(path, array)
-
-    with torch.no_grad():
-        # The talker text embedding is only used as a lookup table on the
-        # Python side, so it is stored as a plain npy instead of an ONNX graph.
-        save("text_embedding", talker.model.text_embedding.weight.numpy())
-        # [1, 3072, H]. The leading axis is kept so that the runtime can index
-        # the group 0 table as codec_embeddings[0].
-        save("codec_embeddings", talker.model.codec_embedding.weight.numpy()[None])
-        save(
-            "subtalker_lm_heads",
-            torch.stack([head.weight for head in code_predictor.lm_head]).numpy(),
-        )
-        save(
-            "subtalker_codec_emb",
-            torch.stack(
-                [emb.weight for emb in code_predictor.model.codec_embedding]
-            ).numpy(),
-        )
-
-
-def export_speaker_encoder(model_dir, out, parameter_num):
-    model = load_tts_model(model_dir)
-    wrapper = SpeakerEncoder(model.speaker_encoder)
-    mel = torch.randn(1, 100, model.config.speaker_encoder_config.mel_dim)
-
-    export(
-        wrapper,
-        (mel,),
-        out("speaker_encoder", "onnx"),
-        ["hidden_states"],
-        ["embedding"],
-        {
-            "hidden_states": {0: "batch_size", 1: "num_frames"},
-            "embedding": {0: "batch_size"},
-        },
-        external_data=PUBLISHED_EXTERNAL_DATA[parameter_num]["speaker_encoder"],
-    )
-
-
-def export_tokenizer_encoder(model_dir, out, parameter_num):
+    Both only ever run on the reference audio, and always together, so nothing is
+    computed needlessly by merging them. The mel spectrogram stays on the Python
+    side and is passed in.
+    """
     patch_causal_mask()
     patch_codebook_quantize()
-    model = load_speech_tokenizer(model_dir)
-    wrapper = TokenizerEncoder(model)
+    tokenizer = load_speech_tokenizer(model_dir)
+    model = load_tts_model(model_dir)
+    wrapper = Encoder(tokenizer, model.speaker_encoder)
+    mel_dim = model.config.speaker_encoder_config.mel_dim
+
+    del model, tokenizer
+    gc.collect()
+
     audio = torch.randn(1, 1, 24000 * 5)
+    mel = torch.randn(1, 100, mel_dim)
 
     export(
         wrapper,
-        (audio,),
-        out("tokenizer_encoder", "onnx"),
-        ["audio_values"],
-        ["audio_codes"],
+        (audio, mel),
+        out("encoder", "onnx"),
+        ["audio_values", "mel"],
+        ["audio_codes", "speaker_embedding"],
         {
             "audio_values": {0: "batch_size", 2: "num_samples"},
+            "mel": {0: "batch_size", 1: "num_frames"},
             "audio_codes": {0: "batch_size", 2: "num_frames"},
+            "speaker_embedding": {0: "batch_size"},
         },
     )
 
@@ -602,33 +618,70 @@ def export_tokenizer_decoder(model_dir, out, parameter_num):
     )
 
 
-def export_talker_io_units(model_dir, out, parameter_num):
+def export_prompt(model_dir, out, parameter_num):
     model = load_tts_model(model_dir)
-    talker_config = model.config.talker_config
-    wrapper = TalkerIOUnits(model.talker)
-    text_features = torch.randn(1, 8, talker_config.text_hidden_size)
-    last_hidden_states = torch.randn(1, 1, talker_config.hidden_size)
+    wrapper = TalkerPrompt(model.talker, model.talker.code_predictor)
+    num_code_groups = model.config.talker_config.num_code_groups
+
+    del model
+    gc.collect()
+
+    text_tokens = torch.zeros(1, 8, dtype=torch.int64)
+    codec_ids = torch.zeros(1, 3, dtype=torch.int64)
+    ref_codes = torch.zeros(1, num_code_groups, 5, dtype=torch.int64)
 
     export(
         wrapper,
-        (text_features, last_hidden_states),
-        out("talker_io_units", "onnx"),
-        ["text_features", "last_hidden_states"],
-        ["projected_text", "logits"],
+        (text_tokens, codec_ids, ref_codes),
+        out("prompt", "onnx"),
+        ["text_tokens", "codec_ids", "ref_codes"],
+        ["projected_text", "codec_embeds", "ref_codec_sum"],
         {
-            "text_features": {0: "batch", 1: "seq"},
-            "last_hidden_states": {0: "batch", 1: "hidden_seq"},
-            "projected_text": {0: "batch", 1: "seq"},
-            "logits": {0: "batch", 1: "hidden_seq"},
+            "text_tokens": {1: "text_len"},
+            "codec_ids": {1: "codec_len"},
+            "ref_codes": {2: "ref_len"},
+            "projected_text": {1: "text_len"},
+            "codec_embeds": {1: "codec_len"},
+            "ref_codec_sum": {1: "ref_len"},
         },
-        external_data=PUBLISHED_EXTERNAL_DATA[parameter_num]["talker_io_units"],
+        # the text embedding table alone is over 1GB, and the TorchScript
+        # exporter cannot serialize a model this large
+        dynamo=True,
     )
 
 
-def export_transformer(wrapper, config, hidden_size, path):
-    num_layers = config.num_hidden_layers
-    num_kv_heads = config.num_key_value_heads
-    head_dim = config.head_dim
+def export_codec_tables(model_dir, out, parameter_num):
+    """The 16 codec embedding tables, as one npy the runtime indexes.
+
+    ../qwen3-tts.py sums a codec frame's 16 group embeddings to build the talker's
+    decode input, and looks up one of them per code predictor step.
+    """
+    import numpy as np
+
+    model = load_tts_model(model_dir)
+    tables = CodecEmbedding(model.talker, model.talker.code_predictor).combined()
+    del model
+    gc.collect()
+
+    path = out("codec_tables", "npy")
+    print(f"writing {os.path.basename(path)} {tables.shape} ...")
+    np.save(path, tables)
+
+
+def export_talker(model_dir, out, parameter_num):
+    model = load_tts_model(model_dir)
+    talker_config = model.config.talker_config
+    wrapper = Talker(model.talker)
+
+    # free everything the talker does not need before the export, the ONNX
+    # serialization needs a second copy of the weights in memory
+    del model
+    gc.collect()
+
+    num_layers = talker_config.num_hidden_layers
+    num_kv_heads = talker_config.num_key_value_heads
+    head_dim = talker_config.head_dim
+    hidden_size = talker_config.hidden_size
 
     seq_len = 4
     past_len = 2
@@ -644,7 +697,6 @@ def export_transformer(wrapper, config, hidden_size, path):
         "inputs_embeds": {1: "seq_len"},
         "attention_mask": {2: "seq_len", 3: "total_seq_len"},
         "position_ids": {1: "seq_len"},
-        "last_hidden_state": {1: "seq_len"},
     }
     for name in past_names:
         dynamic_axes[name] = {2: "past_seq_len"}
@@ -654,25 +706,10 @@ def export_transformer(wrapper, config, hidden_size, path):
     export(
         wrapper,
         (inputs_embeds, attention_mask, position_ids, *past),
-        path,
+        out("talker", "onnx"),
         ["inputs_embeds", "attention_mask", "position_ids"] + past_names,
-        ["last_hidden_state"] + present_names,
+        ["logits", "last_hidden"] + present_names,
         dynamic_axes,
-    )
-
-
-def export_talker_decoder(model_dir, out, parameter_num):
-    model = load_tts_model(model_dir)
-    talker_config = model.config.talker_config
-    wrapper = TalkerDecoder(model.talker.model)
-
-    # free everything the talker transformer does not need before the export,
-    # the ONNX serialization needs a second copy of the weights in memory
-    del model
-    gc.collect()
-
-    export_transformer(
-        wrapper, talker_config, talker_config.hidden_size, out("talker_decoder", "onnx")
     )
 
 
@@ -680,7 +717,7 @@ def export_code_predictor(model_dir, out, parameter_num):
     model = load_tts_model(model_dir)
     talker_config = model.config.talker_config
     code_predictor_config = talker_config.code_predictor_config
-    wrapper = SubTalkerDecoder(model.talker, model.talker.code_predictor)
+    wrapper = CodePredictor(model.talker.code_predictor)
 
     del model
     gc.collect()
@@ -694,7 +731,7 @@ def export_code_predictor(model_dir, out, parameter_num):
     # inputs_embeds is in the talker hidden size (small_to_mtp_projection is
     # part of the graph) and only position 0 of it is read
     inputs_embeds = torch.randn(1, seq_len, talker_config.hidden_size)
-    codec_tokens = torch.zeros(1, seq_len, dtype=torch.int64)
+    head_rows = torch.arange(code_predictor_config.vocab_size)
     attention_mask = causal_mask(seq_len, past_len)
     position_ids = torch.arange(past_len, past_len + seq_len)[None]
     past = [
@@ -704,7 +741,6 @@ def export_code_predictor(model_dir, out, parameter_num):
     past_names, present_names = kv_cache_names(num_layers)
     dynamic_axes = {
         "inputs_embeds": {1: "seq_len"},
-        "codec_tokens": {1: "seq_len"},
         "attention_mask": {2: "seq_len", 3: "total_seq_len"},
         "position_ids": {1: "seq_len"},
     }
@@ -715,22 +751,21 @@ def export_code_predictor(model_dir, out, parameter_num):
 
     export(
         wrapper,
-        (inputs_embeds, codec_tokens, attention_mask, position_ids, *past),
+        (inputs_embeds, head_rows, attention_mask, position_ids, *past),
         out("code_predictor", "onnx"),
-        ["inputs_embeds", "codec_tokens", "attention_mask", "position_ids"] + past_names,
+        ["inputs_embeds", "head_rows", "attention_mask", "position_ids"] + past_names,
         ["logits"] + present_names,
         dynamic_axes,
     )
 
 
 EXPORTERS = {
-    "npy": export_npy,
-    "speaker_encoder": export_speaker_encoder,
-    "tokenizer_encoder": export_tokenizer_encoder,
+    "codec_tables": export_codec_tables,
+    "encoder": export_encoder,
     "tokenizer_decoder": export_tokenizer_decoder,
-    "talker_io_units": export_talker_io_units,
+    "prompt": export_prompt,
     "code_predictor": export_code_predictor,
-    "talker_decoder": export_talker_decoder,
+    "talker": export_talker,
 }
 
 

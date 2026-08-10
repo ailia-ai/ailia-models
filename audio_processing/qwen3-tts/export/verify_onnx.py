@@ -15,6 +15,7 @@ ONNX session cannot comfortably share memory for the 1.7B talker.
 """
 
 import argparse
+import gc
 import os
 import subprocess
 import sys
@@ -28,12 +29,12 @@ from transformers.cache_utils import DynamicCache
 import export_onnx as ex
 
 TARGETS = [
-    "speaker_encoder",
-    "tokenizer_encoder",
+    "codec_tables",
+    "encoder",
     "tokenizer_decoder",
-    "talker_io_units",
-    "subtalker_decoder",
-    "talker_decoder",
+    "prompt",
+    "code_predictor",
+    "talker",
 ]
 
 REF_AUDIO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "clone_2.wav")
@@ -92,34 +93,47 @@ def mel_spectrogram(wav):
 
 
 def causal_mask(seq_len, past_len=0):
-    return ex.causal_mask(seq_len, past_len)
+    return ex.causal_mask(seq_len, past_len).numpy()
+
+
+def empty_cache(config, num_layers=None):
+    num_layers = config.num_hidden_layers if num_layers is None else num_layers
+    return [
+        np.zeros((1, config.num_key_value_heads, 0, config.head_dim), dtype=np.float32)
+        for _ in range(num_layers * 2)
+    ]
 
 
 # ======================================================================
 # per module checks
 # ======================================================================
-def check_speaker_encoder(model_dir, onnx_path):
-    model = ex.load_tts_model(model_dir)
-    mels = mel_spectrogram(load_reference_audio())
-    with torch.no_grad():
-        reference = model.speaker_encoder(mels)
-    actual = run(session(onnx_path), [mels.numpy()])[0]
-    return report("embedding", reference, actual)
-
-
-def check_tokenizer_encoder(model_dir, onnx_path):
+def check_encoder(model_dir, onnx_path):
+    """Speech tokenizer encoder and speaker encoder, which share one graph."""
     ex.patch_codebook_quantize()
-    model = ex.load_speech_tokenizer(model_dir)
-    sess = session(onnx_path)
-    ok = True
+    tokenizer = ex.load_speech_tokenizer(model_dir)
+    model = ex.load_tts_model(model_dir)
+
     # two different lengths: the exported graph has to stay length agnostic
+    cases = []
     for seconds in (5.0, None):
         wav = load_reference_audio(seconds)
         audio = torch.from_numpy(wav)[None, None]
+        mels = mel_spectrogram(wav)
         with torch.no_grad():
-            reference = model.encoder.encode(input_values=audio, return_dict=True).audio_codes
-        actual = run(sess, [audio.numpy()])[0]
-        ok &= report(f"audio_codes ({wav.shape[0]} samples)", reference.numpy(), actual)
+            codes = tokenizer.encoder.encode(input_values=audio, return_dict=True).audio_codes
+            embedding = model.speaker_encoder(mels)
+        cases.append((audio.numpy(), mels.numpy(), codes.numpy(), embedding.numpy()))
+
+    del model, tokenizer
+    gc.collect()
+
+    sess = session(onnx_path)
+    ok = True
+    for audio, mels, codes, embedding in cases:
+        actual = run(sess, [audio, mels])
+        label = f"{audio.shape[2]} samples"
+        ok &= report(f"audio_codes ({label})", codes, actual[0])
+        ok &= report(f"speaker_embedding ({label})", embedding, actual[1])
     return ok
 
 
@@ -140,114 +154,201 @@ def check_tokenizer_decoder(model_dir, onnx_path):
     return ok
 
 
-def check_talker_io_units(model_dir, onnx_path):
+def check_prompt(model_dir, onnx_path):
+    """The embedding tables and text_projection used to build the talker prompt."""
     model = ex.load_tts_model(model_dir)
-    talker_config = model.config.talker_config
+    talker = model.talker
+    code_predictor = talker.code_predictor
+    num_code_groups = model.config.talker_config.num_code_groups
+
     rng = np.random.default_rng(0)
-    text_features = rng.standard_normal((1, 7, talker_config.text_hidden_size)).astype(np.float32)
-    hidden = rng.standard_normal((1, 1, talker_config.hidden_size)).astype(np.float32)
+    text_tokens = rng.integers(0, 151000, size=(1, 9)).astype(np.int64)
+    codec_ids = rng.integers(0, 2048, size=(1, 5)).astype(np.int64)
+    ref_codes = rng.integers(0, 2048, size=(1, num_code_groups, 7)).astype(np.int64)
+
     with torch.no_grad():
-        projected = model.talker.text_projection(torch.from_numpy(text_features))
-        logits = model.talker.codec_head(torch.from_numpy(hidden))
-    actual = run(session(onnx_path), [text_features, hidden])
-    ok = report("projected_text", projected.numpy(), actual[0])
-    ok &= report("logits", logits.numpy(), actual[1])
+        text_embeds = talker.model.text_embedding(torch.from_numpy(text_tokens))
+        projected_text = talker.text_projection(text_embeds)
+        codec_embeds = talker.model.codec_embedding(torch.from_numpy(codec_ids))
+        codes = torch.from_numpy(ref_codes)
+        ref_codec_sum = talker.model.codec_embedding(codes[:, 0])
+        for group in range(num_code_groups - 1):
+            ref_codec_sum = ref_codec_sum + code_predictor.model.codec_embedding[group](
+                codes[:, group + 1]
+            )
+    reference = [projected_text.numpy(), codec_embeds.numpy(), ref_codec_sum.numpy()]
+
+    del model, talker, code_predictor
+    gc.collect()
+
+    actual = run(session(onnx_path), [text_tokens, codec_ids, ref_codes])
+    ok = report("projected_text", reference[0], actual[0])
+    ok &= report("codec_embeds", reference[1], actual[1])
+    ok &= report("ref_codec_sum", reference[2], actual[2])
     return ok
 
 
-def check_transformer(reference_model, hidden_size, config, onnx_path, project=None):
-    """Prefill + one decode step, against the reference module with a Cache."""
-    num_layers = config.num_hidden_layers
-    num_kv_heads = config.num_key_value_heads
-    head_dim = config.head_dim
+def check_codec_tables(model_dir, onnx_path):
+    """The npy the runtime looks codec embeddings up in."""
+    tables = np.load(onnx_path)
+    model = ex.load_tts_model(model_dir)
+    talker = model.talker
+    code_predictor = talker.code_predictor
+    num_code_groups = model.config.talker_config.num_code_groups
+    talker_vocab = talker.model.codec_embedding.weight.shape[0]
+    group_vocab = code_predictor.model.codec_embedding[0].weight.shape[0]
+
+    ok = report(
+        "group 0 table", talker.model.codec_embedding.weight.detach().numpy(),
+        tables[:talker_vocab], tolerance=0.0,
+    )
+    for group in range(num_code_groups - 1):
+        start = talker_vocab + group * group_vocab
+        ok &= report(
+            f"group {group + 1} table",
+            code_predictor.model.codec_embedding[group].weight.detach().numpy(),
+            tables[start:start + group_vocab], tolerance=0.0,
+        )
+    return ok
+
+
+def check_talker(model_dir, onnx_path):
+    """Prefill and one decode step, with the output head read back too."""
+    model = ex.load_tts_model(model_dir)
+    talker_config = model.config.talker_config
+    talker = model.talker
     prefill_len = 6
 
     rng = np.random.default_rng(0)
-    embeds = rng.standard_normal((1, prefill_len, hidden_size)).astype(np.float32)
-    step_embeds = rng.standard_normal((1, 1, hidden_size)).astype(np.float32)
+    embeds = rng.standard_normal((1, prefill_len, talker_config.hidden_size)).astype(np.float32)
+    step_embeds = rng.standard_normal((1, 1, talker_config.hidden_size)).astype(np.float32)
 
     with torch.no_grad():
         cache = DynamicCache()
-        inputs = torch.from_numpy(embeds)
-        if project is not None:
-            inputs = project(inputs)
-        reference = reference_model(
-            inputs_embeds=inputs,
+        reference_hidden = talker.model(
+            inputs_embeds=torch.from_numpy(embeds),
             attention_mask=torch.ones(1, prefill_len, dtype=torch.long),
             past_key_values=cache,
             use_cache=True,
-        )
-        reference_prefill = reference.last_hidden_state.numpy()
+        ).last_hidden_state[:, -1:, :]
+        reference_logits = talker.codec_head(reference_hidden)
 
-        step_inputs = torch.from_numpy(step_embeds)
-        if project is not None:
-            step_inputs = project(step_inputs)
-        reference_step = reference_model(
-            inputs_embeds=step_inputs,
+        reference_step = talker.model(
+            inputs_embeds=torch.from_numpy(step_embeds),
             attention_mask=torch.ones(1, prefill_len + 1, dtype=torch.long),
             position_ids=torch.tensor([[prefill_len]]),
             past_key_values=cache,
             use_cache=True,
             cache_position=torch.tensor([prefill_len]),
-        ).last_hidden_state.numpy()
+        ).last_hidden_state
+        reference_step_logits = talker.codec_head(reference_step)
+
+    reference = [
+        reference_logits.numpy(), reference_hidden.numpy(),
+        reference_step_logits.numpy(), reference_step.numpy(),
+    ]
+    del model, talker, cache
+    gc.collect()
 
     sess = session(onnx_path)
-    empty = [
-        np.zeros((1, num_kv_heads, 0, head_dim), dtype=np.float32) for _ in range(num_layers * 2)
-    ]
     outputs = run(
         sess,
         [
             embeds,
-            causal_mask(prefill_len).numpy(),
+            causal_mask(prefill_len),
             np.arange(prefill_len, dtype=np.int64)[None],
-            *empty,
+            *empty_cache(talker_config),
         ],
     )
-    ok = report("last_hidden_state (prefill)", reference_prefill, outputs[0])
+    ok = report("logits (prefill)", reference[0], outputs[0])
+    ok &= report("last_hidden (prefill)", reference[1], outputs[1])
 
     outputs = run(
         sess,
         [
             step_embeds,
-            causal_mask(1, prefill_len).numpy(),
+            causal_mask(1, prefill_len),
             np.array([[prefill_len]], dtype=np.int64),
-            *outputs[1:],
+            *outputs[2:],
         ],
     )
-    ok &= report("last_hidden_state (decode)", reference_step, outputs[0])
+    ok &= report("logits (decode)", reference[2], outputs[0])
+    ok &= report("last_hidden (decode)", reference[3], outputs[1])
     return ok
 
 
-def check_talker_decoder(model_dir, onnx_path):
+def check_code_predictor(model_dir, onnx_path):
+    """All 15 code groups of one frame, against the reference module."""
     model = ex.load_tts_model(model_dir)
     talker_config = model.config.talker_config
-    return check_transformer(
-        model.talker.model, talker_config.hidden_size, talker_config, onnx_path
-    )
+    config = talker_config.code_predictor_config
+    talker = model.talker
+    code_predictor = talker.code_predictor
+    num_code_groups = talker_config.num_code_groups
+    group_vocab = config.vocab_size
 
+    rng = np.random.default_rng(0)
+    talker_hidden = rng.standard_normal((1, 1, talker_config.hidden_size)).astype(np.float32)
+    # group 0 comes from the talker, groups 1..14 are fed back one at a time
+    tokens = rng.integers(0, group_vocab, size=num_code_groups - 1).astype(np.int64)
 
-def check_subtalker_decoder(model_dir, onnx_path):
-    model = ex.load_tts_model(model_dir)
-    talker_config = model.config.talker_config
-    code_predictor = model.talker.code_predictor
-    # the ONNX takes the talker hidden size and projects inside the graph
-    return check_transformer(
-        code_predictor.model,
-        talker_config.hidden_size,
-        talker_config.code_predictor_config,
-        onnx_path,
-        project=code_predictor.small_to_mtp_projection,
+    with torch.no_grad():
+        cache = DynamicCache()
+        group0 = talker.model.codec_embedding(torch.tensor([[int(tokens[0])]]))
+        outputs = code_predictor(
+            inputs_embeds=torch.cat([torch.from_numpy(talker_hidden), group0], dim=1),
+            attention_mask=torch.ones(1, 2, dtype=torch.long),
+            past_key_values=cache,
+            use_cache=True,
+        )
+        reference_logits = [outputs.logits[:, -1:, :].numpy()]
+        embeds = [torch.cat([torch.from_numpy(talker_hidden), group0], dim=1).numpy()]
+        for k in range(1, num_code_groups - 1):
+            step = code_predictor.model.codec_embedding[k - 1](
+                torch.tensor([[int(tokens[k])]]))
+            embeds.append(step.numpy())
+            outputs = code_predictor(
+                input_ids=torch.tensor([[int(tokens[k])]]),
+                attention_mask=torch.ones(1, k + 2, dtype=torch.long),
+                position_ids=torch.tensor([[k + 1]]),
+                past_key_values=cache,
+                use_cache=True,
+                cache_position=torch.tensor([k + 1]),
+                generation_steps=k,
+            )
+            reference_logits.append(outputs.logits[:, -1:, :].numpy())
+
+    del model, talker, code_predictor, cache
+    gc.collect()
+
+    sess = session(onnx_path)
+    head_rows = [
+        np.arange(k * group_vocab, (k + 1) * group_vocab, dtype=np.int64)
+        for k in range(num_code_groups - 1)
+    ]
+    actual = run(
+        sess,
+        [embeds[0], head_rows[0], causal_mask(2), np.array([[0, 1]], dtype=np.int64),
+         *empty_cache(config)],
     )
+    ok = report("logits (group 0 -> 1)", reference_logits[0], actual[0])
+    for k in range(1, num_code_groups - 1):
+        actual = run(
+            sess,
+            [embeds[k], head_rows[k], causal_mask(1, k + 1),
+             np.array([[k + 1]], dtype=np.int64), *actual[1:]],
+        )
+        ok &= report(f"logits (group {k} -> {k + 1})", reference_logits[k], actual[0])
+    return ok
 
 
 CHECKS = {
-    "speaker_encoder": check_speaker_encoder,
-    "tokenizer_encoder": check_tokenizer_encoder,
+    "codec_tables": check_codec_tables,
+    "encoder": check_encoder,
     "tokenizer_decoder": check_tokenizer_decoder,
-    "talker_io_units": check_talker_io_units,
-    "subtalker_decoder": check_subtalker_decoder,
-    "talker_decoder": check_talker_decoder,
+    "prompt": check_prompt,
+    "code_predictor": check_code_predictor,
+    "talker": check_talker,
 }
 
 
@@ -287,8 +388,9 @@ def main():
         print("all modules match the reference implementation")
         return
 
+    suffix = "npy" if args.only == "codec_tables" else "onnx"
     onnx_path = os.path.join(
-        args.onnx_dir, f"qwen3_tts_{args.only}_{args.parameter_num}.onnx"
+        args.onnx_dir, f"qwen3_tts_{args.only}_{args.parameter_num}.{suffix}"
     )
     print(f"[{args.only}]")
     if not CHECKS[args.only](model_dir, onnx_path):
