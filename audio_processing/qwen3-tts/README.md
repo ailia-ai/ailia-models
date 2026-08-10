@@ -71,6 +71,7 @@ Supported languages: `Auto` (default), `chinese`, `english`, `japanese`, `korean
 - `--subtalker_temperature` Sampling temperature for the subtalker (code predictor). `0` for greedy decoding. (default: `0.9`, matches the official implementation)
 - `--subtalker_top_k` Top-k sampling for the subtalker (code predictor). (default: `50`, matches the official implementation)
 - `--seed` Random seed for reproducible sampling. (default: `None`)
+- `--onnx` Run the models with onnxruntime instead of the ailia SDK.
 - `-s`, `--savepath` Save path for the output synthesized audio. (default: `output.wav`)
 
 > **Note:** Sampling (`temperature=0.9`, `top_k=50`, `subtalker_temperature=0.9`, `subtalker_top_k=50`) is used by default to match the official implementation. Set both `--temperature 0` and `--subtalker_temperature 0` for deterministic greedy decoding. Use `--seed` to make sampled output reproducible.

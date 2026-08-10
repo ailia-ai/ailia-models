@@ -103,6 +103,9 @@ parser.add_argument(
 parser.add_argument(
     '--disable_ailia_tokenizer', action='store_true', help='disable ailia tokenizer.'
 )
+parser.add_argument(
+    '--onnx', action='store_true', help='execute onnxruntime version.'
+)
 args = update_parser(parser, check_input_type=False)
 
 if  not args.model == "base":
@@ -336,6 +339,46 @@ def _sample_token(logits_1d: np.ndarray, temperature: float = 0.9, top_k: int = 
     return int(np.random.choice(len(probs), p=probs))
 
 
+class OnnxNet:
+    """--onnx 用に onnxruntime を ailia.Net と同じ形で使えるようにするラッパー。"""
+
+    def __init__(self, weight):
+        import onnxruntime
+        self.session = onnxruntime.InferenceSession(
+            weight, providers=["CPUExecutionProvider"]
+        )
+        self.input_names = [i.name for i in self.session.get_inputs()]
+        self.input_types = [i.type for i in self.session.get_inputs()]
+
+    def get_input_blob_list(self):
+        return list(range(len(self.input_names)))
+
+    def set_input_blob_shape(self, shape, index):
+        # onnxruntime は入力そのものから shape を決めるので何もしない
+        pass
+
+    def run(self, inputs):
+        if not isinstance(inputs, (list, tuple)):
+            inputs = [inputs]
+        feed = {}
+        for name, dtype, value in zip(self.input_names, self.input_types, inputs):
+            value = np.asarray(value)
+            if dtype == "tensor(int64)":
+                value = value.astype(np.int64)
+            elif dtype == "tensor(float)":
+                value = value.astype(np.float32)
+            feed[name] = value
+        return self.session.run(None, feed)
+
+
+def create_net(model_path, weight_path, memory_mode, env_id):
+    if args.onnx:
+        return OnnxNet(weight_path)
+    return ailia.Net(
+        stream=model_path, weight=weight_path, memory_mode=memory_mode, env_id=env_id
+    )
+
+
 class Qwen3TTS:
     def __init__(self, memory_mode, env_id):
         self.cfg = load_qwen_config()
@@ -343,15 +386,15 @@ class Qwen3TTS:
         # talker_io は text_projection と codec_head を 1 つの ONNX にまとめて
         # いるため、片方だけ使うときは他方の入力にゼロを渡す
         self.zero_hidden = np.zeros((1, 1, self.hidden_size), dtype=np.float32)
-        self.speaker_encoder   = ailia.Net(stream=MODEL_PATH_SPEAKER_ENCODER, weight=WEIGHT_PATH_SPEAKER_ENCODER,   memory_mode=memory_mode,   env_id=env_id)
-        self.talker_io         = ailia.Net(stream=MODEL_PATH_TALKER_IO, weight=WEIGHT_PATH_TALKER_IO,         memory_mode=memory_mode,   env_id=env_id)
-        self.talker_decoder    = ailia.Net(stream=MODEL_PATH_TALKER_DECODER, weight=WEIGHT_PATH_TALKER_DECODER,    memory_mode=memory_mode,   env_id=env_id)
-        self.tokenizer_encoder = ailia.Net(stream=MODEL_PATH_TOKENIZER_ENCODER, weight=WEIGHT_PATH_TOKENIZER_ENCODER, memory_mode=memory_mode,   env_id=env_id)
-        self.tokenizer_decoder = ailia.Net(stream=MODEL_PATH_TOKENIZER_DECODER, weight=WEIGHT_PATH_TOKENIZER_DECODER, memory_mode=memory_mode,   env_id=env_id)
+        self.speaker_encoder   = create_net(MODEL_PATH_SPEAKER_ENCODER, WEIGHT_PATH_SPEAKER_ENCODER,   memory_mode, env_id)
+        self.talker_io         = create_net(MODEL_PATH_TALKER_IO, WEIGHT_PATH_TALKER_IO,         memory_mode, env_id)
+        self.talker_decoder    = create_net(MODEL_PATH_TALKER_DECODER, WEIGHT_PATH_TALKER_DECODER,    memory_mode, env_id)
+        self.tokenizer_encoder = create_net(MODEL_PATH_TOKENIZER_ENCODER, WEIGHT_PATH_TOKENIZER_ENCODER, memory_mode, env_id)
+        self.tokenizer_decoder = create_net(MODEL_PATH_TOKENIZER_DECODER, WEIGHT_PATH_TOKENIZER_DECODER, memory_mode, env_id)
         self.text_emb_weight   = np.load(WEIGHT_PATH_TEXT_EMB)
         self.codec_emb_weight  = np.load(WEIGHT_PATH_CODEC_EMB)
         self.text_tokenizer    = create_tokenizer()
-        self.subtalker_decoder  = ailia.Net(stream=MODEL_PATH_SUBTALKER_DECODER, weight=WEIGHT_PATH_SUBTALKER_DECODER, memory_mode=memory_mode,   env_id=env_id)
+        self.subtalker_decoder  = create_net(MODEL_PATH_SUBTALKER_DECODER, WEIGHT_PATH_SUBTALKER_DECODER, memory_mode, env_id)
         self.text_emb_weight    = np.load(WEIGHT_PATH_TEXT_EMB)
         self.codec_emb_weight   = np.load(WEIGHT_PATH_CODEC_EMB)
         self.subtalker_lm_heads  = np.load(WEIGHT_PATH_SUBTALKER_LM_HEADS)   # [15, 2048, subtalker hidden]
@@ -774,12 +817,14 @@ def main():
         check_and_download_models(onnx, prototxt, REMOTE_PATH)
     for f in file_list:
         check_and_download_file(f, REMOTE_PATH) 
-    memory_mode = ailia.get_memory_mode(
-    reduce_constant=True,  
-    ignore_input_with_initializer=True, 
-    reduce_interstage=False, 
-    reuse_interstage=True  
-    )
+    memory_mode = None
+    if not args.onnx:
+        memory_mode = ailia.get_memory_mode(
+        reduce_constant=True,
+        ignore_input_with_initializer=True,
+        reduce_interstage=False,
+        reuse_interstage=True
+        )
     # 0. 乱数シード (サンプリングの再現性用)
     if args.seed is not None:
         np.random.seed(args.seed)
