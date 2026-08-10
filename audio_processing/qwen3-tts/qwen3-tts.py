@@ -154,9 +154,9 @@ WEIGHT_PATH_TOKENIZER_DECODER_DATA = f"qwen3_tts_tokenizer_decoder_{parameter_nu
 MODEL_PATH_TOKENIZER_DECODER  = WEIGHT_PATH_TOKENIZER_DECODER + ".prototxt"
 WEIGHT_PATH_TEXT_EMB          = f"qwen3_tts_text_embedding_{parameter_num}.npy"
 WEIGHT_PATH_CODEC_EMB         = f"qwen3_tts_codec_embeddings_{parameter_num}.npy"
-WEIGHT_PATH_SUBTALKER_DECODER   = f"qwen3_tts_subtalker_decoder_{parameter_num}.onnx"
-MODEL_PATH_SUBTALKER_DECODER   = WEIGHT_PATH_SUBTALKER_DECODER + ".prototxt"
-WEIGHT_PATH_SUBTALKER_LM_HEADS  = f"qwen3_tts_subtalker_lm_heads_{parameter_num}.npy"
+WEIGHT_PATH_CODE_PREDICTOR      = f"qwen3_tts_code_predictor_{parameter_num}.onnx"
+MODEL_PATH_CODE_PREDICTOR      = WEIGHT_PATH_CODE_PREDICTOR + ".prototxt"
+# talker の入力を作るのに 16 グループ分の埋め込みを合算するので、こちらは残る
 WEIGHT_PATH_SUBTALKER_CODEC_EMB = f"qwen3_tts_subtalker_codec_emb_{parameter_num}.npy"
 onnx_list = [
     (WEIGHT_PATH_SPEAKER_ENCODER,MODEL_PATH_SPEAKER_ENCODER),
@@ -164,12 +164,11 @@ onnx_list = [
     (WEIGHT_PATH_TALKER_DECODER, MODEL_PATH_TALKER_DECODER),
     (WEIGHT_PATH_TOKENIZER_ENCODER,MODEL_PATH_TOKENIZER_ENCODER),
     (WEIGHT_PATH_TOKENIZER_DECODER,MODEL_PATH_TOKENIZER_DECODER),
-    (WEIGHT_PATH_SUBTALKER_DECODER,MODEL_PATH_SUBTALKER_DECODER),
+    (WEIGHT_PATH_CODE_PREDICTOR,MODEL_PATH_CODE_PREDICTOR),
 ]
 file_list = [
     WEIGHT_PATH_TEXT_EMB,
     WEIGHT_PATH_CODEC_EMB,
-    WEIGHT_PATH_SUBTALKER_LM_HEADS,
     WEIGHT_PATH_SUBTALKER_CODEC_EMB,
 ]
 # ONNX files whose weights are stored in a separate external data file
@@ -455,16 +454,16 @@ class Qwen3TTS:
         self.text_emb_weight   = np.load(WEIGHT_PATH_TEXT_EMB)
         self.codec_emb_weight  = np.load(WEIGHT_PATH_CODEC_EMB)
         self.text_tokenizer    = create_tokenizer()
-        self.subtalker_decoder  = create_net(MODEL_PATH_SUBTALKER_DECODER, WEIGHT_PATH_SUBTALKER_DECODER, memory_mode, env_id)
+        self.code_predictor     = create_net(MODEL_PATH_CODE_PREDICTOR, WEIGHT_PATH_CODE_PREDICTOR, memory_mode, env_id)
         self.text_emb_weight    = np.load(WEIGHT_PATH_TEXT_EMB)
         self.codec_emb_weight   = np.load(WEIGHT_PATH_CODEC_EMB)
-        self.subtalker_lm_heads  = np.load(WEIGHT_PATH_SUBTALKER_LM_HEADS)   # [15, 2048, subtalker hidden]
         self.subtalker_codec_emb = np.load(WEIGHT_PATH_SUBTALKER_CODEC_EMB)  # [15, 2048, talker hidden]
         self.text_tokenizer      = create_tokenizer()
-        # KV cache を持つ層数は ONNX の入力数から求める (inputs_embeds,
-        # attention_mask, position_ids の 3 入力 + 層ごとに key/value の 2 入力)
+        # KV cache を持つ層数は ONNX の入力数から求める。KV cache 以外の入力は
+        # talker が 3 個 (inputs_embeds, attention_mask, position_ids)、
+        # code_predictor が 4 個 (codec_tokens が加わる)。
         self.NUM_LAYERS     = (len(self.talker_decoder.get_input_blob_list()) - 3) // 2
-        self.NUM_SUB_LAYERS = (len(self.subtalker_decoder.get_input_blob_list()) - 3) // 2
+        self.NUM_SUB_LAYERS = (len(self.code_predictor.get_input_blob_list()) - 4) // 2
         # onnxruntime には blob をコピーする API がないので ailia のときだけ使う
         self.use_copy_blob_data = COPY_BLOB_DATA and not args.onnx
         self.benchmark = Benchmark(args.benchmark)
@@ -474,7 +473,7 @@ class Qwen3TTS:
             "tokenizer_decoder": self.tokenizer_decoder,
             "talker_io_units":   self.talker_io,
             "talker_decoder":    self.talker_decoder,
-            "subtalker_decoder": self.subtalker_decoder,
+            "code_predictor":   self.code_predictor,
         }
         if args.profile and not args.onnx:
             for net in self.nets.values():
@@ -508,28 +507,23 @@ class Qwen3TTS:
     #                   デコードが進んで cache が伸びるほど効果が大きい。
     # returns (last_hidden [1, seq, hidden_size], next kv_caches or None)
     # ------------------------------------------------------------------
-    def _run_decoder(self, name, net, num_layers, inputs_embeds, attention_mask, position_ids, kv_caches):
+    def _run_decoder(self, name, net, num_layers, inputs, kv_caches):
         with self.benchmark.measure(name):
-            return self._run_decoder_impl(
-                net, num_layers, inputs_embeds, attention_mask, position_ids, kv_caches
-            )
+            return self._run_decoder_impl(net, num_layers, inputs, kv_caches)
 
-    def _run_decoder_impl(self, net, num_layers, inputs_embeds, attention_mask, position_ids, kv_caches):
+    def _run_decoder_impl(self, net, num_layers, inputs, kv_caches):
+        n = len(inputs)   # KV cache 以外の入力の数
         if kv_caches is not None:
-            net.set_input_blob_shape(inputs_embeds.shape,   0)
-            net.set_input_blob_shape(attention_mask.shape,  1)
-            net.set_input_blob_shape(position_ids.shape,    2)
+            for index, value in enumerate(inputs):
+                net.set_input_blob_shape(value.shape, index)
             for i in range(num_layers * 2):
-                net.set_input_blob_shape(kv_caches[i].shape, 3 + i)
+                net.set_input_blob_shape(kv_caches[i].shape, n + i)
 
-            outputs = net.run(
-                [inputs_embeds, attention_mask, position_ids] + kv_caches
-            )
-            last_hidden = outputs[0]                    # [1, seq, hidden_size]
+            outputs = net.run(inputs + kv_caches)
             if self.use_copy_blob_data:
                 # 次のステップからは ailia 内部の出力ブロブをコピーする
-                return last_hidden, None
-            return last_hidden, [outputs[1 + i] for i in range(num_layers * 2)]
+                return outputs[0], None
+            return outputs[0], [outputs[1 + i] for i in range(num_layers * 2)]
 
         input_blobs  = net.get_input_blob_list()
         output_blobs = net.get_output_blob_list()
@@ -538,11 +532,11 @@ class Qwen3TTS:
         kv_shapes = [
             net.get_blob_shape(output_blobs[1 + i]) for i in range(num_layers * 2)
         ]
-        for index, value in enumerate([inputs_embeds, attention_mask, position_ids]):
+        for index, value in enumerate(inputs):
             net.set_input_blob_data(value, input_blobs[index])
         for i in range(num_layers * 2):
-            net.set_input_blob_shape(kv_shapes[i], input_blobs[3 + i])
-            net.copy_blob_data(input_blobs[3 + i], output_blobs[1 + i], net)
+            net.set_input_blob_shape(kv_shapes[i], input_blobs[n + i])
+            net.copy_blob_data(input_blobs[n + i], output_blobs[1 + i], net)
         net.update()
         return net.get_blob_data(output_blobs[0]), None
 
@@ -560,16 +554,24 @@ class Qwen3TTS:
     def _run_talker_decoder(self, inputs_embeds, attention_mask, position_ids, kv_caches):
         return self._run_decoder(
             "talker_decoder", self.talker_decoder, self.NUM_LAYERS,
-            inputs_embeds, attention_mask, position_ids, kv_caches
+            [inputs_embeds, attention_mask, position_ids], kv_caches
         )
 
-    def _run_subtalker_decoder(self, inputs_embeds, attention_mask, position_ids, kv_caches):
+    def _run_code_predictor(self, inputs_embeds, codec_tokens, attention_mask,
+                               position_ids, kv_caches):
         return self._run_decoder(
-            "subtalker_decoder", self.subtalker_decoder, self.NUM_SUB_LAYERS,
-            inputs_embeds, attention_mask, position_ids, kv_caches
+            "code_predictor", self.code_predictor, self.NUM_SUB_LAYERS,
+            [inputs_embeds, codec_tokens, attention_mask, position_ids], kv_caches
         )
 
 
+    # ------------------------------------------------------------------
+    # _predict_subgroups: グループ 1〜15 を subtalker で順に予測する
+    #   subtalker の ONNX は codec の埋め込みテーブルと 15 個の lm_head を
+    #   内部に持つので、トークン ID を渡して logits を受け取るだけでよい。
+    #     position 0   : talker の hidden (inputs_embeds で渡す)
+    #     position k+1 : グループ k のトークン ID → グループ k+1 の logits
+    # ------------------------------------------------------------------
     def _predict_subgroups(self, group0_token: int, past_hidden: np.ndarray,
                            temperature: float = 0.9, top_k: int = 50) -> list:
         NSL  = self.NUM_SUB_LAYERS
@@ -577,22 +579,26 @@ class Qwen3TTS:
         HDIM = self.cfg["head_dim"]
         sub_kv = [np.zeros((1, NKV, 0, HDIM), dtype=np.float32) for _ in range(NSL * 2)]
 
-        # ── Prefill (seq=2) ──
-        g0_emb      = self.codec_emb_weight[0, group0_token, :][np.newaxis, np.newaxis, :]
-        prefill_emb = np.concatenate([past_hidden, g0_emb], axis=1).astype(np.float32)
+        # ── Prefill (seq=2): position 0 は hidden、position 1 はグループ 0 ──
+        prefill_emb = np.concatenate(
+            [past_hidden, self.zero_hidden], axis=1
+        ).astype(np.float32)
+        prefill_tokens = np.array([[0, group0_token]], dtype=np.int64)
 
-        hidden, sub_kv = self._run_subtalker_decoder(
-            prefill_emb, self._sub_attn_prefill, self._sub_pos_prefill, sub_kv
+        logits, sub_kv = self._run_code_predictor(
+            prefill_emb, prefill_tokens, self._sub_attn_prefill,
+            self._sub_pos_prefill, sub_kv
         )
-        group_tokens = [_sample_token(self.subtalker_lm_heads[0] @ hidden[0, -1, :], temperature, top_k)]
+        group_tokens = [_sample_token(logits[0, -1, :], temperature, top_k)]
 
         # ── Decode (seq=1 × 14) ──
         for k in range(1, 15):
-            emb = self.subtalker_codec_emb[k-1, group_tokens[k-1], :][np.newaxis, np.newaxis, :].astype(np.float32)
-            hidden, sub_kv = self._run_subtalker_decoder(
-                emb, self._sub_attn_decode[k-1], self._sub_pos_decode[k-1], sub_kv
+            tokens = np.array([[group_tokens[k - 1]]], dtype=np.int64)
+            logits, sub_kv = self._run_code_predictor(
+                self.zero_hidden, tokens,
+                self._sub_attn_decode[k - 1], self._sub_pos_decode[k - 1], sub_kv
             )
-            group_tokens.append(_sample_token(self.subtalker_lm_heads[k] @ hidden[0, -1, :], temperature, top_k))
+            group_tokens.append(_sample_token(logits[0, -1, :], temperature, top_k))
 
         return group_tokens
 

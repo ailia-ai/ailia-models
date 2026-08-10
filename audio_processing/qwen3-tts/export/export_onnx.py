@@ -34,11 +34,12 @@ talker hidden size (1024 for 0.6B, 2048 for 1.7B) and ``Hs`` the sub talker
          talker hidden [B, 1, H])                   codec logits [B, 1, 3072])
     qwen3_tts_talker_decoder_<p>.onnx
         talker transformer (28 layers) with a KV cache passed in/out
-    qwen3_tts_subtalker_decoder_<p>.onnx
-        code predictor (5 layers) with a KV cache passed in/out
+    qwen3_tts_code_predictor_<p>.onnx
+        code predictor (5 layers) with a KV cache passed in/out. Its codec
+        embedding tables and its 15 output heads are part of the graph, so it
+        takes codec token ids and returns logits.
     qwen3_tts_text_embedding_<p>.npy        [text_vocab_size, 2048]
     qwen3_tts_codec_embeddings_<p>.npy      [1, 3072, H]
-    qwen3_tts_subtalker_lm_heads_<p>.npy    [15, 2048, Hs]
     qwen3_tts_subtalker_codec_emb_<p>.npy   [15, 2048, H]
 
 The speech tokenizer weights are identical for 0.6B and 1.7B, so
@@ -94,7 +95,7 @@ TARGETS = [
     "tokenizer_encoder",
     "tokenizer_decoder",
     "talker_io_units",
-    "subtalker_decoder",
+    "code_predictor",
     # exported last: it is by far the largest module
     "talker_decoder",
 ]
@@ -299,13 +300,27 @@ class TalkerDecoder(nn.Module):
 
 
 class SubTalkerDecoder(nn.Module):
-    """Code predictor transformer with the KV cache as plain inputs / outputs.
+    """Code predictor: codec token in, logits for the next code group out.
 
-    inputs_embeds is in the talker hidden size; small_to_mtp_projection brings
-    it down to the code predictor hidden size (an identity for 0.6B).
+    The embedding tables and the 15 output heads are part of the graph, so the
+    runtime never has to gather an embedding or run a matmul of its own. That
+    matters beyond tidiness: numpy's BLAS holds onto its threads after a matmul
+    and starves ailia on the next call.
+
+    Position 0 of the sequence is the talker hidden state, which arrives as
+    inputs_embeds; every later position is a codec token whose embedding is
+    looked up here. The two are selected per position with a where(), so the
+    prefill can still pass both in one call:
+
+        position 0     inputs_embeds (the talker hidden state)
+        position 1     the talker's codec embedding of code group 0
+        position k+1   the code predictor's k-1 th codec embedding of group k
+
+    inputs_embeds is in the talker hidden size; small_to_mtp_projection brings it
+    down to the code predictor hidden size (an identity for 0.6B).
     """
 
-    def __init__(self, code_predictor):
+    def __init__(self, talker, code_predictor):
         super().__init__()
         self.small_to_mtp_projection = code_predictor.small_to_mtp_projection
         self.layers = code_predictor.model.layers
@@ -314,7 +329,37 @@ class SubTalkerDecoder(nn.Module):
             "inv_freq", code_predictor.model.rotary_emb.inv_freq, persistent=False
         )
 
-    def forward(self, inputs_embeds, attention_mask, position_ids, *past_key_values):
+        # kept as two tables: the talker's vocabulary is 3072 and the code
+        # predictor's is 2048, and padding the latter up would ship 63MB of zeros
+        self.register_buffer(
+            "talker_codec", talker.model.codec_embedding.weight.detach(), persistent=False
+        )
+        self.register_buffer(
+            "group_codec",
+            torch.stack([emb.weight.detach() for emb in code_predictor.model.codec_embedding]),
+            persistent=False,
+        )
+        self.register_buffer(
+            "lm_heads",
+            torch.stack([head.weight.detach() for head in code_predictor.lm_head]),
+            persistent=False,
+        )
+        self.num_heads = len(code_predictor.lm_head)
+
+    def forward(self, inputs_embeds, codec_tokens, attention_mask, position_ids,
+                *past_key_values):
+        # position 0 keeps inputs_embeds, position 1 reads the talker's codec
+        # table, and position k+1 reads the code predictor's k-1 th table
+        group = (position_ids - 2).clamp(min=0)
+        from_talker = self.talker_codec[codec_tokens[0]][None]
+        from_group = self.group_codec[group[0], codec_tokens[0]][None]
+        gathered = torch.where(
+            (position_ids == 1)[..., None], from_talker, from_group
+        )
+        inputs_embeds = torch.where(
+            (position_ids == 0)[..., None], inputs_embeds, gathered
+        )
+
         inputs_embeds = self.small_to_mtp_projection(inputs_embeds)
         cos, sin = rope_cos_sin(self.inv_freq, position_ids, inputs_embeds.dtype)
 
@@ -331,8 +376,12 @@ class SubTalkerDecoder(nn.Module):
                 past_key_values[2 * i + 1],
             )
             present += [key, value]
+        hidden_states = self.norm(hidden_states)
 
-        return (self.norm(hidden_states), *present)
+        # the head for the group this step predicts, again named by the position
+        head = (position_ids[0, -1] - 1).clamp(0, self.num_heads - 1)
+        logits = hidden_states[:, -1:, :] @ self.lm_heads[head].t()
+        return (logits, *present)
 
 
 # ======================================================================
@@ -627,22 +676,50 @@ def export_talker_decoder(model_dir, out, parameter_num):
     )
 
 
-def export_subtalker_decoder(model_dir, out, parameter_num):
+def export_code_predictor(model_dir, out, parameter_num):
     model = load_tts_model(model_dir)
     talker_config = model.config.talker_config
     code_predictor_config = talker_config.code_predictor_config
-    wrapper = SubTalkerDecoder(model.talker.code_predictor)
+    wrapper = SubTalkerDecoder(model.talker, model.talker.code_predictor)
 
     del model
     gc.collect()
 
+    num_layers = code_predictor_config.num_hidden_layers
+    num_kv_heads = code_predictor_config.num_key_value_heads
+    head_dim = code_predictor_config.head_dim
+
+    seq_len = 2
+    past_len = 0
     # inputs_embeds is in the talker hidden size (small_to_mtp_projection is
-    # part of the graph)
-    export_transformer(
+    # part of the graph) and only position 0 of it is read
+    inputs_embeds = torch.randn(1, seq_len, talker_config.hidden_size)
+    codec_tokens = torch.zeros(1, seq_len, dtype=torch.int64)
+    attention_mask = causal_mask(seq_len, past_len)
+    position_ids = torch.arange(past_len, past_len + seq_len)[None]
+    past = [
+        torch.randn(1, num_kv_heads, past_len, head_dim) for _ in range(num_layers * 2)
+    ]
+
+    past_names, present_names = kv_cache_names(num_layers)
+    dynamic_axes = {
+        "inputs_embeds": {1: "seq_len"},
+        "codec_tokens": {1: "seq_len"},
+        "attention_mask": {2: "seq_len", 3: "total_seq_len"},
+        "position_ids": {1: "seq_len"},
+    }
+    for name in past_names:
+        dynamic_axes[name] = {2: "past_seq_len"}
+    for name in present_names:
+        dynamic_axes[name] = {2: "total_seq_len"}
+
+    export(
         wrapper,
-        code_predictor_config,
-        talker_config.hidden_size,
-        out("subtalker_decoder", "onnx"),
+        (inputs_embeds, codec_tokens, attention_mask, position_ids, *past),
+        out("code_predictor", "onnx"),
+        ["inputs_embeds", "codec_tokens", "attention_mask", "position_ids"] + past_names,
+        ["logits"] + present_names,
+        dynamic_axes,
     )
 
 
@@ -652,7 +729,7 @@ EXPORTERS = {
     "tokenizer_encoder": export_tokenizer_encoder,
     "tokenizer_decoder": export_tokenizer_decoder,
     "talker_io_units": export_talker_io_units,
-    "subtalker_decoder": export_subtalker_decoder,
+    "code_predictor": export_code_predictor,
     "talker_decoder": export_talker_decoder,
 }
 
