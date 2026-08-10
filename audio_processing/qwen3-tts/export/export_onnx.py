@@ -185,8 +185,14 @@ def rope_cos_sin(inv_freq, position_ids, dtype):
     return emb.cos().to(dtype), emb.sin().to(dtype)
 
 
-def decoder_layer_forward(layer, hidden_states, attention_mask, cos, sin, past_key, past_value):
-    """Qwen3TTS{,Talker}DecoderLayer.forward with an explicit KV cache."""
+def decoder_layer_forward(layer, hidden_states, attention_mask, cos, sin, past_key, past_value,
+                          slot=None):
+    """Qwen3TTS{,Talker}DecoderLayer.forward with an explicit KV cache.
+
+    slot is None for a cache that grows by concatenation. Passing a boolean
+    [1, 1, cache_len, 1] mask instead writes the new key and value into that one
+    position of a fixed size cache, which keeps every shape in the graph constant.
+    """
     attn = layer.self_attn
     input_shape = hidden_states.shape[:-1]
     hidden_shape = (*input_shape, -1, attn.head_dim)
@@ -200,8 +206,12 @@ def decoder_layer_forward(layer, hidden_states, attention_mask, cos, sin, past_k
 
     query, key = apply_rotary_pos_emb(query, key, cos, sin)
 
-    key = torch.cat([past_key, key], dim=2)
-    value = torch.cat([past_value, value], dim=2)
+    if slot is None:
+        key = torch.cat([past_key, key], dim=2)
+        value = torch.cat([past_value, value], dim=2)
+    else:
+        key = torch.where(slot, key, past_key)
+        value = torch.where(slot, value, past_value)
 
     attn_output, _ = eager_attention_forward(
         attn, query, key, value, attention_mask, scaling=attn.scaling, dropout=0.0
@@ -299,14 +309,23 @@ class TalkerDecoder(nn.Module):
 
 
 class SubTalkerDecoder(nn.Module):
-    """Code predictor transformer with the KV cache as plain inputs / outputs.
+    """Code predictor transformer over a fixed size KV cache.
 
-    inputs_embeds is in the talker hidden size; small_to_mtp_projection brings
-    it down to the code predictor hidden size (an identity for 0.6B).
+    The code predictor always walks exactly num_code_groups positions (the talker
+    hidden state, then one per code group), so the cache is a fixed
+    [1, kv_heads, num_code_groups, head_dim] buffer and each step overwrites the
+    slot named by position_ids. Nothing in the graph changes shape between steps,
+    which matters because ailia re-runs shape inference over the whole graph
+    whenever an input is resized; with a cache that grew by one every step that
+    was about half of the runtime.
+
+    inputs_embeds is in the talker hidden size; small_to_mtp_projection brings it
+    down to the code predictor hidden size (an identity for 0.6B).
     """
 
-    def __init__(self, code_predictor):
+    def __init__(self, code_predictor, cache_len):
         super().__init__()
+        self.cache_len = cache_len
         self.small_to_mtp_projection = code_predictor.small_to_mtp_projection
         self.layers = code_predictor.model.layers
         self.norm = code_predictor.model.norm
@@ -317,6 +336,9 @@ class SubTalkerDecoder(nn.Module):
     def forward(self, inputs_embeds, attention_mask, position_ids, *past_key_values):
         inputs_embeds = self.small_to_mtp_projection(inputs_embeds)
         cos, sin = rope_cos_sin(self.inv_freq, position_ids, inputs_embeds.dtype)
+
+        slots = torch.arange(self.cache_len, device=position_ids.device)
+        slot = (slots == position_ids[0, 0]).view(1, 1, self.cache_len, 1)
 
         hidden_states = inputs_embeds
         present = []
@@ -329,6 +351,7 @@ class SubTalkerDecoder(nn.Module):
                 sin,
                 past_key_values[2 * i],
                 past_key_values[2 * i + 1],
+                slot=slot,
             )
             present += [key, value]
 
@@ -631,18 +654,35 @@ def export_subtalker_decoder(model_dir, out, parameter_num):
     model = load_tts_model(model_dir)
     talker_config = model.config.talker_config
     code_predictor_config = talker_config.code_predictor_config
-    wrapper = SubTalkerDecoder(model.talker.code_predictor)
+    cache_len = code_predictor_config.num_code_groups
+    wrapper = SubTalkerDecoder(model.talker.code_predictor, cache_len)
 
     del model
     gc.collect()
 
+    num_layers = code_predictor_config.num_hidden_layers
+    num_kv_heads = code_predictor_config.num_key_value_heads
+    head_dim = code_predictor_config.head_dim
+
+    # every shape is fixed: one token in, a cache_len slot cache in and out
     # inputs_embeds is in the talker hidden size (small_to_mtp_projection is
     # part of the graph)
-    export_transformer(
+    inputs_embeds = torch.randn(1, 1, talker_config.hidden_size)
+    attention_mask = torch.zeros(1, 1, 1, cache_len)
+    attention_mask[..., 2:] = float("-inf")
+    position_ids = torch.ones(1, 1, dtype=torch.int64)
+    past = [
+        torch.randn(1, num_kv_heads, cache_len, head_dim) for _ in range(num_layers * 2)
+    ]
+
+    past_names, present_names = kv_cache_names(num_layers)
+    export(
         wrapper,
-        code_predictor_config,
-        talker_config.hidden_size,
+        (inputs_embeds, attention_mask, position_ids, *past),
         out("subtalker_decoder", "onnx"),
+        ["inputs_embeds", "attention_mask", "position_ids"] + past_names,
+        ["last_hidden_state"] + present_names,
+        None,
     )
 
 

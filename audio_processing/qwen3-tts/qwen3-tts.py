@@ -314,6 +314,8 @@ def load_qwen_config(config_path=CONFIG_PATH):
         "hidden_size":        tc["hidden_size"],
         # text embedding の次元 (0.6B / 1.7B ともに 2048)
         "text_hidden_size":   tc["text_hidden_size"],
+        # subtalker が 1 トークンあたりに走る位置数 (talker hidden + 15 グループ)
+        "num_code_groups":    tc["num_code_groups"],
     }
 TOKENIZER_DIR = "./tokenizer"
 
@@ -466,10 +468,14 @@ class Qwen3TTS:
         if args.profile and not args.onnx:
             for net in self.nets.values():
                 net.set_profile_mode(True)
-        self._sub_attn_prefill = self.generate_attention_mask(2)          # [1,1,2,2]
-        self._sub_pos_prefill  = np.array([[0, 1]], dtype=np.int64)
-        self._sub_attn_decode  = [self.generate_attention_mask(1, 1+k) for k in range(1, 15)]
-        self._sub_pos_decode   = [np.array([[1+k]], dtype=np.int64)   for k in range(1, 15)]
+        # subtalker は固定長 cache なので mask も position ごとに固定長で作る
+        self.NUM_CODE_GROUPS = self.cfg["num_code_groups"]
+        self._sub_attn = [
+            self.generate_subtalker_mask(p) for p in range(self.NUM_CODE_GROUPS)
+        ]
+        self._sub_pos  = [
+            np.array([[p]], dtype=np.int64) for p in range(self.NUM_CODE_GROUPS)
+        ]
 
     # ------------------------------------------------------------------
     # generate_attention_mask: 4D causal mask を作る
@@ -482,6 +488,15 @@ class Qwen3TTS:
         for i in range(seq_len):
             mask[i, : past_len + i + 1] = 0.0
         return mask[np.newaxis, np.newaxis, :, :]   # [1, 1, seq_len, total_len]
+
+    # ------------------------------------------------------------------
+    # generate_subtalker_mask: 固定長 cache 用の 4D mask
+    #   position までのスロットだけ参照可能にする [1, 1, 1, num_code_groups]
+    # ------------------------------------------------------------------
+    def generate_subtalker_mask(self, position):
+        mask = np.full((1, 1, 1, self.NUM_CODE_GROUPS), -np.inf, dtype=np.float32)
+        mask[..., : position + 1] = 0.0
+        return mask
 
     # ------------------------------------------------------------------
     # _run_decoder: talker / subtalker 共通の 1 ステップ実行
@@ -528,8 +543,12 @@ class Qwen3TTS:
         for index, value in enumerate([inputs_embeds, attention_mask, position_ids]):
             net.set_input_blob_data(value, input_blobs[index])
         for i in range(num_layers * 2):
-            net.set_input_blob_shape(kv_shapes[i], input_blobs[3 + i])
-            net.copy_blob_data(input_blobs[3 + i], output_blobs[1 + i], net)
+            dst = input_blobs[3 + i]
+            # subtalker は固定長 cache なので shape は毎回同じ。設定し直すと
+            # ailia が形状を再推論してしまうので、変わったときだけ呼ぶ
+            if net.get_blob_shape(dst) != kv_shapes[i]:
+                net.set_input_blob_shape(kv_shapes[i], dst)
+            net.copy_blob_data(dst, output_blobs[1 + i], net)
         net.update()
         return net.get_blob_data(output_blobs[0]), None
 
@@ -557,29 +576,43 @@ class Qwen3TTS:
         )
 
 
+    # ------------------------------------------------------------------
+    # _predict_subgroups: グループ 1〜15 を subtalker で順に予測する
+    #   subtalker の ONNX は num_code_groups スロットの固定長 cache を持ち、
+    #   position が指すスロットだけを書き換える。全ステップが seq=1 の同じ
+    #   shape になるので、ailia の形状再推論が起きない。
+    #     position 0        : talker の hidden
+    #     position k+1      : グループ k の埋め込み → グループ k+1 を予測
+    # ------------------------------------------------------------------
     def _predict_subgroups(self, group0_token: int, past_hidden: np.ndarray,
                            temperature: float = 0.9, top_k: int = 50) -> list:
         NSL  = self.NUM_SUB_LAYERS
         NKV  = self.cfg["num_kv_heads"]
         HDIM = self.cfg["head_dim"]
-        sub_kv = [np.zeros((1, NKV, 0, HDIM), dtype=np.float32) for _ in range(NSL * 2)]
+        sub_kv = [
+            np.zeros((1, NKV, self.NUM_CODE_GROUPS, HDIM), dtype=np.float32)
+            for _ in range(NSL * 2)
+        ]
 
-        # ── Prefill (seq=2) ──
-        g0_emb      = self.codec_emb_weight[0, group0_token, :][np.newaxis, np.newaxis, :]
-        prefill_emb = np.concatenate([past_hidden, g0_emb], axis=1).astype(np.float32)
-
-        hidden, sub_kv = self._run_subtalker_decoder(
-            prefill_emb, self._sub_attn_prefill, self._sub_pos_prefill, sub_kv
+        # position 0: talker の hidden を cache に入れる (出力は使わない)
+        _, sub_kv = self._run_subtalker_decoder(
+            past_hidden.astype(np.float32), self._sub_attn[0], self._sub_pos[0], sub_kv
         )
-        group_tokens = [_sample_token(self.subtalker_lm_heads[0] @ hidden[0, -1, :], temperature, top_k)]
 
-        # ── Decode (seq=1 × 14) ──
-        for k in range(1, 15):
-            emb = self.subtalker_codec_emb[k-1, group_tokens[k-1], :][np.newaxis, np.newaxis, :].astype(np.float32)
+        group_tokens = []
+        for k in range(self.NUM_CODE_GROUPS - 1):
+            if k == 0:
+                emb = self.codec_emb_weight[0, group0_token, :]
+            else:
+                emb = self.subtalker_codec_emb[k - 1, group_tokens[k - 1], :]
+            emb = emb[np.newaxis, np.newaxis, :].astype(np.float32)
+
             hidden, sub_kv = self._run_subtalker_decoder(
-                emb, self._sub_attn_decode[k-1], self._sub_pos_decode[k-1], sub_kv
+                emb, self._sub_attn[k + 1], self._sub_pos[k + 1], sub_kv
             )
-            group_tokens.append(_sample_token(self.subtalker_lm_heads[k] @ hidden[0, -1, :], temperature, top_k))
+            group_tokens.append(_sample_token(
+                self.subtalker_lm_heads[k] @ hidden[0, -1, :], temperature, top_k
+            ))
 
         return group_tokens
 
