@@ -33,7 +33,7 @@ logger = getLogger(__name__)
 OUTPUT_WAV_PATH = 'output.wav'
 TEXT_STR = "Good one. Okay, fine, I'm just gonna leave this sock monkey here. Goodbye."
 INPUT_WAV_PATH = "clone_2.wav"
-INPUT_TEXT_PATH = "clone_2.txt"
+INPUT_TEXT_STR = "Okay. Yeah. I resent you. I love you. I respect you. But you know what? You blew it! And thanks to you."
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/qwen3-tts/"
 
 
@@ -53,10 +53,10 @@ parser.add_argument(
     help='Reference audio file path for Voice Clone mode (e.g. clone_2.wav)'
 )
 
-# 参照音声のキャプション（書き起こし）テキストのパス
+# 参照音声のキャプション（書き起こし）テキスト
 parser.add_argument(
-    '--ref_text', type=str, default=INPUT_TEXT_PATH,
-    help='Reference text file path for Voice Clone mode (e.g. clone_2.txt)'
+    '--ref_text', type=str, default=INPUT_TEXT_STR,
+    help='Reference text for Voice Clone mode (e.g. Okay. Yeah.)'
 )
 
 
@@ -766,8 +766,7 @@ def main():
     tts_engine = Qwen3TTS(memory_mode, args.env_id)
 
     # 2. 検証用データの指定
-    with open(args.ref_text, "r", encoding="utf-8") as f:
-                wav_text = f.read()
+    wav_text = args.ref_text
 
     # 3. 推論実行
     print("Generating speech...")
