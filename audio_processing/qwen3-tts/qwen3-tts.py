@@ -467,8 +467,11 @@ class Qwen3TTS:
         ]
         for index, value in enumerate(inputs):
             net.set_input_blob_data(value, input_blobs[index])
+        # shape の設定は 1 回ごとにネットワーク全体の再推論を伴うので、コピーと
+        # 交互に呼ぶと 1 層ごとに再推論が挟まる。先に全部の shape を確定させる。
         for i in range(num_layers * 2):
             net.set_input_blob_shape(kv_shapes[i], input_blobs[n + i])
+        for i in range(num_layers * 2):
             net.copy_blob_data(input_blobs[n + i], output_blobs[num_outputs + i], net)
         net.update()
         return [net.get_blob_data(output_blobs[i]) for i in range(num_outputs)], None
