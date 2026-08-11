@@ -107,7 +107,7 @@ python3 ailia_gather_repro.py --stage both
 | `qwen3_tts_codec_embedding_<p>.onnx` | codec table rows `[n, 16]` | their sums `[1, n, H]` |
 | `qwen3_tts_talker_<p>.onnx` | hidden states `[1, seq, H]`, 4D mask, position ids, KV cache | codec logits `[1, 1, 3072]`, hidden state `[1, 1, H]`, KV cache |
 | `qwen3_tts_code_predictor_<p>.onnx` | hidden states `[1, seq, H]`, head rows `[2048]`, 4D mask, position ids, KV cache | code group logits `[1, 1, 2048]`, KV cache |
-| `qwen3_tts_tokenizer_decoder_<p>.onnx` | audio codes `[B, 16, T]` | waveform `[1, 1, L]` |
+| `qwen3_tts_decoder_<p>.onnx` | audio codes `[B, 16, T]` | waveform `[1, 1, L]` |
 
 Every weight is in a graph, including the text projection, the 16 codec embedding
 tables and all 16 output heads, so `../qwen3-tts.py` only reshapes arrays and
@@ -161,17 +161,18 @@ Notes:
   three the same position id, which makes it equivalent to the plain rotary
   embedding. The exported graph therefore takes 2D `[B, seq]` position ids.
 - The speech tokenizer weights are identical for both sizes, so the two
-  `qwen3_tts_tokenizer_decoder_*.onnx` have the same content. They are exported
-  per size to keep the runtime file names uniform.
-- The file names differ from the first published set
-  (`speaker_encoder`, `tokenizer_encoder`, `talker_io_units`, `talker_decoder`,
-  `subtalker_decoder` and its npy tables), whose split does not match these
-  graphs. `tokenizer_decoder` keeps its name because it is still the same model:
-  same input and output names, dtypes, shapes and opset as the published file, and
-  the same waveform to 1.6e-05 on samples in [-1, 1], which is fp32 rounding from
-  a slightly different graph decomposition rather than a change in behaviour. Like
-  the published file it is a single ONNX, so a runtime that already has the old
-  one keeps working and downloads nothing extra.
+  `qwen3_tts_decoder_*.onnx` have the same content. They are exported per size to
+  keep the runtime file names uniform.
+- **Not one file name is shared with the first published set**, so the two
+  generations can be told apart by name alone and the older one deleted without
+  looking inside anything. That set was `speaker_encoder`, `tokenizer_encoder`,
+  `tokenizer_decoder`, `talker_io_units`, `talker_decoder`, `subtalker_decoder` and
+  four npy tables, and its split does not match these graphs.
+  `qwen3_tts_decoder_<p>.onnx` is the one model whose content did not change:
+  it has the same input and output names, dtypes, shapes and opset as the published
+  `tokenizer_decoder`, and produces the same waveform to 1.6e-05 on samples in
+  [-1, 1], which is fp32 rounding from a slightly different graph decomposition. It
+  is renamed anyway so that no name spans both generations.
 
 ## Upload
 

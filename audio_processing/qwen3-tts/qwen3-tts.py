@@ -124,7 +124,7 @@ CONFIG_PATH = f"config_{parameter_num}.json"
 #   codec_embedding   codec 埋め込みテーブル (16 グループ分をまとめて 1 つ)
 #   talker            自己回帰本体 (出力ヘッド入り)
 #   code_predictor    グループ 1〜15 の予測 (15 個の出力ヘッド入り)
-#   tokenizer_decoder codec トークン -> 波形
+#   decoder           codec トークン -> 波形
 WEIGHT_PATH_ENCODER           = f"qwen3_tts_encoder_{parameter_num}.onnx"
 MODEL_PATH_ENCODER            = WEIGHT_PATH_ENCODER + ".prototxt"
 WEIGHT_PATH_PROMPT            = f"qwen3_tts_prompt_{parameter_num}.onnx"
@@ -135,8 +135,8 @@ WEIGHT_PATH_TALKER            = f"qwen3_tts_talker_{parameter_num}.onnx"
 MODEL_PATH_TALKER             = WEIGHT_PATH_TALKER + ".prototxt"
 WEIGHT_PATH_CODE_PREDICTOR    = f"qwen3_tts_code_predictor_{parameter_num}.onnx"
 MODEL_PATH_CODE_PREDICTOR     = WEIGHT_PATH_CODE_PREDICTOR + ".prototxt"
-WEIGHT_PATH_TOKENIZER_DECODER = f"qwen3_tts_tokenizer_decoder_{parameter_num}.onnx"
-MODEL_PATH_TOKENIZER_DECODER  = WEIGHT_PATH_TOKENIZER_DECODER + ".prototxt"
+WEIGHT_PATH_DECODER           = f"qwen3_tts_decoder_{parameter_num}.onnx"
+MODEL_PATH_DECODER            = WEIGHT_PATH_DECODER + ".prototxt"
 
 onnx_list = [
     (WEIGHT_PATH_ENCODER, MODEL_PATH_ENCODER),
@@ -144,7 +144,7 @@ onnx_list = [
     (WEIGHT_PATH_CODEC_EMBEDDING, MODEL_PATH_CODEC_EMBEDDING),
     (WEIGHT_PATH_TALKER, MODEL_PATH_TALKER),
     (WEIGHT_PATH_CODE_PREDICTOR, MODEL_PATH_CODE_PREDICTOR),
-    (WEIGHT_PATH_TOKENIZER_DECODER, MODEL_PATH_TOKENIZER_DECODER),
+    (WEIGHT_PATH_DECODER, MODEL_PATH_DECODER),
 ]
 
 # weight が 2GB の protobuf 制限に収まらないモデルだけ .onnx.data に分けている。
@@ -389,7 +389,7 @@ class Qwen3TTS:
         self.codec_embedding   = create_net(MODEL_PATH_CODEC_EMBEDDING, WEIGHT_PATH_CODEC_EMBEDDING, memory_mode, env_id)
         self.talker            = create_net(MODEL_PATH_TALKER, WEIGHT_PATH_TALKER, memory_mode, env_id)
         self.code_predictor    = create_net(MODEL_PATH_CODE_PREDICTOR, WEIGHT_PATH_CODE_PREDICTOR, memory_mode, env_id)
-        self.tokenizer_decoder = create_net(MODEL_PATH_TOKENIZER_DECODER, WEIGHT_PATH_TOKENIZER_DECODER, memory_mode, env_id)
+        self.decoder           = create_net(MODEL_PATH_DECODER, WEIGHT_PATH_DECODER, memory_mode, env_id)
         self.text_tokenizer    = create_tokenizer()
         # KV cache を持つ層数は ONNX の入力数から求める。KV cache 以外の入力は
         # talker が 3 個 (inputs_embeds, attention_mask, position_ids)、
@@ -405,7 +405,7 @@ class Qwen3TTS:
             "codec_embedding":   self.codec_embedding,
             "talker":            self.talker,
             "code_predictor":    self.code_predictor,
-            "tokenizer_decoder": self.tokenizer_decoder,
+            "decoder":           self.decoder,
         }
         if args.profile and not args.onnx:
             for net in self.nets.values():
@@ -800,7 +800,7 @@ class Qwen3TTS:
             curr_token_id = _sample_token(logits_1d, temperature, top_k)
 
         # ==============================================================
-        # AUDIO 生成: tokenizer_decoder で波形に変換
+        # AUDIO 生成: decoder で波形に変換
         # ==============================================================
         T = len(generated_ids)
         if T == 0:
@@ -818,9 +818,9 @@ class Qwen3TTS:
             [ref_code[np.newaxis, :, :], all_codes], axis=2
         )  # [1, 16, T_ref + T]
 
-        with self.benchmark.measure("tokenizer_decoder"):
-            self.tokenizer_decoder.set_input_blob_shape(codes_for_decode.shape, 0)
-            wav = np.squeeze(self.tokenizer_decoder.run([codes_for_decode])[0])  # [L]
+        with self.benchmark.measure("decoder"):
+            self.decoder.set_input_blob_shape(codes_for_decode.shape, 0)
+            wav = np.squeeze(self.decoder.run([codes_for_decode])[0])  # [L]
 
         total_T = codes_for_decode.shape[2]
         cut = int(ref_T / max(total_T, 1) * wav.shape[0])

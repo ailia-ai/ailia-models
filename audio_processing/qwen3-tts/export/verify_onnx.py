@@ -31,7 +31,7 @@ import export_onnx as ex
 TARGETS = [
     "codec_embedding",
     "encoder",
-    "tokenizer_decoder",
+    "decoder",
     "prompt",
     "code_predictor",
     "talker",
@@ -137,7 +137,7 @@ def check_encoder(model_dir, onnx_path):
     return ok
 
 
-def check_tokenizer_decoder(model_dir, onnx_path):
+def check_decoder(model_dir, onnx_path):
     model = ex.load_speech_tokenizer(model_dir)
     num_quantizers = model.config.decoder_config.num_quantizers
     sess = session(onnx_path)
@@ -353,7 +353,7 @@ def check_code_predictor(model_dir, onnx_path):
 CHECKS = {
     "codec_embedding": check_codec_embedding,
     "encoder": check_encoder,
-    "tokenizer_decoder": check_tokenizer_decoder,
+    "decoder": check_decoder,
     "prompt": check_prompt,
     "code_predictor": check_code_predictor,
     "talker": check_talker,

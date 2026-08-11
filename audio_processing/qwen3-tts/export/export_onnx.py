@@ -26,7 +26,7 @@ the runtime only reshapes arrays and samples tokens. ``<p>`` is the parameter_nu
     qwen3_tts_encoder_<p>.onnx
         (waveform [1, 1, L], mel [1, frames, 128])
             -> (audio codes [1, 32, T], speaker embedding [1, H])
-    qwen3_tts_tokenizer_decoder_<p>.onnx
+    qwen3_tts_decoder_<p>.onnx
         audio codes [B, 16, T]                  -> waveform [1, 1, L]
     qwen3_tts_prompt_<p>.onnx
         text token ids [1, n]                   -> projected text [1, n, H]
@@ -46,8 +46,8 @@ gather's index a few calls into a decode loop. ailia_gather_repro.py is a 90KB
 reproduction, and export/README.md has the details.
 
 The speech tokenizer weights are identical for 0.6B and 1.7B, so the two
-qwen3_tts_tokenizer_decoder_*.onnx have the same content. They are exported per
-size to keep the runtime file names uniform.
+qwen3_tts_decoder_*.onnx have the same content. They are exported per size to keep
+the runtime file names uniform.
 """
 
 import argparse
@@ -94,7 +94,7 @@ MODEL_ID = {
 TARGETS = [
     "codec_embedding",
     "encoder",
-    "tokenizer_decoder",
+    "decoder",
     "prompt",
     "code_predictor",
     # exported last: it is by far the largest module
@@ -232,7 +232,7 @@ class Encoder(nn.Module):
         return audio_codes, self.speaker_encoder(mel)
 
 
-class TokenizerDecoder(nn.Module):
+class Decoder(nn.Module):
     """Qwen3-TTS-Tokenizer-12Hz decoder: audio codes -> waveform."""
 
     def __init__(self, tokenizer_model):
@@ -604,16 +604,16 @@ def export_encoder(model_dir, out, parameter_num):
     )
 
 
-def export_tokenizer_decoder(model_dir, out, parameter_num):
+def export_decoder(model_dir, out, parameter_num):
     model = load_speech_tokenizer(model_dir)
-    wrapper = TokenizerDecoder(model)
+    wrapper = Decoder(model)
     num_quantizers = model.config.decoder_config.num_quantizers
     codes = torch.randint(0, 2048, (1, num_quantizers, 60))
 
     export(
         wrapper,
         (codes,),
-        out("tokenizer_decoder", "onnx"),
+        out("decoder", "onnx"),
         ["codes"],
         ["waveform"],
         {
@@ -765,7 +765,7 @@ def export_code_predictor(model_dir, out, parameter_num):
 EXPORTERS = {
     "codec_embedding": export_codec_embedding,
     "encoder": export_encoder,
-    "tokenizer_decoder": export_tokenizer_decoder,
+    "decoder": export_decoder,
     "prompt": export_prompt,
     "code_predictor": export_code_predictor,
     "talker": export_talker,
