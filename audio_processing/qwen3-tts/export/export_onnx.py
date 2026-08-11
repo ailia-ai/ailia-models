@@ -411,8 +411,7 @@ def causal_mask(seq_len, past_len=0):
 
 
 def export(
-    model, args, path, input_names, output_names, dynamic_axes,
-    dynamo=False, external_data=False,
+    model, args, path, input_names, output_names, dynamic_axes, dynamo=False,
 ):
     print(f"exporting {os.path.basename(path)} ...")
     model.eval()
@@ -427,7 +426,7 @@ def export(
         do_constant_folding=True,
         dynamo=dynamo,
     )
-    consolidate_external_data(path, force=external_data)
+    consolidate_external_data(path)
     generate_prototxt(path)
 
 
@@ -471,15 +470,23 @@ def graph_tensors(graph):
                 yield from graph_tensors(subgraph)
 
 
-def consolidate_external_data(path, force=False):
-    """Merge external weights into a single <name>.onnx.data file.
+# A protobuf message cannot exceed 2GB, so a model whose weights come to more
+# than this keeps them in a separate .onnx.data file and everything else stores
+# them inline. The margin is for the graph itself.
+INLINE_LIMIT = 1900 * 1024 * 1024
 
-    A model over the 2GB protobuf limit cannot store its weights inline. The
-    TorchScript exporter then writes one file per tensor, which is unwieldy to
-    upload, so everything is rewritten into a single data file next to the
-    model. This is a no-op for models that fit inline, unless force is set.
+
+def consolidate_external_data(path):
+    """Store a model's weights inline, or in a single <name>.onnx.data file.
+
+    Both exporters can leave weights in files of their own -- the TorchScript one
+    when the model is over the protobuf limit, and the dynamo one always -- and
+    one file per tensor is unwieldy to upload. A model that fits inline gets its
+    weights back in the ONNX, so it needs no sidecar at all; the rest are
+    rewritten into a single data file next to the model.
     """
     location = os.path.basename(path) + ".data"
+    directory = os.path.dirname(path)
     model = onnx.load(path, load_external_data=False)
     externals = {
         entry.value
@@ -488,14 +495,28 @@ def consolidate_external_data(path, force=False):
         for entry in tensor.external_data
         if entry.key == "location"
     }
-    if not externals and not force:
+
+    model = onnx.load(path)
+    weight_bytes = sum(
+        len(tensor.raw_data) for tensor in graph_tensors(model.graph)
+        if tensor.HasField("raw_data")
+    )
+    inline = weight_bytes <= INLINE_LIMIT
+    if inline and not externals:
         return
 
-    print(f"  merging {len(externals)} weight files into {location} ...")
-    model = onnx.load(path)
+    print(f"  storing {weight_bytes / 1e9:.2f}GB of weights "
+          + ("in the ONNX itself" if inline else f"in {location}")
+          + (f", replacing {len(externals)} weight files" if externals else "")
+          + " ...")
     # the weights are in memory now, and onnx appends to an existing data file
-    for name in externals:
-        os.remove(os.path.join(os.path.dirname(path), name))
+    for name in externals | {location}:
+        if os.path.exists(os.path.join(directory, name)):
+            os.remove(os.path.join(directory, name))
+
+    if inline:
+        onnx.save_model(model, path)
+        return
     onnx.save_model(
         model,
         path,
@@ -507,7 +528,7 @@ def consolidate_external_data(path, force=False):
     )
     # onnx writes the data file with the process umask, make it world readable
     # like the model itself so it can be uploaded as is
-    os.chmod(os.path.join(os.path.dirname(path), location), 0o644)
+    os.chmod(os.path.join(directory, location), 0o644)
 
 
 def generate_prototxt(onnx_path):

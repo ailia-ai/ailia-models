@@ -137,17 +137,21 @@ Notes:
   combined head matrix that step needs, rather than deriving them from
   `position_ids`. Indices that come straight from an input are what the other
   table lookups here use as well.
-- Weights only have to be stored in a separate `.onnx.data` file when the model
-  does not fit in the 2GB protobuf limit. That is the case for `prompt` (the text
-  embedding table alone is over 1GB), `tokenizer_decoder` (exported with
-  `dynamo=True`, which always externalizes) and the 1.7B `talker`.
+- A model whose weights fit in the 2GB protobuf limit is stored as a single ONNX,
+  with no `.onnx.data` beside it, which for these models means everything except
+  the 1.7B `talker`. Both exporters can leave weights in files of their own -- the
+  dynamo one always does -- so `consolidate_external_data()` puts them back in the
+  ONNX when they fit and merges them into one data file when they do not. Reading
+  the weights from the ONNX itself is also what makes the `prompt` call take 3 ms
+  rather than the seconds it took with a 1.27GB sidecar.
 - **A model using external data has to keep at least one initializer inline.**
   ailia reads every weight as zero when all of them live in the data file, which
   silently produces zero outputs (and NaN once a graph is run twice under
   CPU-IntelMKL). `external_data_threshold()` derives the `size_threshold` from
   the model so the smallest initializer always stays in the ONNX itself. Note
   that onnx compares `sys.getsizeof(raw_data)`, the payload plus the bytes object
-  overhead, against that threshold.
+  overhead, against that threshold. Only the 1.7B talker is affected now that
+  everything else is a single file.
 - The exporter also writes weights folded into a Constant node to their own
   external file. Those are attribute tensors rather than initializers, so
   `consolidate_external_data()` walks node attributes as well when it collects the
@@ -162,7 +166,12 @@ Notes:
 - The file names differ from the first published set
   (`speaker_encoder`, `tokenizer_encoder`, `talker_io_units`, `talker_decoder`,
   `subtalker_decoder` and its npy tables), whose split does not match these
-  graphs. `tokenizer_decoder` is unchanged and keeps its name.
+  graphs. `tokenizer_decoder` keeps its name because it is still the same model:
+  same input and output names, dtypes, shapes and opset as the published file, and
+  the same waveform to 1.6e-05 on samples in [-1, 1], which is fp32 rounding from
+  a slightly different graph decomposition rather than a change in behaviour. Like
+  the published file it is a single ONNX, so a runtime that already has the old
+  one keeps working and downloads nothing extra.
 
 ## Upload
 

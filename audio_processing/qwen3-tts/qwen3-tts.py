@@ -147,10 +147,11 @@ onnx_list = [
     (WEIGHT_PATH_TOKENIZER_DECODER, MODEL_PATH_TOKENIZER_DECODER),
 ]
 
-# 2GB の protobuf 制限に収まらないモデルは weight を .onnx.data に分けている
+# weight が 2GB の protobuf 制限に収まらないモデルだけ .onnx.data に分けている。
+# 収まるものは単一の ONNX なので、追加でダウンロードするファイルは無い。
 EXTERNAL_DATA = {
-    "0.6B": [WEIGHT_PATH_PROMPT, WEIGHT_PATH_TOKENIZER_DECODER],
-    "1.7B": [WEIGHT_PATH_PROMPT, WEIGHT_PATH_TALKER, WEIGHT_PATH_TOKENIZER_DECODER],
+    "0.6B": [],
+    "1.7B": [WEIGHT_PATH_TALKER],
 }
 file_list = [name + ".data" for name in EXTERNAL_DATA[parameter_num]]
 
