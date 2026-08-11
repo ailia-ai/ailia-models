@@ -74,6 +74,7 @@ Supported languages: `Auto` (default), `chinese`, `english`, `japanese`, `korean
 - `--subtalker_top_k` Top-k sampling for the subtalker (code predictor). (default: `50`, matches the official implementation)
 - `--seed` Random seed for reproducible sampling. (default: `None`)
 - `--onnx` Run the models with onnxruntime instead of the ailia SDK.
+- `--fp16` Use the fp16 models, which halve the download (about 2.3GB for `0.6B` and about 4.3GB for `1.7B`). On a CPU this is slower rather than faster, on the ailia SDK and on onnxruntime alike, so the size is what it buys there; the speed benefit is on a GPU that computes in fp16. The reference audio encoder stays fp32 either way, because its output is codebook indices. See [export/README.md](./export/README.md) for the measurements.
 - `-b`, `--benchmark` Report the inference time per model. The talker and the code predictor run once per token, so their line shows the number of calls and the average.
 - `--profile` Print the ailia SDK layer profile for every model.
 - `-s`, `--savepath` Save path for the output synthesized audio. (default: `output.wav`)

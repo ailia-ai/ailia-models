@@ -56,6 +56,66 @@ tokenizer at two different lengths:
 python3 verify_onnx.py --parameter_num 1.7B --onnx_dir .
 ```
 
+## fp16
+
+`convert_to_fp16.py` halves the exported models. It works on the ONNX rather than
+re-exporting, so it needs neither torch nor qwen-tts:
+
+```bash
+python3 convert_to_fp16.py --parameter_num 0.6B --onnx_dir .
+```
+
+| the set ../qwen3-tts.py downloads | fp32 | fp16 |
+|---|---|---|
+| 0.6B | 4.31 GB | 2.28 GB |
+| 1.7B | 8.37 GB | 4.31 GB |
+
+The fp16 column includes the encoder, which stays fp32.
+
+**On a CPU fp16 is slower on both runtimes**, so the download size is the whole of
+what it buys there. One decode call of the 1.7B models, same inputs, same machine:
+
+| | ailia fp32 | ailia fp16 | onnxruntime fp32 | onnxruntime fp16 |
+|---|---|---|---|---|
+| `code_predictor` | 17.5 ms | 18.5 ms | 6.7 ms | 10.0 ms |
+| `talker` | 222.4 ms | 236.6 ms | 141.1 ms | 144.1 ms |
+
+**The two runtimes do not agree on what fp16 costs in accuracy, because ailia does
+not compute in it.** It returns fp32 values from an fp16 gather to 3e-08 and its
+fp16 talker logits sit 1.2e-03 from its fp32 ones, while onnxruntime, which does
+compute in fp16, puts the same logits 1.4e-02 apart (2.2e-03 for the code
+predictor). So on ailia today fp16 is close to fp32 quality at half the download,
+and on a runtime that computes in fp16 the talker's logits move by about 1.4e-02
+relative, which is enough to change a sampled token.
+
+End to end on ailia with the same seed, the 0.6B run follows the identical token
+sequence: EOS at step 89 as in fp32, waveform 1.4e-03 peak apart, 57.8 dB SNR. The
+1.7B run diverges, reaching EOS at 63 rather than 57 -- still speech, but a
+different sample from the same distribution. Judge fp16 by listening, not by
+comparing waveforms.
+
+What the conversion does and does not touch:
+
+- The graph inputs and outputs stay fp32 (`keep_io_types`), so `../qwen3-tts.py`
+  feeds and reads the same arrays either way and `--fp16` only changes paths.
+- **The rotary embedding stays in fp32.** Its angle is `inv_freq * position_id` and
+  the talker's positions pass 2000, where fp16 spacing is 2.0; rounding an angle in
+  radians that coarsely would leave cos and sin unrelated to the position. The 26
+  nodes from `position_ids` down to Cos and Sin are kept in fp32 in the talker and
+  the code predictor. A Cos or Sin only counts when its ancestry reaches
+  `position_ids`, because the decoder's snake activations use Sin on an activation
+  and blocking those would leave the whole model in fp32.
+- **The encoder is not converted at all.** Its `audio_codes` are codebook indices,
+  and in fp16 29 of the 3232 the sample's reference audio produces come out
+  different, in codebooks 3 and 5..15 where the residual is small enough for fp16 to
+  flip a near tie. Those are the voice prompt, and the saving would be 114MB of a
+  4.3GB set.
+- The converter is onnxruntime's rather than the onnxconverter-common one the other
+  samples here use. onnxconverter-common 1.16.0 raises `'list' object has no
+  attribute 'input'` on these graphs as soon as a Cast feeds more than one node, and
+  skipping that cleanup leaves a model both runtimes reject for binding one Add to
+  both fp16 and fp32.
+
 ## The ailia gather bug
 
 The split above is shaped by an ailia bug, and two scripts pin it down. Both

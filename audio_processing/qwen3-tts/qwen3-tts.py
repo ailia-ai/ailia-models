@@ -101,6 +101,9 @@ parser.add_argument(
     '--onnx', action='store_true', help='execute onnxruntime version.'
 )
 parser.add_argument(
+    '--fp16', action='store_true', help='use fp16 model (default : fp32 model).'
+)
+parser.add_argument(
     '--profile', action='store_true', help='use profile model'
 )
 args = update_parser(parser, check_input_type=False)
@@ -117,6 +120,11 @@ else:
 
 CONFIG_PATH = f"config_{parameter_num}.json"
 
+# fp16 版は重みが半分になるが、weight を fp32 に展開して計算する環境では速度は
+# 変わらない (ailia 1.6.1 の CPU では talker 1 呼び出しあたり 139ms -> 146ms)。
+# 効くのは fp16 で計算する GPU と、ダウンロードサイズ。
+FP16_SUFFIX = "_fp16" if args.fp16 else ""
+
 # ONNX は 6 つで、weight はすべてどれかのグラフに入っている。サンプル側は配列の
 # 組み立てとトークンのサンプリングだけを行う。
 #   encoder           参照音声 -> codec トークン + speaker embedding
@@ -125,17 +133,21 @@ CONFIG_PATH = f"config_{parameter_num}.json"
 #   talker            自己回帰本体 (出力ヘッド入り)
 #   code_predictor    グループ 1〜15 の予測 (15 個の出力ヘッド入り)
 #   decoder           codec トークン -> 波形
+# encoder だけは fp16 版を使わない。出力の audio_codes は codebook の番号で、
+# fp16 では参照音声 101 フレームのうち 29 エントリが変わってしまう (残差が小さい
+# codebook 3, 5〜15 でタイが反転する)。声のプロンプトが変わる代償に対して、
+# 削減できるのは 4.3GB のうち 114MB でしかない。
 WEIGHT_PATH_ENCODER           = f"qwen3_tts_encoder_{parameter_num}.onnx"
 MODEL_PATH_ENCODER            = WEIGHT_PATH_ENCODER + ".prototxt"
-WEIGHT_PATH_PROMPT            = f"qwen3_tts_prompt_{parameter_num}.onnx"
+WEIGHT_PATH_PROMPT            = f"qwen3_tts_prompt_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_PROMPT             = WEIGHT_PATH_PROMPT + ".prototxt"
-WEIGHT_PATH_CODEC_EMBEDDING   = f"qwen3_tts_codec_embedding_{parameter_num}.onnx"
+WEIGHT_PATH_CODEC_EMBEDDING   = f"qwen3_tts_codec_embedding_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_CODEC_EMBEDDING    = WEIGHT_PATH_CODEC_EMBEDDING + ".prototxt"
-WEIGHT_PATH_TALKER            = f"qwen3_tts_talker_{parameter_num}.onnx"
+WEIGHT_PATH_TALKER            = f"qwen3_tts_talker_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_TALKER             = WEIGHT_PATH_TALKER + ".prototxt"
-WEIGHT_PATH_CODE_PREDICTOR    = f"qwen3_tts_code_predictor_{parameter_num}.onnx"
+WEIGHT_PATH_CODE_PREDICTOR    = f"qwen3_tts_code_predictor_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_CODE_PREDICTOR     = WEIGHT_PATH_CODE_PREDICTOR + ".prototxt"
-WEIGHT_PATH_DECODER           = f"qwen3_tts_decoder_{parameter_num}.onnx"
+WEIGHT_PATH_DECODER           = f"qwen3_tts_decoder_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_DECODER            = WEIGHT_PATH_DECODER + ".prototxt"
 
 onnx_list = [
@@ -149,6 +161,7 @@ onnx_list = [
 
 # weight が 2GB の protobuf 制限に収まらないモデルだけ .onnx.data に分けている。
 # 収まるものは単一の ONNX なので、追加でダウンロードするファイルは無い。
+# 1.7B の talker は fp32 で 5.66GB、fp16 でも 2.83GB なのでどちらも分かれる。
 EXTERNAL_DATA = {
     "0.6B": [],
     "1.7B": [WEIGHT_PATH_TALKER],
