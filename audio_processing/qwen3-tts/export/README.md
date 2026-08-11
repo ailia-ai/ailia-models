@@ -44,6 +44,54 @@ Everything is exported as float32, which comes to about 4.3GB of output for
 [ailia-ai/export-to-onnx](https://github.com/ailia-ai/export-to-onnx) on first
 use and generates the `.prototxt` next to every `.onnx`.
 
+## Static shape
+
+`--static` rebuilds the two modules that carry a KV cache, as
+`qwen3_tts_talker_<p>_static.onnx` and
+`qwen3_tts_code_predictor_<p>_static.onnx`:
+
+```bash
+python3 export_onnx.py --parameter_num 0.6B --static --max_seq_len 512
+```
+
+The cache becomes a fixed length buffer that a step writes at `cache_position`
+(one extra input, `[seq_len]` int64) instead of one that grows by a step per
+call, so no shape in the graph depends on how many steps have run.
+`attention_mask` covers the whole buffer and masks the slots not written yet.
+
+This is about the runtime, not the graph. ailia re-infers the shape of the whole
+network on every `set_input_blob_shape`, and a growing cache needs
+`2 * num_layers` of them per step -- 56 for the 0.6B talker. With a fixed buffer
+`../qwen3-tts.py` sets the shapes once and never again.
+
+`--max_seq_len` (default 512) is the talker's buffer length and covers the prompt
+as well as the generated tokens, so it caps how much audio one call can produce
+(512 frames is about 42 s at 12 Hz, of which the prompt takes the reference
+audio's length plus 8). It is a trade: attention reads the whole buffer whatever
+the current length is, so a buffer much longer than the sequences actually
+generated costs time. The code predictor has no such option -- a frame is always
+`num_code_groups` positions, so its buffer is exactly 16 long.
+
+That trade is what the two modules show on a CPU, 0.6B fp32, same machine, same
+seed, both ending at step 89 (`ailia 1.6.1.45`, buffer 512, prompt 110):
+
+| | growing cache | fixed buffer |
+|---|---|---|
+| talker | 129.0 ms/call | 170.2 ms/call |
+| code predictor | 17.2 ms/call | 12.8 ms/call |
+| total | 45014 ms | 42702 ms |
+
+The code predictor gains because its buffer is 16 long, so reading all of it costs
+nothing and dropping the per step shape inference is all that is left. The talker
+loses on a CPU because 512 slots is 2.6x the 200 it actually fills. A GPU is the
+other way round -- the per layer overhead the fixed buffer removes is larger there
+and its bandwidth makes the extra slots cheaper -- and `--max_seq_len` is how to
+trade the two.
+
+The output is unchanged: greedy decoding through the whole pipeline gives the same
+320 samples (20 frames of 16 code groups) with either pair of models, and the
+verify below checks both against the same reference.
+
 ## Verify
 
 `verify_onnx.py` runs every exported graph through onnxruntime and compares it
@@ -54,6 +102,13 @@ tokenizer at two different lengths:
 
 ```bash
 python3 verify_onnx.py --parameter_num 1.7B --onnx_dir .
+```
+
+`--static` checks the fixed cache variants against the same reference, so a
+static model has to reproduce what the growing cache produces:
+
+```bash
+python3 verify_onnx.py --parameter_num 0.6B --static --onnx_dir .
 ```
 
 ## fp16
@@ -155,6 +210,42 @@ the same comparison:
 python3 ailia_gather_repro.py --stage both
 ```
 
+## The ailia ScatterElements bug
+
+`--static` ran into a second one. A fixed length cache is written at
+`cache_position`, which `index_copy` says in one `ScatterElements` node, and ailia
+1.6.1 writes the right slot when a call writes one position and the wrong ones when
+it writes more than one. The prompt writes its whole length in one call, so
+`qwen3_tts_talker_0.6B_static.onnx` built that way came back from ailia with logits
+47.9 off against onnxruntime on the very first call, while the two runtimes agreed
+bit for bit on the growing cache model given the same inputs.
+
+`ailia_scatter_repro.py` is the whole thing in two models of about 2KB, one
+`ScatterElements` node against the same write done as a matmul:
+
+```bash
+python3 ailia_scatter_repro.py
+```
+
+```
+scatter.onnx
+  seq=1  onnxruntime 0.0e+00   ailia 0.0e+00
+  seq=2  onnxruntime 0.0e+00   ailia 4.2e+00
+  seq=4  onnxruntime 0.0e+00   ailia 4.8e+00
+  seq=8  onnxruntime 0.0e+00   ailia 5.0e+00
+
+onehot.onnx
+  seq=1  onnxruntime 0.0e+00   ailia 0.0e+00
+  seq=2  onnxruntime 0.0e+00   ailia 0.0e+00
+  seq=4  onnxruntime 0.0e+00   ailia 0.0e+00
+  seq=8  onnxruntime 0.0e+00   ailia 0.0e+00
+```
+
+The expected output is a copy rather than arithmetic, so the error is exact: those
+are wrong values, not rounding. `cache_write()` in `export_onnx.py` therefore
+writes the cache with the one hot matmul, which costs a few more passes over the
+buffer and which both runtimes agree on at every length.
+
 ## Files
 
 `<p>` is the parameter_num, `H` the talker hidden size (1024 for 0.6B, 2048 for
@@ -168,6 +259,8 @@ python3 ailia_gather_repro.py --stage both
 | `qwen3_tts_talker_<p>.onnx` | hidden states `[1, seq, H]`, 4D mask, position ids, KV cache | codec logits `[1, 1, 3072]`, hidden state `[1, 1, H]`, KV cache |
 | `qwen3_tts_code_predictor_<p>.onnx` | hidden states `[1, seq, H]`, head rows `[2048]`, 4D mask, position ids, KV cache | code group logits `[1, 1, 2048]`, KV cache |
 | `qwen3_tts_decoder_<p>.onnx` | audio codes `[B, 16, T]` | waveform `[1, 1, L]` |
+| `qwen3_tts_talker_<p>_static.onnx` | as above plus cache position `[seq]`, KV cache `[1, kv, max_seq_len, dim]` | as above, KV cache the same length |
+| `qwen3_tts_code_predictor_<p>_static.onnx` | as above plus cache position `[seq]`, KV cache `[1, kv, 16, dim]` | as above, KV cache the same length |
 
 Every weight is in a graph, including the text projection, the 16 codec embedding
 tables and all 16 output heads, so `../qwen3-tts.py` only reshapes arrays and

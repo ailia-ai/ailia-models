@@ -37,6 +37,9 @@ TARGETS = [
     "talker",
 ]
 
+# set from --static; only the two decode loop modules have a static variant
+STATIC = False
+
 REF_AUDIO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "clone_2.wav")
 
 
@@ -92,16 +95,34 @@ def mel_spectrogram(wav):
     return mels
 
 
-def causal_mask(seq_len, past_len=0):
-    return ex.causal_mask(seq_len, past_len).numpy()
+def causal_mask(seq_len, past_len=0, total_len=None):
+    return ex.causal_mask(seq_len, past_len, total_len).numpy()
 
 
-def empty_cache(config, num_layers=None):
+def empty_cache(config, num_layers=None, cache_len=0):
     num_layers = config.num_hidden_layers if num_layers is None else num_layers
     return [
-        np.zeros((1, config.num_key_value_heads, 0, config.head_dim), dtype=np.float32)
+        np.zeros((1, config.num_key_value_heads, cache_len, config.head_dim),
+                 dtype=np.float32)
         for _ in range(num_layers * 2)
     ]
+
+
+def cache_buffer_len(sess, num_inputs):
+    """The fixed cache length of a --static model, or 0 for a growing cache.
+
+    The reference is the same either way -- a static model has to reproduce what
+    the growing cache produces -- so the only thing the checks need from the
+    model is how long its buffer is and whether to pass cache_position.
+    """
+    if not STATIC:
+        return 0
+    return int(sess.get_inputs()[num_inputs].shape[2])
+
+
+def static_inputs(cache_len, positions):
+    """cache_position, as a list to splice into the input list (empty if dynamic)."""
+    return [np.asarray(positions, dtype=np.int64)] if cache_len else []
 
 
 # ======================================================================
@@ -259,13 +280,15 @@ def check_talker(model_dir, onnx_path):
     gc.collect()
 
     sess = session(onnx_path)
+    buffer_len = cache_buffer_len(sess, 4)
     outputs = run(
         sess,
         [
             embeds,
-            causal_mask(prefill_len),
+            causal_mask(prefill_len, 0, buffer_len or None),
             np.arange(prefill_len, dtype=np.int64)[None],
-            *empty_cache(talker_config),
+            *static_inputs(buffer_len, np.arange(prefill_len)),
+            *empty_cache(talker_config, cache_len=buffer_len),
         ],
     )
     ok = report("logits (prefill)", reference[0], outputs[0])
@@ -275,8 +298,9 @@ def check_talker(model_dir, onnx_path):
         sess,
         [
             step_embeds,
-            causal_mask(1, prefill_len),
+            causal_mask(1, prefill_len, buffer_len or None),
             np.array([[prefill_len]], dtype=np.int64),
+            *static_inputs(buffer_len, [prefill_len]),
             *outputs[2:],
         ],
     )
@@ -334,17 +358,21 @@ def check_code_predictor(model_dir, onnx_path):
         np.arange(k * group_vocab, (k + 1) * group_vocab, dtype=np.int64)
         for k in range(num_code_groups - 1)
     ]
+    buffer_len = cache_buffer_len(sess, 5)
     actual = run(
         sess,
-        [embeds[0], head_rows[0], causal_mask(2), np.array([[0, 1]], dtype=np.int64),
-         *empty_cache(config)],
+        [embeds[0], head_rows[0], causal_mask(2, 0, buffer_len or None),
+         np.array([[0, 1]], dtype=np.int64),
+         *static_inputs(buffer_len, [0, 1]),
+         *empty_cache(config, cache_len=buffer_len)],
     )
     ok = report("logits (group 0 -> 1)", reference_logits[0], actual[0])
     for k in range(1, num_code_groups - 1):
         actual = run(
             sess,
-            [embeds[k], head_rows[k], causal_mask(1, k + 1),
-             np.array([[k + 1]], dtype=np.int64), *actual[1:]],
+            [embeds[k], head_rows[k], causal_mask(1, k + 1, buffer_len or None),
+             np.array([[k + 1]], dtype=np.int64),
+             *static_inputs(buffer_len, [k + 1]), *actual[1:]],
         )
         ok &= report(f"logits (group {k} -> {k + 1})", reference_logits[k], actual[0])
     return ok
@@ -368,7 +396,16 @@ def main():
     parser.add_argument("--model_dir", default=None)
     parser.add_argument("--onnx_dir", default=".")
     parser.add_argument("--only", default=None, choices=TARGETS)
+    parser.add_argument(
+        "--static", action="store_true",
+        help="check the qwen3_tts_<name>_<p>_static.onnx variants against the same "
+             "reference as the growing cache ones"
+    )
     args = parser.parse_args()
+
+    global STATIC
+    STATIC = args.static
+    targets = ex.STATIC_TARGETS if args.static else TARGETS
 
     model_dir = args.model_dir
     if model_dir is None:
@@ -378,7 +415,7 @@ def main():
 
     if args.only is None:
         failed = []
-        for target in TARGETS:
+        for target in targets:
             code = subprocess.call(
                 [
                     sys.executable, os.path.abspath(__file__),
@@ -386,7 +423,7 @@ def main():
                     "--model_dir", model_dir,
                     "--onnx_dir", args.onnx_dir,
                     "--only", target,
-                ]
+                ] + (["--static"] if args.static else [])
             )
             if code != 0:
                 failed.append(target)
@@ -396,8 +433,9 @@ def main():
         print("all modules match the reference implementation")
         return
 
+    suffix = "_static" if args.static else ""
     onnx_path = os.path.join(
-        args.onnx_dir, f"qwen3_tts_{args.only}_{args.parameter_num}.onnx"
+        args.onnx_dir, f"qwen3_tts_{args.only}_{args.parameter_num}{suffix}.onnx"
     )
     print(f"[{args.only}]")
     if not CHECKS[args.only](model_dir, onnx_path):

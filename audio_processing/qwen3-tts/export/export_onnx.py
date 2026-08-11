@@ -16,7 +16,10 @@ Usage:
 
     # export a single module (each module is exported in its own process by
     # default, so this is mainly useful to resume an interrupted run)
-    python3 export_onnx.py --parameter_num 1.7B --only talker_decoder
+    python3 export_onnx.py --parameter_num 1.7B --only talker
+
+    # the fixed KV cache variants of the talker and the code predictor
+    python3 export_onnx.py --parameter_num 0.6B --static --max_seq_len 512
 
 The model is split so that the auto regressive loop can be driven from Python
 (see ../qwen3-tts.py). Every weight is in a graph and there are no npy files, so
@@ -39,6 +42,13 @@ the runtime only reshapes arrays and samples tokens. ``<p>`` is the parameter_nu
         code predictor (5 layers) with a KV cache passed in/out and its 15 output
         heads included, so a step takes the rows of the head to use and returns
         logits
+
+--static rebuilds the two modules that carry a KV cache as
+qwen3_tts_talker_<p>_static.onnx and qwen3_tts_code_predictor_<p>_static.onnx,
+where the cache is a fixed length buffer written at cache_position instead of one
+that grows by a step each call. Nothing else about them changes; see StaticTalker
+for why, and cache_write() for why the write is a matmul rather than the one
+ScatterElements node index_copy would give.
 
 The codec embedding tables are a model of their own rather than part of the two
 decode loop graphs, where they belong and briefly were: ailia stops following a
@@ -100,6 +110,9 @@ TARGETS = [
     # exported last: it is by far the largest module
     "talker",
 ]
+
+# --static only rebuilds the two modules that carry a KV cache
+STATIC_TARGETS = ["code_predictor", "talker"]
 
 # ======================================================================
 # monkey patches needed to make the reference modules exportable
@@ -173,8 +186,33 @@ def rope_cos_sin(inv_freq, position_ids, dtype):
     return emb.cos().to(dtype), emb.sin().to(dtype)
 
 
-def decoder_layer_forward(layer, hidden_states, attention_mask, cos, sin, past_key, past_value):
-    """Qwen3TTS{,Talker}DecoderLayer.forward with an explicit KV cache."""
+def cache_write(past, new, cache_position):
+    """Write new into the fixed length buffer past at cache_position.
+
+    index_copy would say this in one ScatterElements node, and ailia gets that
+    right for a single position but not for more than one, which the prompt needs
+    (ailia_scatter_repro.py is a 2KB reproduction). A one hot of the positions
+    spreads new over the buffer and clears the slots being overwritten, which is
+    a matmul and two elementwise ops instead, and ailia agrees with onnxruntime
+    on it for every length.
+    """
+    positions = torch.arange(past.shape[2], device=new.device)
+    onehot = (positions[None, :] == cache_position[:, None]).to(new.dtype)
+    spread = torch.einsum("bhsd,sm->bhmd", new, onehot)
+    keep = (1.0 - onehot.sum(0))[None, None, :, None]
+    return past * keep + spread
+
+
+def decoder_layer_forward(layer, hidden_states, attention_mask, cos, sin, past_key,
+                          past_value, cache_position=None):
+    """Qwen3TTS{,Talker}DecoderLayer.forward with an explicit KV cache.
+
+    Without cache_position the cache grows: the new key and value are appended
+    and the returned cache is one step longer than the one passed in. With it
+    the cache is a fixed length buffer and the new key and value are written at
+    cache_position, so the returned cache has the shape of the one passed in and
+    no shape in the graph depends on how many steps have run.
+    """
     attn = layer.self_attn
     input_shape = hidden_states.shape[:-1]
     hidden_shape = (*input_shape, -1, attn.head_dim)
@@ -188,8 +226,12 @@ def decoder_layer_forward(layer, hidden_states, attention_mask, cos, sin, past_k
 
     query, key = apply_rotary_pos_emb(query, key, cos, sin)
 
-    key = torch.cat([past_key, key], dim=2)
-    value = torch.cat([past_value, value], dim=2)
+    if cache_position is None:
+        key = torch.cat([past_key, key], dim=2)
+        value = torch.cat([past_value, value], dim=2)
+    else:
+        key = cache_write(past_key, key, cache_position)
+        value = cache_write(past_value, value, cache_position)
 
     attn_output, _ = eager_attention_forward(
         attn, query, key, value, attention_mask, scaling=attn.scaling, dropout=0.0
@@ -296,8 +338,8 @@ class Talker(nn.Module):
         )
         self.codec_head = talker.codec_head
 
-    def forward(self, inputs_embeds, attention_mask, position_ids, *past_key_values):
-        hidden_states = inputs_embeds
+    def run_layers(self, hidden_states, attention_mask, position_ids, past_key_values,
+                   cache_position=None):
         cos, sin = rope_cos_sin(self.inv_freq, position_ids, hidden_states.dtype)
         present = []
         for i, layer in enumerate(self.layers):
@@ -309,11 +351,44 @@ class Talker(nn.Module):
                 sin,
                 past_key_values[2 * i],
                 past_key_values[2 * i + 1],
+                cache_position,
             )
             present += [key, value]
+        return hidden_states, present
 
+    def head(self, hidden_states):
         last_hidden = self.norm(hidden_states)[:, -1:, :]
-        return (self.codec_head(last_hidden), last_hidden, *present)
+        return self.codec_head(last_hidden), last_hidden
+
+    def forward(self, inputs_embeds, attention_mask, position_ids, *past_key_values):
+        hidden_states, present = self.run_layers(
+            inputs_embeds, attention_mask, position_ids, past_key_values
+        )
+        return (*self.head(hidden_states), *present)
+
+
+class StaticTalker(Talker):
+    """Talker with a fixed length KV cache instead of a growing one.
+
+    The graph is the same except that the cache is a [1, kv_heads, max_seq_len,
+    head_dim] buffer and cache_position says where the step writes into it, so
+    the cache shape no longer changes from one step to the next. attention_mask
+    covers the whole buffer and masks the slots that have not been written yet.
+
+    The point is the runtime, not the graph: ailia re-infers the shape of the
+    whole network on every set_input_blob_shape, and with a growing cache the
+    decode loop has to set 2 * num_layers of them per step. Here nothing changes
+    after the first decode step. The cost is that attention reads the whole
+    buffer whatever the current length is, so max_seq_len should not be set much
+    higher than the longest sequence that will be generated.
+    """
+
+    def forward(self, inputs_embeds, attention_mask, position_ids, cache_position,
+                *past_key_values):
+        hidden_states, present = self.run_layers(
+            inputs_embeds, attention_mask, position_ids, past_key_values, cache_position
+        )
+        return (*self.head(hidden_states), *present)
 
 
 class TalkerPrompt(nn.Module):
@@ -371,9 +446,9 @@ Every position arrives as inputs_embeds: position 0 is the talker hidden state
             persistent=False,
         )
 
-    def forward(self, inputs_embeds, head_rows, attention_mask, position_ids,
-                *past_key_values):
-        hidden_states = self.small_to_mtp_projection(inputs_embeds)
+    def run_layers(self, hidden_states, attention_mask, position_ids, past_key_values,
+                   cache_position=None):
+        hidden_states = self.small_to_mtp_projection(hidden_states)
         cos, sin = rope_cos_sin(self.inv_freq, position_ids, hidden_states.dtype)
 
         present = []
@@ -386,19 +461,51 @@ Every position arrives as inputs_embeds: position 0 is the talker hidden state
                 sin,
                 past_key_values[2 * i],
                 past_key_values[2 * i + 1],
+                cache_position,
             )
             present += [key, value]
-        hidden_states = self.norm(hidden_states)
+        return hidden_states, present
 
-        logits = hidden_states[:, -1:, :] @ self.lm_heads[head_rows].t()
-        return (logits, *present)
+    def head(self, hidden_states, head_rows):
+        hidden_states = self.norm(hidden_states)
+        return hidden_states[:, -1:, :] @ self.lm_heads[head_rows].t()
+
+    def forward(self, inputs_embeds, head_rows, attention_mask, position_ids,
+                *past_key_values):
+        hidden_states, present = self.run_layers(
+            inputs_embeds, attention_mask, position_ids, past_key_values
+        )
+        return (self.head(hidden_states, head_rows), *present)
+
+
+class StaticCodePredictor(CodePredictor):
+    """Code predictor with a fixed length KV cache, see StaticTalker.
+
+    A frame is always 16 positions (the talker hidden state and the 15 code group
+    embeddings), so max_seq_len is not a choice here: the buffer is exactly
+    num_code_groups long and is overwritten frame by frame.
+    """
+
+    def forward(self, inputs_embeds, head_rows, attention_mask, position_ids,
+                cache_position, *past_key_values):
+        hidden_states, present = self.run_layers(
+            inputs_embeds, attention_mask, position_ids, past_key_values, cache_position
+        )
+        return (self.head(hidden_states, head_rows), *present)
 
 
 # ======================================================================
 # helpers
 # ======================================================================
-def causal_mask(seq_len, past_len=0):
-    total_len = seq_len + past_len
+def causal_mask(seq_len, past_len=0, total_len=None):
+    """Additive attention mask [1, 1, seq_len, total_len].
+
+    total_len defaults to the length of a cache that grew by seq_len; a fixed
+    length cache passes its whole length and the slots past the current step are
+    masked out along with the ones a position may not attend to.
+    """
+    if total_len is None:
+        total_len = seq_len + past_len
     mask = torch.full((seq_len, total_len), float("-inf"))
     for i in range(seq_len):
         mask[i, : past_len + i + 1] = 0.0
@@ -555,10 +662,10 @@ def export_codec_embedding(model_dir, out, parameter_num):
     )
 
 
-def export_talker(model_dir, out, parameter_num):
+def export_talker(model_dir, out, parameter_num, static=False, max_seq_len=None):
     model = load_tts_model(model_dir)
     talker_config = model.config.talker_config
-    wrapper = Talker(model.talker)
+    wrapper = StaticTalker(model.talker) if static else Talker(model.talker)
 
     # free everything the talker does not need before the export, the ONNX
     # serialization needs a second copy of the weights in memory
@@ -572,39 +679,57 @@ def export_talker(model_dir, out, parameter_num):
 
     seq_len = 4
     past_len = 2
+    cache_len = max_seq_len if static else past_len
     inputs_embeds = torch.randn(1, seq_len, hidden_size)
-    attention_mask = causal_mask(seq_len, past_len)
+    attention_mask = causal_mask(
+        seq_len, past_len, max_seq_len if static else None
+    )
     position_ids = torch.arange(past_len, past_len + seq_len)[None]
+    cache_position = torch.arange(past_len, past_len + seq_len)
     past = [
-        torch.randn(1, num_kv_heads, past_len, head_dim) for _ in range(num_layers * 2)
+        torch.randn(1, num_kv_heads, cache_len, head_dim) for _ in range(num_layers * 2)
     ]
 
     past_names, present_names = kv_cache_names(num_layers)
     dynamic_axes = {
         "inputs_embeds": {1: "seq_len"},
-        "attention_mask": {2: "seq_len", 3: "total_seq_len"},
+        "attention_mask": {2: "seq_len"},
         "position_ids": {1: "seq_len"},
     }
-    for name in past_names:
-        dynamic_axes[name] = {2: "past_seq_len"}
-    for name in present_names:
-        dynamic_axes[name] = {2: "total_seq_len"}
+    if static:
+        # only the sequence axis is left dynamic: the cache is a fixed length
+        # buffer and the mask spans all of it
+        dynamic_axes["cache_position"] = {0: "seq_len"}
+    else:
+        dynamic_axes["attention_mask"][3] = "total_seq_len"
+        for name in past_names:
+            dynamic_axes[name] = {2: "past_seq_len"}
+        for name in present_names:
+            dynamic_axes[name] = {2: "total_seq_len"}
+
+    args = (inputs_embeds, attention_mask, position_ids)
+    names = ["inputs_embeds", "attention_mask", "position_ids"]
+    if static:
+        args += (cache_position,)
+        names += ["cache_position"]
 
     export(
         wrapper,
-        (inputs_embeds, attention_mask, position_ids, *past),
+        args + tuple(past),
         out("talker", "onnx"),
-        ["inputs_embeds", "attention_mask", "position_ids"] + past_names,
+        names + past_names,
         ["logits", "last_hidden"] + present_names,
         dynamic_axes,
     )
 
 
-def export_code_predictor(model_dir, out, parameter_num):
+def export_code_predictor(model_dir, out, parameter_num, static=False, max_seq_len=None):
     model = load_tts_model(model_dir)
     talker_config = model.config.talker_config
     code_predictor_config = talker_config.code_predictor_config
-    wrapper = CodePredictor(model.talker.code_predictor)
+    wrapper = (StaticCodePredictor if static else CodePredictor)(
+        model.talker.code_predictor
+    )
 
     del model
     gc.collect()
@@ -615,32 +740,45 @@ def export_code_predictor(model_dir, out, parameter_num):
 
     seq_len = 2
     past_len = 0
+    # a frame is always num_code_groups positions long, so that is the buffer
+    cache_len = talker_config.num_code_groups if static else past_len
     # inputs_embeds is in the talker hidden size (small_to_mtp_projection is
     # part of the graph) and only position 0 of it is read
     inputs_embeds = torch.randn(1, seq_len, talker_config.hidden_size)
     head_rows = torch.arange(code_predictor_config.vocab_size)
-    attention_mask = causal_mask(seq_len, past_len)
+    attention_mask = causal_mask(seq_len, past_len, cache_len if static else None)
     position_ids = torch.arange(past_len, past_len + seq_len)[None]
+    cache_position = torch.arange(past_len, past_len + seq_len)
     past = [
-        torch.randn(1, num_kv_heads, past_len, head_dim) for _ in range(num_layers * 2)
+        torch.randn(1, num_kv_heads, cache_len, head_dim) for _ in range(num_layers * 2)
     ]
 
     past_names, present_names = kv_cache_names(num_layers)
     dynamic_axes = {
         "inputs_embeds": {1: "seq_len"},
-        "attention_mask": {2: "seq_len", 3: "total_seq_len"},
+        "attention_mask": {2: "seq_len"},
         "position_ids": {1: "seq_len"},
     }
-    for name in past_names:
-        dynamic_axes[name] = {2: "past_seq_len"}
-    for name in present_names:
-        dynamic_axes[name] = {2: "total_seq_len"}
+    if static:
+        dynamic_axes["cache_position"] = {0: "seq_len"}
+    else:
+        dynamic_axes["attention_mask"][3] = "total_seq_len"
+        for name in past_names:
+            dynamic_axes[name] = {2: "past_seq_len"}
+        for name in present_names:
+            dynamic_axes[name] = {2: "total_seq_len"}
+
+    args = (inputs_embeds, head_rows, attention_mask, position_ids)
+    names = ["inputs_embeds", "head_rows", "attention_mask", "position_ids"]
+    if static:
+        args += (cache_position,)
+        names += ["cache_position"]
 
     export(
         wrapper,
-        (inputs_embeds, head_rows, attention_mask, position_ids, *past),
+        args + tuple(past),
         out("code_predictor", "onnx"),
-        ["inputs_embeds", "head_rows", "attention_mask", "position_ids"] + past_names,
+        names + past_names,
         ["logits"] + present_names,
         dynamic_axes,
     )
@@ -674,6 +812,17 @@ def main():
         "--only", default=None, choices=TARGETS,
         help="export a single module in this process instead of spawning one process per module"
     )
+    parser.add_argument(
+        "--static", action="store_true",
+        help="export the fixed KV cache variants of the two decode loop modules, "
+             "named qwen3_tts_<name>_<p>_static.onnx"
+    )
+    parser.add_argument(
+        "--max_seq_len", type=int, default=512,
+        help="length of the talker's fixed KV cache, --static only. Attention reads "
+             "all of it every step, so it should not be much larger than the longest "
+             "sequence to generate (prompt included)."
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -684,30 +833,41 @@ def main():
 
         model_dir = snapshot_download(MODEL_ID[args.parameter_num])
 
+    # only the two decode loop modules have a KV cache, the rest are unchanged
+    targets = STATIC_TARGETS if args.static else TARGETS
+
     if args.only is None:
         # Each module is exported in a fresh process: the talker needs ~2x its
         # weights in RAM while ONNX serializes it, and the modules exported
         # before it must not still be resident.
-        for target in TARGETS:
+        for target in targets:
             subprocess.check_call(
                 [
                     sys.executable, os.path.abspath(__file__),
                     "--parameter_num", args.parameter_num,
                     "--model_dir", model_dir,
                     "--output_dir", args.output_dir,
+                    "--max_seq_len", str(args.max_seq_len),
                     "--only", target,
-                ]
+                ] + (["--static"] if args.static else [])
             )
         print("done")
         return
 
+    if args.only not in targets:
+        print(f"{args.only} has no --static variant")
+        return
+
+    suffix = "_static" if args.static else ""
+
     def out(name, ext):
         return os.path.join(
-            args.output_dir, f"qwen3_tts_{name}_{args.parameter_num}.{ext}"
+            args.output_dir, f"qwen3_tts_{name}_{args.parameter_num}{suffix}.{ext}"
         )
 
+    kwargs = {"static": True, "max_seq_len": args.max_seq_len} if args.static else {}
     with torch.no_grad():
-        EXPORTERS[args.only](model_dir, out, args.parameter_num)
+        EXPORTERS[args.only](model_dir, out, args.parameter_num, **kwargs)
 
 
 if __name__ == "__main__":
