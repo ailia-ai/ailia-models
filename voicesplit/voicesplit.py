@@ -23,19 +23,37 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
-WEIGHT_PATH = "voicesplit_exp5.onnx"
-MODEL_PATH = "voicesplit_exp5.onnx.prototxt"
-WEIGHT_EMB_PATH = "ge2e3k_embedder.onnx"
-MODEL_EMB_PATH = "ge2e3k_embedder.onnx.prototxt"
+WEIGHT_EMB_GE2E2K_PATH = "ge2e2k_embedder.onnx"
+MODEL_EMB_GE2E2K_PATH = "ge2e2k_embedder.onnx.prototxt"
+WEIGHT_EMB_GE2E3K_PATH = "ge2e3k_embedder.onnx"
+MODEL_EMB_GE2E3K_PATH = "ge2e3k_embedder.onnx.prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/voicesplit/"
 
 WAVE_PATH = "mixed.wav"
 SAVE_PATH = "output.wav"
 
+# the five experiments compared in Table 2 of the VoiceSplit report.
+# embedder_n_fft is the resolution of the d-vector mel, which comes from the
+# checkpoint and is not the one used for the mixture spectrogram (always 1200).
+EXPERIMENTS = {
+    "exp1": {"encoder": "ge2e2k", "embedder_n_fft": 512},
+    "exp2": {"encoder": "ge2e2k", "embedder_n_fft": 1200},
+    "exp3": {"encoder": "ge2e2k", "embedder_n_fft": 1200},
+    "exp4": {"encoder": "ge2e2k", "embedder_n_fft": 1200},
+    "exp5": {"encoder": "ge2e3k"},
+}
+EMBEDDER_PATHS = {
+    "ge2e2k": (WEIGHT_EMB_GE2E2K_PATH, MODEL_EMB_GE2E2K_PATH),
+    "ge2e3k": (WEIGHT_EMB_GE2E3K_PATH, MODEL_EMB_GE2E3K_PATH),
+}
+
 # Audio
 SAMPLING_RATE = 16000
 
-# speaker encoder
+# the GE2E2k encoder slides an 80 frame (0.8 sec) window over the mel spectrogram
+GE2E2K_WINDOW = 80
+
+# GE2E3k speaker encoder
 MEL_WINDOW_LENGTH = 25  # in milliseconds
 MEL_WINDOW_STEP = 10  # in milliseconds
 MEL_N_CHANNELS = 40
@@ -57,6 +75,14 @@ parser.add_argument(
     default="ref-voice.wav",
     type=str,
     help="path of reference wav file",
+)
+parser.add_argument(
+    "-m",
+    "--model_type",
+    metavar="MODEL_TYPE",
+    default="exp5",
+    choices=list(EXPERIMENTS),
+    help="model type: " + " | ".join(EXPERIMENTS),
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
@@ -170,7 +196,23 @@ def compute_partial_slices(
     return wav_slices, mel_slices
 
 
-def embed_speaker(embedder, wav):
+def embed_ge2e2k(embedder, audio, wav, n_fft):
+    mel = audio.get_mel(wav, n_fft)
+    if mel.shape[1] < GE2E2K_WINDOW:
+        logger.error("the reference audio must be 0.8 sec or longer.")
+        sys.exit(-1)
+
+    if not args.onnx:
+        output = embedder.predict([mel])
+    else:
+        output = embedder.run(None, {"mel": mel})
+
+    dvec = output[0]
+
+    return dvec
+
+
+def embed_ge2e3k(embedder, wav):
     wav = normalize_volume(wav, AUDIO_NORM_TARGET_DBFS, increase_only=True)
     wav = trim_long_silences(wav)
 
@@ -225,7 +267,11 @@ def audio_recognition(models):
 
     # prepare reference wav
     dvec_wav = read_wave(reference_file)
-    dvec = embed_speaker(embedder, dvec_wav)
+    experiment = EXPERIMENTS[args.model_type]
+    if experiment["encoder"] == "ge2e2k":
+        dvec = embed_ge2e2k(embedder, audio, dvec_wav, experiment["embedder_n_fft"])
+    else:
+        dvec = embed_ge2e3k(embedder, dvec_wav)
     dvec = np.expand_dims(dvec, axis=0)
 
     for soundf_path in args.input:
@@ -269,22 +315,28 @@ def audio_recognition(models):
 
 
 def main():
+    weight_path = "voicesplit_%s.onnx" % args.model_type
+    model_path = weight_path + ".prototxt"
+    weight_emb_path, model_emb_path = EMBEDDER_PATHS[
+        EXPERIMENTS[args.model_type]["encoder"]
+    ]
+
     # model files check and download
-    logger.info("Checking VoiceSplit model...")
-    check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+    logger.info("Checking %s model..." % args.model_type)
+    check_and_download_models(weight_path, model_path, REMOTE_PATH)
     logger.info("Checking embedder model...")
-    check_and_download_models(WEIGHT_EMB_PATH, MODEL_EMB_PATH, REMOTE_PATH)
+    check_and_download_models(weight_emb_path, model_emb_path, REMOTE_PATH)
 
     if not args.onnx:
         env_id = args.env_id
 
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-        embedder = ailia.Net(MODEL_EMB_PATH, WEIGHT_EMB_PATH, env_id=env_id)
+        net = ailia.Net(model_path, weight_path, env_id=env_id)
+        embedder = ailia.Net(model_emb_path, weight_emb_path, env_id=env_id)
     else:
         import onnxruntime
 
-        net = onnxruntime.InferenceSession(WEIGHT_PATH)
-        embedder = onnxruntime.InferenceSession(WEIGHT_EMB_PATH)
+        net = onnxruntime.InferenceSession(weight_path)
+        embedder = onnxruntime.InferenceSession(weight_emb_path)
 
     models = {"net": net, "embedder": embedder}
 
