@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from logging import getLogger  # noqa: E402
 
 import ailia
 import librosa
@@ -11,9 +12,6 @@ from scipy.ndimage import binary_dilation
 
 # import original modules
 sys.path.append("../../util")
-# logger
-from logging import getLogger  # noqa: E402
-
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 
