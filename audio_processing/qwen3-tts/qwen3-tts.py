@@ -292,6 +292,12 @@ def load_qwen_config(config_path=CONFIG_PATH):
 
 TOKENIZER_DIR = "./tokenizer"
 
+# ailia tokenizer (GPT2Tokenizer) が読むのは vocab.json と merges.txt の 2 つだけで、
+# どちらも ONNX と同じ場所に置いてあるのでダウンロードする。transformers が必要なのは
+# --disable_ailia_tokenizer のときだけで、そちらは tokenizer/tokenizer.json を使う。
+VOCAB_PATH = os.path.join(TOKENIZER_DIR, "vocab.json")
+MERGES_PATH = os.path.join(TOKENIZER_DIR, "merges.txt")
+
 # ailia tokenizer (GPT2Tokenizer) で利用する追加特殊トークン (token id 151643-151656 の順)
 TOKENIZER_SPECIAL_TOKENS = [
     '<|endoftext|>', '<|im_start|>', '<|im_end|>',
@@ -303,34 +309,12 @@ TOKENIZER_SPECIAL_TOKENS = [
 ]
 
 
-def _ensure_vocab_and_merges():
-    """ailia tokenizer 用に vocab.json / merges.txt を tokenizer.json から生成する。"""
-    vocab_path = os.path.join(TOKENIZER_DIR, "vocab.json")
-    merges_path = os.path.join(TOKENIZER_DIR, "merges.txt")
-    if os.path.exists(vocab_path) and os.path.exists(merges_path):
-        return
-
-    with open(os.path.join(TOKENIZER_DIR, "tokenizer.json"), "r", encoding="utf-8") as f:
-        model = json.load(f)["model"]
-
-    with open(vocab_path, "w", encoding="utf-8") as f:
-        json.dump(model["vocab"], f, ensure_ascii=False)
-
-    with open(merges_path, "w", encoding="utf-8") as f:
-        f.write("#version: 0.2\n")
-        for merge in model["merges"]:
-            if isinstance(merge, list):
-                merge = " ".join(merge)
-            f.write(merge + "\n")
-
-
 def create_tokenizer():
     if args.disable_ailia_tokenizer:
         from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(TOKENIZER_DIR)
     else:
         from ailia_tokenizer import GPT2Tokenizer
-        _ensure_vocab_and_merges()
         tokenizer = GPT2Tokenizer.from_pretrained(TOKENIZER_DIR)
         tokenizer.add_special_tokens(
             {"additional_special_tokens": TOKENIZER_SPECIAL_TOKENS}
@@ -846,6 +830,10 @@ def main():
         check_and_download_models(onnx, prototxt, REMOTE_PATH)
     for f in file_list:
         check_and_download_file(f, REMOTE_PATH)
+    if not args.disable_ailia_tokenizer:
+        os.makedirs(TOKENIZER_DIR, exist_ok=True)
+        check_and_download_file(VOCAB_PATH, REMOTE_PATH)
+        check_and_download_file(MERGES_PATH, REMOTE_PATH)
     memory_mode = None
     if not args.onnx:
         memory_mode = ailia.get_memory_mode(
