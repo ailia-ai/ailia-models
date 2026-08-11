@@ -92,6 +92,10 @@ The output is unchanged: greedy decoding through the whole pipeline gives the sa
 320 samples (20 frames of 16 code groups) with either pair of models, and the
 verify below checks both against the same reference.
 
+Both sizes are exported the same way. The 1.7B static talker is 5.66GB of weights,
+so like the growing cache one it keeps them in
+`qwen3_tts_talker_1.7B_static.onnx.data`; everything else is a single ONNX.
+
 ## Verify
 
 `verify_onnx.py` runs every exported graph through onnxruntime and compares it
