@@ -59,10 +59,12 @@ The cache becomes a fixed length buffer that a step writes at `cache_position`
 call, so no shape in the graph depends on how many steps have run.
 `attention_mask` covers the whole buffer and masks the slots not written yet.
 
-This is about the runtime, not the graph. ailia re-infers the shape of the whole
+The idea was the runtime, not the graph: ailia re-infers the shape of the whole
 network on every `set_input_blob_shape`, and a growing cache needs
-`2 * num_layers` of them per step -- 56 for the 0.6B talker. With a fixed buffer
-`../qwen3-tts.py` sets the shapes once and never again.
+`2 * num_layers` of them per step -- 56 for the 0.6B talker -- while a fixed buffer
+needs them set once. **It does not pay off, so `../qwen3-tts.py` has no option for
+these models and does not download them.** They are kept here for experiments; a
+caller has to drive them itself.
 
 `--max_seq_len` (default 512) is the talker's buffer length and covers the prompt
 as well as the generated tokens, so it caps how much audio one call can produce
@@ -72,21 +74,24 @@ the current length is, so a buffer much longer than the sequences actually
 generated costs time. The code predictor has no such option -- a frame is always
 `num_code_groups` positions, so its buffer is exactly 16 long.
 
-That trade is what the two modules show on a CPU, 0.6B fp32, same machine, same
-seed, both ending at step 89 (`ailia 1.6.1.45`, buffer 512, prompt 110):
+Measured on `ailia 1.6.1.45` with buffer 512, 0.6B fp32, one decode call:
 
 | | growing cache | fixed buffer |
 |---|---|---|
-| talker | 129.0 ms/call | 170.2 ms/call |
-| code predictor | 17.2 ms/call | 12.8 ms/call |
-| total | 45014 ms | 42702 ms |
+| talker, CPU | 129.0 ms | 170.2 ms |
+| code predictor, CPU | 17.2 ms | 12.8 ms |
+| talker, CUDA | 62.5 ms | 78.3 ms |
+| code predictor, CUDA | 14.3 ms | 18.9 ms |
 
-The code predictor gains because its buffer is 16 long, so reading all of it costs
-nothing and dropping the per step shape inference is all that is left. The talker
-loses on a CPU because 512 slots is 2.6x the 200 it actually fills. A GPU is the
-other way round -- the per layer overhead the fixed buffer removes is larger there
-and its bandwidth makes the extra slots cheaper -- and `--max_seq_len` is how to
-trade the two.
+Only the code predictor on a CPU comes out ahead. What went wrong is the cache
+write: `index_copy` would be one node, but ailia gets that wrong for more than one
+position (see cache_write in export_onnx.py), and the one hot matmul that replaces
+it adds more node executions per layer than the shape inference it saves. ailia's
+cost tracks the number of node executions closely -- the talker gains 368 nodes and
+loses 15.8 ms/call on CUDA, which is what 368 nodes cost at the ~47 us/node that
+backend runs at. So the fixed buffer only becomes worth exporting if
+`ScatterElements` is fixed, when it would run *fewer* nodes than the growing cache
+(no per layer `Concat`) instead of more.
 
 The output is unchanged: greedy decoding through the whole pipeline gives the same
 320 samples (20 frames of 16 code groups) with either pair of models, and the

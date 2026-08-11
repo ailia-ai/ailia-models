@@ -26,7 +26,7 @@ pip3 install transformers
 
 If you use `--onnx` option, this model requires additional module.
 ```bash
-pip3 install onnxruntime
+pip3 install onnxruntime          # or onnxruntime-gpu, to run it on CUDA
 ```
 
 ## Usage
@@ -83,9 +83,8 @@ Supported languages: `Auto` (default), `chinese`, `english`, `japanese`, `korean
 - `--subtalker_temperature` Sampling temperature for the subtalker (code predictor). `0` for greedy decoding. (default: `0.9`, matches the official implementation)
 - `--subtalker_top_k` Top-k sampling for the subtalker (code predictor). (default: `50`, matches the official implementation)
 - `--seed` Random seed for reproducible sampling. (default: `None`)
-- `--onnx` Run the models with onnxruntime instead of the ailia SDK.
+- `--onnx` Run the models with onnxruntime instead of the ailia SDK. `CUDAExecutionProvider` is put ahead of `CPUExecutionProvider` when the `-e`/`--env_id` selected for the ailia SDK is a GPU, so both run on the same device; the providers in use are logged. Needs `onnxruntime-gpu` for the CUDA provider to exist.
 - `--disable_ailia_tokenizer` Tokenize the text with the transformers tokenizer instead of the ailia tokenizer. The ailia tokenizer reads `tokenizer/vocab.json` and `tokenizer/merges.txt`, which are downloaded with the models; transformers reads the bundled `tokenizer/tokenizer.json`. Both produce the same token ids.
-- `--static` Use the static shape talker and code predictor, whose KV cache is a fixed length buffer written at a given position instead of one that grows every step. The point is that the ailia SDK re-infers the shape of the whole network whenever an input shape changes, which a growing cache forces `2 * num_layers` times per step. Only these two models have such a variant; the other four are the same files either way. The talker's buffer length is fixed when the model is exported and caps how much audio one call can generate. Available for both sizes in fp32; the 1.7B static talker keeps its weights in `qwen3_tts_talker_1.7B_static.onnx.data` like the growing cache one.
 - `--fp16` Use the fp16 models, which halve the download (about 2.3GB for `0.6B` and about 4.3GB for `1.7B`). On a CPU this is slower rather than faster, on the ailia SDK and on onnxruntime alike, so the size is what it buys there; the speed benefit is on a GPU that computes in fp16. The reference audio encoder stays fp32 either way, because its output is codebook indices. See [export/README.md](./export/README.md) for the measurements.
 - `-b`, `--benchmark` Report the inference time per model. The talker and the code predictor run once per token, so their line shows the number of calls and the average.
 - `--profile` Print the ailia SDK layer profile for every model.

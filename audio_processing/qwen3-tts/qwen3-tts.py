@@ -104,11 +104,6 @@ parser.add_argument(
     '--fp16', action='store_true', help='use fp16 model (default : fp32 model).'
 )
 parser.add_argument(
-    '--static', action='store_true',
-    help='use the static shape talker and code predictor, whose KV cache is a '
-         'fixed length buffer instead of one that grows every step.'
-)
-parser.add_argument(
     '--profile', action='store_true', help='use profile model'
 )
 args = update_parser(parser, check_input_type=False)
@@ -130,12 +125,6 @@ CONFIG_PATH = f"config_{parameter_num}.json"
 # 効くのは fp16 で計算する GPU と、ダウンロードサイズ。
 FP16_SUFFIX = "_fp16" if args.fp16 else ""
 
-# talker と code_predictor だけは KV cache を固定長バッファにした版もあり、
-# --static でそちらを使う。cache が毎ステップ伸びないので ailia が形状を再推論
-# する必要がなくなる。代わりに attention が常にバッファ全長を読むので、talker の
-# バッファ長 (エクスポート時の --max_seq_len) を超える長さは生成できない。
-STATIC_SUFFIX = "_static" if args.static else ""
-
 # ONNX は 6 つで、weight はすべてどれかのグラフに入っている。サンプル側は配列の
 # 組み立てとトークンのサンプリングだけを行う。
 #   encoder           参照音声 -> codec トークン + speaker embedding
@@ -154,9 +143,9 @@ WEIGHT_PATH_PROMPT            = f"qwen3_tts_prompt_{parameter_num}{FP16_SUFFIX}.
 MODEL_PATH_PROMPT             = WEIGHT_PATH_PROMPT + ".prototxt"
 WEIGHT_PATH_CODEC_EMBEDDING   = f"qwen3_tts_codec_embedding_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_CODEC_EMBEDDING    = WEIGHT_PATH_CODEC_EMBEDDING + ".prototxt"
-WEIGHT_PATH_TALKER            = f"qwen3_tts_talker_{parameter_num}{STATIC_SUFFIX}{FP16_SUFFIX}.onnx"
+WEIGHT_PATH_TALKER            = f"qwen3_tts_talker_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_TALKER             = WEIGHT_PATH_TALKER + ".prototxt"
-WEIGHT_PATH_CODE_PREDICTOR    = f"qwen3_tts_code_predictor_{parameter_num}{STATIC_SUFFIX}{FP16_SUFFIX}.onnx"
+WEIGHT_PATH_CODE_PREDICTOR    = f"qwen3_tts_code_predictor_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_CODE_PREDICTOR     = WEIGHT_PATH_CODE_PREDICTOR + ".prototxt"
 WEIGHT_PATH_DECODER           = f"qwen3_tts_decoder_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_DECODER            = WEIGHT_PATH_DECODER + ".prototxt"
@@ -189,6 +178,19 @@ COPY_BLOB_DATA = not (
     and AILIA_VERSION_MINOR <= 2
     and AILIA_VERSION_REVISION < 15
 )
+
+# --onnx のとき、-e で選ばれた env_id が GPU なら CUDA を先に置く。CPU の env_id で
+# CUDA を並べても onnxruntime が警告を出して CPU に落とすだけなので、ailia と同じ
+# 選択に合わせる。env_id が ENVIRONMENT_AUTO のときは ailia が選ぶので GPU 扱い。
+def onnx_providers(env_id):
+    gpu = (env_id == ailia.ENVIRONMENT_AUTO
+           or ailia.get_environment(env_id).type == "GPU")
+    if gpu:
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    return ["CPUExecutionProvider"]
+
+
+ONNX_PROVIDERS = onnx_providers(args.env_id)
 
 # speaker encoder に渡す mel spectrogram のパラメータ
 num_mels = 128
@@ -338,9 +340,7 @@ class OnnxNet:
 
     def __init__(self, weight):
         import onnxruntime
-        self.session = onnxruntime.InferenceSession(
-            weight, providers=["CPUExecutionProvider"]
-        )
+        self.session = onnxruntime.InferenceSession(weight, providers=ONNX_PROVIDERS)
         self.input_names = [i.name for i in self.session.get_inputs()]
         self.input_types = [i.type for i in self.session.get_inputs()]
 
@@ -350,10 +350,6 @@ class OnnxNet:
     def set_input_blob_shape(self, shape, index):
         # onnxruntime は入力そのものから shape を決めるので何もしない
         pass
-
-    def get_blob_shape(self, index):
-        # --static のバッファ長を読むために入力の shape だけ返せれば良い
-        return self.session.get_inputs()[index].shape
 
     def run(self, inputs):
         if not isinstance(inputs, (list, tuple)):
@@ -405,21 +401,9 @@ class Qwen3TTS:
         self.text_tokenizer    = create_tokenizer()
         # KV cache を持つ層数は ONNX の入力数から求める。KV cache 以外の入力は
         # talker が 3 個 (inputs_embeds, attention_mask, position_ids)、
-        # code_predictor が 4 個 (head_rows が加わる)。--static では
-        # cache_position が 1 個増える。
-        self.NUM_TALKER_INPUTS = 4 if args.static else 3
-        self.NUM_SUB_INPUTS    = 5 if args.static else 4
-        self.NUM_LAYERS     = (len(self.talker.get_input_blob_list())
-                               - self.NUM_TALKER_INPUTS) // 2
-        self.NUM_SUB_LAYERS = (len(self.code_predictor.get_input_blob_list())
-                               - self.NUM_SUB_INPUTS) // 2
-        # 固定長バッファの長さは ONNX の KV cache 入力の shape がそのまま持っている
-        self.talker_cache_len = self.sub_cache_len = None
-        if args.static:
-            self.talker_cache_len = self._cache_len(self.talker, self.NUM_TALKER_INPUTS)
-            self.sub_cache_len = self._cache_len(self.code_predictor, self.NUM_SUB_INPUTS)
-            logger.info("static shape: talker cache {} frames, code predictor {}".format(
-                self.talker_cache_len, self.sub_cache_len))
+        # code_predictor が 4 個 (head_rows が加わる)。
+        self.NUM_LAYERS     = (len(self.talker.get_input_blob_list()) - 3) // 2
+        self.NUM_SUB_LAYERS = (len(self.code_predictor.get_input_blob_list()) - 4) // 2
         # onnxruntime には blob をコピーする API がないので ailia のときだけ使う
         self.use_copy_blob_data = COPY_BLOB_DATA and not args.onnx
         self.benchmark = Benchmark(args.benchmark)
@@ -435,33 +419,20 @@ class Qwen3TTS:
             for net in self.nets.values():
                 net.set_profile_mode(True)
         num_groups = self.num_code_groups
-        sub_total = self.sub_cache_len
-        self._sub_attn_prefill = self.generate_attention_mask(2, 0, sub_total)
+        self._sub_attn_prefill = self.generate_attention_mask(2)          # [1,1,2,2]
         self._sub_pos_prefill  = np.array([[0, 1]], dtype=np.int64)
-        self._sub_attn_decode  = [self.generate_attention_mask(1, 1 + k, sub_total)
+        self._sub_attn_decode  = [self.generate_attention_mask(1, 1 + k)
                                   for k in range(1, num_groups - 1)]
         self._sub_pos_decode   = [np.array([[1 + k]], dtype=np.int64)
                                   for k in range(1, num_groups - 1)]
-        # --static で使う書き込み位置。position_ids と同じ並びの 1 次元。
-        self._sub_cache_prefill = np.array([0, 1], dtype=np.int64)
-        self._sub_cache_decode  = [np.array([1 + k], dtype=np.int64)
-                                   for k in range(1, num_groups - 1)]
-
-    def _cache_len(self, net, num_inputs):
-        """固定長 KV cache の長さ (KV cache 入力の 3 番目の軸)。"""
-        blobs = net.get_input_blob_list()
-        return int(net.get_blob_shape(blobs[num_inputs])[2])
 
     # ------------------------------------------------------------------
     # generate_attention_mask: 4D causal mask を作る
     #   prefill:  generate_attention_mask(seq_len)
     #   decode:   generate_attention_mask(1, past_len)
-    #   --static: total_len に固定長バッファの長さを渡す。まだ書かれていない
-    #             スロットは -inf でマスクされる。
     # ------------------------------------------------------------------
-    def generate_attention_mask(self, seq_len, past_len=0, total_len=None):
-        if total_len is None:
-            total_len = seq_len + past_len
+    def generate_attention_mask(self, seq_len, past_len=0):
+        total_len = seq_len + past_len
         mask = np.full((seq_len, total_len), -np.inf, dtype=np.float32)
         for i in range(seq_len):
             mask[i, : past_len + i + 1] = 0.0
@@ -500,21 +471,17 @@ class Qwen3TTS:
 
         input_blobs  = net.get_input_blob_list()
         output_blobs = net.get_output_blob_list()
-        if not args.static:
-            # 入力の shape を変えると ailia が全体の形状を再推論し、コピー元にする
-            # 出力ブロブの shape も変わってしまうので、先に全部読み出しておく
-            kv_shapes = [
-                net.get_blob_shape(output_blobs[num_outputs + i])
-                for i in range(num_layers * 2)
-            ]
+        # 入力の shape を変えると ailia が全体の形状を再推論し、コピー元にする
+        # 出力ブロブの shape も変わってしまうので、先に全部読み出しておく
+        kv_shapes = [
+            net.get_blob_shape(output_blobs[num_outputs + i]) for i in range(num_layers * 2)
+        ]
         for index, value in enumerate(inputs):
             net.set_input_blob_data(value, input_blobs[index])
         # shape の設定は 1 回ごとにネットワーク全体の再推論を伴うので、コピーと
         # 交互に呼ぶと 1 層ごとに再推論が挟まる。先に全部の shape を確定させる。
-        # --static では KV cache の shape が変わらないので設定自体が不要になる。
-        if not args.static:
-            for i in range(num_layers * 2):
-                net.set_input_blob_shape(kv_shapes[i], input_blobs[n + i])
+        for i in range(num_layers * 2):
+            net.set_input_blob_shape(kv_shapes[i], input_blobs[n + i])
         for i in range(num_layers * 2):
             net.copy_blob_data(input_blobs[n + i], output_blobs[num_outputs + i], net)
         net.update()
@@ -526,24 +493,18 @@ class Qwen3TTS:
     #   合算して text_feedback を足したものを inputs_embeds に渡す。
     # returns (logits [1,1,codec_vocab], last_hidden [1,1,hidden], next kv)
     # ------------------------------------------------------------------
-    def _run_talker(self, inputs_embeds, attention_mask, position_ids, kv_caches,
-                    cache_position=None):
-        inputs = [inputs_embeds, attention_mask, position_ids]
-        if args.static:
-            inputs.append(cache_position)
+    def _run_talker(self, inputs_embeds, attention_mask, position_ids, kv_caches):
         outputs, kv_caches = self._run_decoder(
-            "talker", self.talker, self.NUM_LAYERS, 2, inputs, kv_caches,
+            "talker", self.talker, self.NUM_LAYERS, 2,
+            [inputs_embeds, attention_mask, position_ids], kv_caches,
         )
         return outputs[0], outputs[1], kv_caches
 
     def _run_code_predictor(self, inputs_embeds, head_rows, attention_mask,
-                            position_ids, kv_caches, cache_position=None):
-        inputs = [inputs_embeds, head_rows, attention_mask, position_ids]
-        if args.static:
-            inputs.append(cache_position)
+                            position_ids, kv_caches):
         outputs, kv_caches = self._run_decoder(
             "code_predictor", self.code_predictor, self.NUM_SUB_LAYERS, 1,
-            inputs, kv_caches
+            [inputs_embeds, head_rows, attention_mask, position_ids], kv_caches
         )
         return outputs[0], kv_caches
 
@@ -593,10 +554,7 @@ class Qwen3TTS:
         NSL  = self.NUM_SUB_LAYERS
         NKV  = self.cfg["sub_num_kv_heads"]
         HDIM = self.cfg["sub_head_dim"]
-        # --static ではフレームごとに固定長バッファを渡し直す。書かれていない
-        # スロットはマスクされるので、ゼロで埋めておけば前フレームは残らない。
-        past = self.sub_cache_len if args.static else 0
-        sub_kv = [np.zeros((1, NKV, past, HDIM), dtype=np.float32) for _ in range(NSL * 2)]
+        sub_kv = [np.zeros((1, NKV, 0, HDIM), dtype=np.float32) for _ in range(NSL * 2)]
 
         # ── Prefill (seq=2): position 0 は hidden、position 1 はグループ 0 ──
         group0_emb = self._run_codec_embedding(
@@ -607,7 +565,7 @@ class Qwen3TTS:
 
         logits, sub_kv = self._run_code_predictor(
             prefill_emb, self.head_rows[0], self._sub_attn_prefill,
-            self._sub_pos_prefill, sub_kv, self._sub_cache_prefill
+            self._sub_pos_prefill, sub_kv
         )
         group_tokens = [_sample_token(logits[0, -1, :], temperature, top_k)]
 
@@ -618,8 +576,7 @@ class Qwen3TTS:
             ).astype(np.float32)
             logits, sub_kv = self._run_code_predictor(
                 embed, self.head_rows[k],
-                self._sub_attn_decode[k - 1], self._sub_pos_decode[k - 1], sub_kv,
-                self._sub_cache_decode[k - 1]
+                self._sub_attn_decode[k - 1], self._sub_pos_decode[k - 1], sub_kv
             )
             group_tokens.append(_sample_token(logits[0, -1, :], temperature, top_k))
 
@@ -785,35 +742,16 @@ class Qwen3TTS:
         HDIM        = cfg["head_dim"]        # 128
         prefill_len = talker_input_embed.shape[1]
 
-        attn_mask   = self.generate_attention_mask(
-            prefill_len, 0, self.talker_cache_len)
+        attn_mask   = self.generate_attention_mask(prefill_len)          # [1,1,prefill,prefill]
         position_ids = np.arange(prefill_len, dtype=np.int64)[np.newaxis, :]  # [1, prefill]
-        past_len    = self.talker_cache_len if args.static else 0
-        kv_caches   = [np.zeros((1, NKV, past_len, HDIM), dtype=np.float32)
-                       for _ in range(NL * 2)]
+        kv_caches   = [np.zeros((1, NKV, 0, HDIM), dtype=np.float32) for _ in range(NL * 2)]
 
         logits, last_hidden, kv_caches = self._run_talker(
-            talker_input_embed, attn_mask, position_ids, kv_caches,
-            position_ids[0] if args.static else None
+            talker_input_embed, attn_mask, position_ids, kv_caches
         )
 
         EOS_TOKEN_ID   = cfg["codec_eos_id"]   # 2150
         MAX_NEW_TOKENS = 2048
-        if args.static:
-            # 固定長バッファに収まる分しか生成できない
-            room = self.talker_cache_len - prefill_len
-            if room <= 0:
-                logger.error(
-                    "the {} frame prompt does not fit in the {} frame talker cache, "
-                    "export the static models with a larger --max_seq_len".format(
-                        prefill_len, self.talker_cache_len))
-                sys.exit()
-            if room < MAX_NEW_TOKENS:
-                logger.info(
-                    "static shape: prompt is {} of the {} frame talker cache, "
-                    "at most {} tokens can be generated".format(
-                        prefill_len, self.talker_cache_len, room))
-                MAX_NEW_TOKENS = room
         rep_penalty    = repetition_penalty
 
         curr_token_id = _sample_token(logits[0, -1, :], temperature, top_k)
@@ -855,13 +793,11 @@ class Qwen3TTS:
             current_input = (frame_emb + text_feedback).astype(np.float32)
 
             decode_pos  = prefill_len + step
-            attn_mask_d = self.generate_attention_mask(
-                1, decode_pos, self.talker_cache_len)
+            attn_mask_d = self.generate_attention_mask(1, decode_pos)
             pos_ids_d   = np.array([[decode_pos]], dtype=np.int64)
 
             logits, past_hidden, kv_caches = self._run_talker(
-                current_input, attn_mask_d, pos_ids_d, kv_caches,
-                pos_ids_d[0] if args.static else None
+                current_input, attn_mask_d, pos_ids_d, kv_caches
             )
             past_hidden = past_hidden.astype(np.float32)   # [1, 1, hidden_size]
 
@@ -925,6 +861,8 @@ def main():
         np.random.seed(args.seed)
 
     # 1. セットアップ
+    if args.onnx:
+        logger.info("onnxruntime providers: {}".format(", ".join(ONNX_PROVIDERS)))
     tts_engine = Qwen3TTS(memory_mode, args.env_id)
 
     # 2. 検証用データの指定
