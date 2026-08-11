@@ -111,11 +111,7 @@ python3 ailia_gather_repro.py --stage both
 
 Every weight is in a graph, including the text projection, the 16 codec embedding
 tables and all 16 output heads, so `../qwen3-tts.py` only reshapes arrays and
-samples tokens. That is not only tidier. While the output heads were still applied
-on the Python side, numpy's BLAS kept its threads spinning after each matmul and
-starved ailia on the next call, which cost about 6x on a code predictor step and
-took a `OPENBLAS_NUM_THREADS=1` in the sample to work around; with no matmul left
-in the loop there is nothing to pin.
+samples tokens.
 
 `qwen3_tts_codec_embedding_<p>.onnx` holds the 16 tables as one, the talker's 3072
 rows first, then the code predictor's 15 tables of 2048, then one all zero row. A
