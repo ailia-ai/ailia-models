@@ -120,6 +120,44 @@ static model has to reproduce what the growing cache produces:
 python3 verify_onnx.py --parameter_num 0.6B --static --onnx_dir .
 ```
 
+## The reference implementation
+
+`example_torch.py` synthesizes the same thing as `../qwen3-tts.py` with qwen-tts'
+own `Qwen3TTSModel.generate_voice_clone`, on a CPU or on CUDA, and prints its
+timings in the same shape as that sample's `-b` table:
+
+```bash
+python3 example_torch.py --parameter_num 0.6B
+python3 example_torch.py --parameter_num 0.6B --device cuda
+python3 example_torch.py --parameter_num 0.6B --device both
+```
+
+The reference audio, reference text, prompt text and every sampling default are the
+sample's, and the rows are the parts the export splits the model into, so the two
+tables can be read side by side. The two decode loop modules are timed with forward
+hooks; the speech tokenizer's `encode` and `decode` are timed by wrapping those
+methods, because the reference calls them as methods rather than as modules. On
+CUDA every measurement synchronises, so its total is slightly pessimistic.
+
+`--dtype` defaults to `float32` and `--attn_implementation` to `eager`, which is
+what the ONNX are and what the export traces; `sdpa` is the faster attention if the
+point is the reference's own best speed rather than a comparison. One 0.6B run on
+4 CPU cores, for the shape of the output:
+
+```
+        encoder processing time 4154 ms
+        prompt processing time 7 ms (3 calls, 2.5 ms/call)
+        talker processing time 6390 ms (50 calls, 127.8 ms/call)
+        code_predictor processing time 15985 ms (735 calls, 21.7 ms/call)
+        decoder processing time 15344 ms
+        total processing time 44667 ms
+        49 tokens, 3.92 s of audio at 24000 Hz, 11.39x realtime
+```
+
+Sampling is on by default, as in the sample, so two runs generate different numbers
+of tokens; pass `--seed` for a reproducible one and compare per call rather than
+totals.
+
 ## fp16
 
 `convert_to_fp16.py` halves the exported models. It works on the ONNX rather than
