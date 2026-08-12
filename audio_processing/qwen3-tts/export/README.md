@@ -271,8 +271,18 @@ bit for bit on the growing cache model given the same inputs.
 `ScatterElements` node against the same write done as a matmul:
 
 ```bash
-python3 ailia_scatter_repro.py
+python3 ailia_scatter_repro.py             # build them with torch
+python3 ailia_scatter_repro.py --download   # take the published ones
 ```
+
+**Which ONNX op `index_copy` becomes depends on the torch version**, so a locally
+built pair may not be the graph this is about and the comparison then passes.
+`--download` takes the models from `qwen3-tts/scatter_bug/` in the bucket, which are
+the ones these numbers come from, and needs no torch. Either way the header line
+says which torch wrote the model and which write op it holds; with torch 2.10.0 it
+is `ScatterElements` whose index has been expanded to the full `[1, 8, seq, 128]`
+behind a `Shape`/`Equal`/`Where` chain. A build that emits `ScatterND` is a
+different graph and says nothing about this.
 
 ```
 scatter.onnx
@@ -379,4 +389,6 @@ Notes:
 The generated files go to the `qwen3-tts/` folder of the
 [ailia-models bucket](https://console.cloud.google.com/storage/browser/ailia-models),
 and the four gather bug models to `qwen3-tts/gather_bug/` in the same folder,
-which is where `ailia_gather_check.py --download` looks for them.
+which is where `ailia_gather_check.py --download` looks for them. The two
+ScatterElements bug models go to `qwen3-tts/scatter_bug/`, where
+`ailia_scatter_repro.py --download` looks.

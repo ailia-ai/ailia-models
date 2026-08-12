@@ -33,17 +33,25 @@ cache_write() rather than index_copy.
 Usage:
     python3 ailia_scatter_repro.py                 # build both models and compare
     python3 ailia_scatter_repro.py --onnx_dir DIR  # where to write them
+    python3 ailia_scatter_repro.py --download      # take the published ones instead
+
+Which ONNX op index_copy becomes depends on the torch version, so --download takes
+the models this was measured with rather than building new ones, and needs only
+numpy, onnxruntime and ailia. With torch 2.10.0 the write comes out as a
+ScatterElements whose index has been expanded to the full [1, 8, seq, 128], behind
+a Shape/Equal/Where chain that computes that shape; a build that emits ScatterND
+instead is a different graph and says nothing about this.
 """
 
 import argparse
 import os
 import subprocess
 import sys
+import urllib.request
 
 import numpy as np
+import onnx
 import onnxruntime
-import torch
-from torch import nn
 
 import ailia
 
@@ -54,28 +62,41 @@ SEQ_LENGTHS = [1, 2, 4, 8]
 START = 5
 
 MODELS = ["scatter", "onehot"]
+REMOTE_PATH = "https://storage.googleapis.com/ailia-models/qwen3-tts/scatter_bug/"
 
 
-class Scatter(nn.Module):
-    """One ScatterElements, which is what index_copy exports to."""
-
-    def forward(self, past, new, cache_position):
-        return past.index_copy(2, cache_position, new)
-
-
-class OneHot(nn.Module):
-    """The same write as a matmul against a one hot of the positions."""
-
-    def forward(self, past, new, cache_position):
-        positions = torch.arange(past.shape[2])
-        onehot = (positions[None, :] == cache_position[:, None]).to(past.dtype)
-        spread = torch.einsum("bhsd,sm->bhmd", new, onehot)
-        keep = (1.0 - onehot.sum(0))[None, None, :, None]
-        return past * keep + spread
+def download(onnx_dir):
+    os.makedirs(onnx_dir, exist_ok=True)
+    for name in MODELS:
+        for suffix in (".onnx", ".onnx.prototxt"):
+            path = os.path.join(onnx_dir, name + suffix)
+            if os.path.exists(path):
+                continue
+            print(f"downloading {name + suffix} ...")
+            urllib.request.urlretrieve(REMOTE_PATH + name + suffix, path)
 
 
 def build(onnx_dir):
     """Export both models and their prototxt."""
+    import torch
+    from torch import nn
+
+    class Scatter(nn.Module):
+        """One ScatterElements, which is what index_copy exports to."""
+
+        def forward(self, past, new, cache_position):
+            return past.index_copy(2, cache_position, new)
+
+    class OneHot(nn.Module):
+        """The same write as a matmul against a one hot of the positions."""
+
+        def forward(self, past, new, cache_position):
+            positions = torch.arange(past.shape[2])
+            onehot = (positions[None, :] == cache_position[:, None]).to(past.dtype)
+            spread = torch.einsum("bhsd,sm->bhmd", new, onehot)
+            keep = (1.0 - onehot.sum(0))[None, None, :, None]
+            return past * keep + spread
+
     past = torch.zeros(1, NUM_KV_HEADS, CACHE_LEN, HEAD_DIM)
     new = torch.zeros(1, NUM_KV_HEADS, 1, HEAD_DIM)
     cache_position = torch.tensor([START])
@@ -98,15 +119,18 @@ def build(onnx_dir):
         subprocess.check_call([sys.executable, script, path])
 
 
-def compare(onnx_dir):
+def compare(onnx_dir, env_id=0):
     """Run both models on both runtimes and print the error against the expected copy."""
     rng = np.random.default_rng(0)
     disagrees = []
     for name in MODELS:
         path = os.path.join(onnx_dir, name + ".onnx")
         session = onnxruntime.InferenceSession(path, providers=["CPUExecutionProvider"])
-        net = ailia.Net(path + ".prototxt", path, env_id=0)
-        print(f"\n{name}.onnx")
+        net = ailia.Net(path + ".prototxt", path, env_id=env_id)
+        graph = onnx.load(path, load_external_data=False)
+        writes = [node.op_type for node in graph.graph.node if "Scatter" in node.op_type]
+        print(f"\n{name}.onnx  (torch {graph.producer_version}, "
+              f"{', '.join(writes) if writes else 'no scatter'})")
         for seq_len in SEQ_LENGTHS:
             past = rng.standard_normal(
                 (1, NUM_KV_HEADS, CACHE_LEN, HEAD_DIM)).astype(np.float32)
@@ -140,11 +164,20 @@ def compare(onnx_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--onnx_dir", default=".", help="where to write the models")
+    parser.add_argument("--download", action="store_true",
+                        help="download the published models instead of building them, "
+                             "so that torch is not needed and the graph is the one "
+                             "these numbers were measured on")
+    parser.add_argument("-e", "--env_id", type=int, default=0,
+                        help="ailia environment id (default: 0, the CPU)")
     args = parser.parse_args()
 
     os.makedirs(args.onnx_dir, exist_ok=True)
-    build(args.onnx_dir)
-    compare(args.onnx_dir)
+    if args.download:
+        download(args.onnx_dir)
+    else:
+        build(args.onnx_dir)
+    compare(args.onnx_dir, args.env_id)
 
 
 if __name__ == "__main__":
