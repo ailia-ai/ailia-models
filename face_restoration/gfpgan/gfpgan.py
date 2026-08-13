@@ -63,7 +63,8 @@ parser.add_argument(
 parser.add_argument(
     '-m', '--model_name',
     default='v1.3',
-    help=['v1.3', 'v1.4']
+    choices=['v1.3', 'v1.4'],
+    help="Select model version"
 )
 parser.add_argument(
     '--onnx',
