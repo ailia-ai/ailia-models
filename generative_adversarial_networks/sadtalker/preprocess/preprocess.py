@@ -126,7 +126,7 @@ class CropAndExtract():
 
                 trans_params, im1, lm1, _ = align_img(frame, lm1, self.lm3d_std)
  
-                trans_params = np.array([float(item) for item in np.hsplit(trans_params, 5)]).astype(np.float32)
+                trans_params = np.asarray(trans_params, dtype=np.float32).reshape(-1)
                 im_np = np.transpose(np.array(im1, dtype=np.float32) / 255.0, (2, 0, 1))[np.newaxis, ...]
                 
                 if self.use_onnx:
