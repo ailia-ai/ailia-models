@@ -8,8 +8,9 @@ import cv2
 import os
 from skimage import transform as trans
 import warnings
-warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning) 
-warnings.filterwarnings("ignore", category=FutureWarning) 
+if hasattr(np, "VisibleDeprecationWarning"):
+    warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 
 # calculating least square problem for image alignment
@@ -26,14 +27,14 @@ def POS(xp, x):
 
     b = np.reshape(xp.transpose(), [2*npts, 1])
 
-    k, _, _, _ = np.linalg.lstsq(A, b)
+    k, _, _, _ = np.linalg.lstsq(A, b, rcond=-1) # default of numpy 1.x
 
     R1 = k[0:3]
     R2 = k[4:7]
     sTx = k[3]
     sTy = k[7]
     s = (np.linalg.norm(R1) + np.linalg.norm(R2))/2
-    t = np.stack([sTx, sTy], axis=0)
+    t = np.stack([sTx, sTy], axis=0).reshape(-1)
 
     return t, s
     
