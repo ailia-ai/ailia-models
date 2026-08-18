@@ -26,7 +26,7 @@ def POS(xp, x):
 
     b = np.reshape(xp.transpose(), [2*npts, 1])
 
-    k, _, _, _ = np.linalg.lstsq(A, b)
+    k, _, _, _ = np.linalg.lstsq(A, b, rcond=-1) # default of numpy 1.x
 
     R1 = k[0:3]
     R2 = k[4:7]
