@@ -1,5 +1,16 @@
-from nltk.data import load
+import pickle
 from collections import defaultdict
+
+# python 2 系の __builtin__.set を持った pickle をロードする互換 unpickler
+class CompatUnpickler(pickle.Unpickler):
+    ALLOWED = [
+        ("__builtin__", "set"),
+    ]
+
+    def find_class(self, module, name):
+        if (module, name) in self.ALLOWED:
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(f"forbidden global: {module}.{name}")
 
 EXPORT_TO_TEXT = False
 IMPORT_FROM_TEXT = False
@@ -29,7 +40,8 @@ class AveragedPerceptron:
 model = AveragedPerceptron()
 
 def export_to_text():
-    weights, tagdict, classes = load("averaged_perceptron_tagger.pickle")
+    with open("averaged_perceptron_tagger.pickle", "rb") as f:
+        weights, tagdict, classes = CompatUnpickler(f).load()
     f = open("averaged_perceptron_tagger_weights.txt", "w")
     for feat in weights.keys():
         feat_weights = weights[feat]
@@ -83,7 +95,8 @@ if EXPORT_TO_TEXT:
 if IMPORT_FROM_TEXT:
     model.weights, tagdict, model.classes = import_from_text()
 else:
-    model.weights, tagdict, model.classes = load("averaged_perceptron_tagger.pickle")
+    with open("averaged_perceptron_tagger.pickle", "rb") as f:
+        model.weights, tagdict, model.classes = CompatUnpickler(f).load()
 
 START = ["-START-", "-START2-"]
 END = ["-END-", "-END2-"]
