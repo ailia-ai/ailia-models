@@ -5,7 +5,6 @@ from logging import getLogger
 
 import numpy as np
 
-import codecs
 import re
 import os
 import unicodedata
@@ -66,7 +65,7 @@ dirname = os.path.dirname(__file__)
 def construct_homograph_dictionary():
     f = os.path.join(dirname,'homographs.en')
     homograph2features = dict()
-    for line in codecs.open(f, 'r', 'utf8').read().splitlines():
+    for line in open(f, 'r', encoding='utf-8').read().splitlines():
         if line.startswith("#"): continue # comment
         headword, pron1, pron2, pos1 = line.strip().split("|")
         homograph2features[headword.lower()] = (pron1.split(), pron2.split(), pos1)
@@ -75,7 +74,7 @@ def construct_homograph_dictionary():
 def construct_cmu_dictionary():
     f = os.path.join(dirname,'cmudict')
     cmudict = dict()
-    for line in codecs.open(f, 'r', 'utf8').read().splitlines():
+    for line in open(f, 'r', encoding='utf-8').read().splitlines():
         if line.startswith("#"): continue # comment
         lists = line.strip().split(" ")
         headword = lists[0]
@@ -156,7 +155,7 @@ class G2p(object):
         text = ''.join(char for char in unicodedata.normalize('NFD', text)
                        if unicodedata.category(char) != 'Mn')  # Strip accents
         text = text.lower()
-        text = re.sub("[^ a-z'.,?!\-]", "", text)
+        text = re.sub(r"[^ a-z'.,?!\-]", "", text)
         text = text.replace("i.e.", "that is")
         text = text.replace("e.g.", "for example")
 

@@ -1,0 +1,10 @@
+torch==2.10.0
+torchaudio==2.11.0
+transformers==4.57.3
+accelerate==1.14.0
+onnx==1.22.0
+onnxscript==0.7.1
+onnxruntime==1.28.0
+librosa==0.11.0
+einops==0.8.2
+huggingface_hub
