@@ -372,8 +372,14 @@ def main():
 
     # initialize
     if not args.onnx:
+        mem_mode = ailia.get_memory_mode(
+            reduce_constant=True,
+            ignore_input_with_initializer=True,
+            reduce_interstage=False,
+            reuse_interstage=True,
+        )
         nets = {
-            name: ailia.Net(model_files, weight_files, env_id=env_id)
+            name: ailia.Net(model_files, weight_files, env_id=env_id, memory_mode=mem_mode)
             for name, weight_files, model_files in zip(
                 model_info["sources"],
                 model_info["weight_files"],
