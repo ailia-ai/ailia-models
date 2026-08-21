@@ -15,6 +15,9 @@ from image_utils import imread  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
 
+sys.path.append('../../face_detection/blazeface')
+from blazeface_utils import compute_blazeface  # noqa: E402
+
 logger = getLogger(__name__)
 
 
@@ -28,7 +31,12 @@ REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/u2net_portrait/'
 IMAGE_PATH = 'your_portrait_im/kid1.jpg'
 SAVE_IMAGE_PATH = 'your_portrait_results/kid1.jpg'
 
-FACE_CASCADE_MODEL_PATH = 'haarcascade_frontalface_default.xml'
+FACE_DIR = '../../face_detection/blazeface/'
+FACE_WEIGHT_PATH = FACE_DIR + 'blazeface.onnx'
+FACE_MODEL_PATH = FACE_DIR + 'blazeface.onnx.prototxt'
+FACE_ANCHOR_PATH = FACE_DIR + 'anchors.npy'
+FACE_REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/blazeface/'
+
 IMAGE_WIDTH = 512
 IMAGE_HEIGHT = 512
 
@@ -47,27 +55,25 @@ args = update_parser(parser)
 # ======================
 # Utils
 # ======================
-def detect_single_face(face_cascade, img):
-    # Convert into grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+def detect_single_face(detector, img):
+    height, width = img.shape[0:2]
 
     # Detect faces
-    faces = face_cascade.detectMultiScale(gray, 1.1, 4)
-    if len(faces) == 0:
+    detections = compute_blazeface(detector, img, anchor_path=FACE_ANCHOR_PATH)
+    if len(detections) == 0:
         logger.warning("no face detection, "
                        "the portrait u2net will run on the whole image!")
         return None
 
     # filter to keep the largest face
-    wh = 0
-    idx = 0
-    for i in range(0, len(faces)):
-        (x, y, w, h) = faces[i]
-        if (wh < w*h):
-            idx = i
-            wh = w*h
+    # (the coordinates of the detection are normalized)
+    obj = max(detections, key=lambda d: d.w * d.h)
+    x = int(obj.x * width)
+    y = int(obj.y * height)
+    w = int(obj.w * width)
+    h = int(obj.h * height)
 
-    return faces[idx]
+    return (x, y, w, h)
 
 
 # crop, pad and resize face region to 512x512 resolution
@@ -150,11 +156,9 @@ def crop_face(img, face):
     return im_face
 
 
-def preprocess(img, face_detection):
-    # Load the cascade face detection model
-    if face_detection:
-        face_cascade = cv2.CascadeClassifier(FACE_CASCADE_MODEL_PATH)
-        face = detect_single_face(face_cascade, img)
+def preprocess(img, detector):
+    if detector is not None:
+        face = detect_single_face(detector, img)
     else:
         face = None
     im_face = crop_face(img, face)
@@ -190,6 +194,9 @@ def post_process(d1):
 def recognize_from_image():
     # net initialize
     net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(
+        FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id
+    )
 
     # input image loop
     for image_path in args.input:
@@ -197,7 +204,7 @@ def recognize_from_image():
         logger.info(image_path)
         img = imread(image_path)
         logger.debug(f'input image shape: {img.shape}')
-        input_img = preprocess(img, True)
+        input_img = preprocess(img, detector)
 
         # inference
         logger.info('Start inference...')
@@ -244,7 +251,7 @@ def recognize_from_video():
         if frame_shown and cv2.getWindowProperty('frame', cv2.WND_PROP_VISIBLE) == 0:
             break
 
-        input_img = preprocess(img, False)
+        input_img = preprocess(img, None)
         d1, d2, d3, d4, d5, d6, d7 = net.predict({'input.1': input_img})
         out_img = post_process(d1)
         cv2.imshow('frame', out_img)
@@ -263,6 +270,10 @@ def recognize_from_video():
 def main():
     # model files check and download
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+    if args.video is None:
+        check_and_download_models(
+            FACE_WEIGHT_PATH, FACE_MODEL_PATH, FACE_REMOTE_PATH
+        )
 
     if args.video is not None:
         # video mode
