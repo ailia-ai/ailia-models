@@ -128,6 +128,11 @@ def get_base_parser(
         default=5, type=int,
         help='set iteration count of benchmark'
     )
+    parser.add_argument(
+        '--required', action='store_true',
+        help=('Detect the minimum ailia SDK version required to open '
+              'the onnx files in the model directory, then exit')
+    )
     return parser
 
 
@@ -149,6 +154,14 @@ def update_parser(parser, check_input_type=True):
     # 0. logger level update
     if args.debug:
         logger.setLevel(DEBUG)
+
+    # -------------------------------------------------------------------------
+    # 0.5. detect minimum required ailia SDK version
+    if getattr(args, 'required', False):
+        from required_version import detect_required_versions
+        model_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        detect_required_versions(model_dir)
+        sys.exit(0)
 
     # -------------------------------------------------------------------------
     # 1. check env_id count
