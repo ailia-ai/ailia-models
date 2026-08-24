@@ -34,6 +34,7 @@
 | [unet_source_separation](./unet_source_separation/) | [source_separation](https://github.com/AppleHolic/source_separation)  | Pytorch | 1.2.6 and later | Jul 2019 | [EN](https://tech.ailia.ai/en/unetsourceseparation-a-machine-learning-model-to-remove-audio-noise-and-extract-voices-5acae8c37291) [JP](https://tech.ailia.ai/unetsourceseparation-%E9%9B%91%E9%9F%B3%E3%82%92%E9%99%A4%E5%8E%BB%E3%81%97%E3%81%A6%E5%A3%B0%E3%81%A0%E3%81%91%E3%82%92%E6%8A%BD%E5%87%BA%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-5d23fd054eac) |
 | [demucs](./demucs/) | [Demucs](https://github.com/facebookresearch/demucs) | Pytorch | 1.4.0 and later | Sep 2019 | |
 | [dtln](./dtln/) | [Dual-signal Transformation LSTM Network](https://github.com/breizhn/DTLN) | Tensorflow | 1.3.0 and later | May 2020 |  |
+| [voicesplit](./voicesplit/) | [VoiceSplit](https://github.com/Edresson/VoiceSplit) | Pytorch | 1.2.14 and later | May 2020 |  |
 | [audiosep](./audiosep/) | [AudioSep](https://github.com/Audio-AGI/AudioSep) | Pytorch | 1.3.0 and later | Aug 2023 | |
 
 ### Phoneme alignment
