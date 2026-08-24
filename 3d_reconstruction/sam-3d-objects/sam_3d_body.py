@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 
@@ -18,6 +19,10 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
+WEIGHT_VITDET = "vitdet.onnx"
+WEIGHT_VITDET_PB = "vitdet_weights.pb"
+WEIGHT_MOGE = "moge.onnx"
+
 WEIGHT_BACKBONE_VITH = "backbone_vith.onnx"
 WEIGHT_BACKBONE_VITH_PB = "backbone_vith_weights.pb"
 WEIGHT_BODY_INIT_VITH = "body_decoder_init_vith.onnx"
@@ -26,6 +31,8 @@ WEIGHT_BACKBONE_DINOV3 = "backbone_dinov3.onnx"
 WEIGHT_BACKBONE_DINOV3_PB = "backbone_dinov3_weights.pb"
 WEIGHT_BODY_INIT_DINOV3 = "body_decoder_init_dinov3.onnx"
 
+MODEL_VITDET = WEIGHT_VITDET + ".prototxt"
+MODEL_MOGE = WEIGHT_MOGE + ".prototxt"
 MODEL_BACKBONE_VITH = WEIGHT_BACKBONE_VITH + ".prototxt"
 MODEL_BODY_INIT_VITH = WEIGHT_BODY_INIT_VITH + ".prototxt"
 MODEL_BACKBONE_DINOV3 = WEIGHT_BACKBONE_DINOV3 + ".prototxt"
@@ -34,6 +41,10 @@ REMOTE_PATH = "https://storage.googleapis.com/ailia-models/sam-3d-body/"
 
 # Model input size (W, H) - cfg.MODEL.IMAGE_SIZE
 INPUT_SIZE = (384, 512)
+# Detector input: ResizeShortestEdge(short=1024, max=1024)
+DET_SIZE = 1024
+# MHR mesh topology
+NUM_VERTICES = 18439
 
 IMAGE_PATH = "dancing.jpg"
 SAVE_IMAGE_PATH = "output.png"
@@ -49,6 +60,17 @@ parser.add_argument(
     default="vith",
     choices=("vith", "dinov3"),
     help="backbone architecture",
+)
+parser.add_argument(
+    "--bbox_thresh", type=float, default=0.8, help="person detection threshold"
+)
+parser.add_argument(
+    "--no_fov",
+    action="store_true",
+    help="skip the MoGe FOV estimator and use the default focal length",
+)
+parser.add_argument(
+    "--save_ply", action="store_true", help="save the recovered mesh as a .ply file"
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
@@ -238,6 +260,94 @@ def run_net(net, feed):
     return net.run(list(feed.values()))
 
 
+def detect_persons(det_net, img_bgr):
+    """ViTDet person detection.
+
+    Port of tools/build_detector.py:run_detectron2_vitdet. The model covers the
+    network; the class filter / score threshold / sort stay here, exactly as in
+    the original (they are numpy operations outside the model).
+    """
+    height, width = img_bgr.shape[:2]
+
+    scale = DET_SIZE / min(height, width)
+    if round(max(height, width) * scale) > DET_SIZE:
+        scale = DET_SIZE / max(height, width)
+    new_h, new_w = round(height * scale), round(width * scale)
+    resized = cv2.resize(img_bgr, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    inp = resized.astype(np.float32).transpose(2, 0, 1)
+
+    outputs = run_net(det_net, {"image": inp})
+    pred_boxes, pred_classes, _pred_masks, scores, _image_size = outputs
+
+    valid = (pred_classes == 0) & (scores > args.bbox_thresh)
+    if valid.sum() == 0:
+        return np.zeros((0, 4), dtype=np.float32)
+
+    boxes = pred_boxes[valid]
+    # boxes are in the resized frame -> back to the original image
+    boxes = boxes / scale
+
+    order = np.lexsort((boxes[:, 3], boxes[:, 2], boxes[:, 1], boxes[:, 0]))
+    return boxes[order].astype(np.float32)
+
+
+def estimate_cam_int(moge_net, img_rgb):
+    """Camera intrinsics from MoGe.
+
+    The model stops at `MoGeModel.forward` (points/mask); `infer()`'s
+    `recover_focal_shift` is a scipy least-squares fit that cannot be traced, so
+    it is reproduced here in numpy - the same split the sam-3d-objects sample uses.
+    """
+    height, width = img_rgb.shape[:2]
+    inp = (img_rgb.astype(np.float32) / 255.0).transpose(2, 0, 1)[None]
+
+    points, mask = run_net(moge_net, {"image": inp})
+    points, mask = points[0], mask[0] > 0.5
+
+    focal = recover_focal(points, mask)
+    # MoGe returns focal relative to half the image diagonal in normalized space;
+    # build_fov_estimator.py:denormalize_f scales it into pixels and overrides
+    # the horizontal focal with the vertical one.
+    fy = focal * height
+    return np.array(
+        [[[fy, 0, width / 2.0], [0, fy, height / 2.0], [0, 0, 1]]], dtype=np.float32
+    )
+
+
+def recover_focal(points, mask):
+    """Least-squares focal recovery from a camera-space point map.
+
+    Reproduces moge.utils.geometry_numpy.recover_focal_shift for the FOV-only use:
+    we need the focal, not the shift, so a direct 1-D search over focal is enough.
+    """
+    valid = mask & np.isfinite(points).all(axis=-1)
+    if valid.sum() < 16:
+        logger.warning("MoGe mask is (almost) empty; falling back to a default FOV")
+        return 1.0
+
+    h, w = points.shape[:2]
+    uv = np.stack(
+        np.meshgrid(
+            (np.arange(w) + 0.5) / w * 2 - 1,
+            (np.arange(h) + 0.5) / h * 2 - 1,
+            indexing="xy",
+        ),
+        axis=-1,
+    )
+    xy = points[valid][:, :2]
+    z = points[valid][:, 2]
+    uv = uv[valid]
+
+    # x = u * z / f  ->  f = median(u * z / x) over valid pixels
+    with np.errstate(divide="ignore", invalid="ignore"):
+        fx = np.nanmedian(uv[:, 0] * z / xy[:, 0])
+        fy = np.nanmedian(uv[:, 1] * z / xy[:, 1])
+    focal = np.nanmean([fx, fy])
+    if not np.isfinite(focal) or focal <= 0:
+        return 1.0
+    return float(focal) * 0.5  # normalized (half-diagonal) -> per-axis
+
+
 # ======================
 # Main inference
 # ======================
@@ -247,10 +357,18 @@ def predict(models, img_bgr):
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     height, width = img_bgr.shape[:2]
 
-    boxes = np.array([[0, 0, width, height]], dtype=np.float32)
+    logger.info("Running person detector...")
+    boxes = detect_persons(models["detector"], img_bgr)
+    logger.info(f"  detected {len(boxes)} person(s)")
+    if len(boxes) == 0:
+        return []
 
-    cam_int = default_cam_int(height, width)
-    logger.info(f"  focal length: {cam_int[0, 0, 0]:.1f} (default, no FOV estimator)")
+    if models["moge"] is not None:
+        logger.info("Running FOV estimator...")
+        cam_int = estimate_cam_int(models["moge"], img_rgb)
+    else:
+        cam_int = default_cam_int(height, width)
+    logger.info(f"  focal length: {cam_int[0, 0, 0]:.1f}")
 
     batch = preprocess(img_rgb, boxes)
     batch["cam_int"] = cam_int
@@ -355,8 +473,11 @@ def main():
         "dinov3": (WEIGHT_BODY_INIT_DINOV3, MODEL_BODY_INIT_DINOV3),
     }[arch]
 
+    check_and_download_models(WEIGHT_VITDET, MODEL_VITDET, REMOTE_PATH)
     check_and_download_models(weight_backbone, model_backbone, REMOTE_PATH)
     check_and_download_models(weight_body, model_body, REMOTE_PATH)
+    if not args.no_fov:
+        check_and_download_models(WEIGHT_MOGE, MODEL_MOGE, REMOTE_PATH)
 
     env_id = args.env_id
 
@@ -364,8 +485,14 @@ def main():
         import onnxruntime
 
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        detector = onnxruntime.InferenceSession(WEIGHT_VITDET, providers=providers)
         backbone = onnxruntime.InferenceSession(weight_backbone, providers=providers)
         body_decoder = onnxruntime.InferenceSession(weight_body, providers=providers)
+        moge = (
+            None
+            if args.no_fov
+            else onnxruntime.InferenceSession(WEIGHT_MOGE, providers=providers)
+        )
     else:
         memory_mode = ailia.get_memory_mode(
             reduce_constant=True,
@@ -373,14 +500,26 @@ def main():
             reduce_interstage=False,
             reuse_interstage=True,
         )
+        detector = ailia.Net(
+            MODEL_VITDET, WEIGHT_VITDET, env_id=env_id, memory_mode=memory_mode
+        )
         backbone = ailia.Net(
             model_backbone, weight_backbone, env_id=env_id, memory_mode=memory_mode
         )
         body_decoder = ailia.Net(
             model_body, weight_body, env_id=env_id, memory_mode=memory_mode
         )
+        moge = (
+            None
+            if args.no_fov
+            else ailia.Net(
+                MODEL_MOGE, WEIGHT_MOGE, env_id=env_id, memory_mode=memory_mode
+            )
+        )
 
     models = {
+        "detector": detector,
+        "moge": moge,
         "backbone": backbone,
         "body_decoder": body_decoder,
     }
