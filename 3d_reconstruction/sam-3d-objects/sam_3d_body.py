@@ -77,6 +77,117 @@ args = update_parser(parser)
 
 
 # ======================
+# Visualization
+# ======================
+
+# mhr70 skeleton, used only for the 2D overlay.
+# Index pairs derived from sam_3d_body/metadata/mhr70.py `pose_info["skeleton_info"]`
+# (65 links: body + feet + both hands; keypoints 21-41 are the right hand and
+# 42-62 the left hand, which is why the wrists 41/62 fan out into five fingers each).
+SKELETON = [
+    (13, 11),
+    (11, 9),
+    (14, 12),
+    (12, 10),
+    (9, 10),
+    (5, 9),
+    (6, 10),
+    (5, 6),
+    (5, 7),
+    (6, 8),
+    (7, 62),
+    (8, 41),
+    (1, 2),
+    (0, 1),
+    (0, 2),
+    (1, 3),
+    (2, 4),
+    (3, 5),
+    (4, 6),
+    (13, 15),
+    (13, 16),
+    (13, 17),
+    (14, 18),
+    (14, 19),
+    (14, 20),
+    (62, 45),
+    (45, 44),
+    (44, 43),
+    (43, 42),
+    (62, 49),
+    (49, 48),
+    (48, 47),
+    (47, 46),
+    (62, 53),
+    (53, 52),
+    (52, 51),
+    (51, 50),
+    (62, 57),
+    (57, 56),
+    (56, 55),
+    (55, 54),
+    (62, 61),
+    (61, 60),
+    (60, 59),
+    (59, 58),
+    (41, 24),
+    (24, 23),
+    (23, 22),
+    (22, 21),
+    (41, 28),
+    (28, 27),
+    (27, 26),
+    (26, 25),
+    (41, 32),
+    (32, 31),
+    (31, 30),
+    (30, 29),
+    (41, 36),
+    (36, 35),
+    (35, 34),
+    (34, 33),
+    (41, 40),
+    (40, 39),
+    (39, 38),
+    (38, 37),
+]
+
+
+def draw_results(img_bgr, results):
+    vis = img_bgr.copy()
+    for person in results:
+        x1, y1, x2, y2 = person["bbox"].astype(int)
+        cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        kps = person["pred_keypoints_2d"]
+        for x, y in kps.astype(int):
+            cv2.circle(vis, (int(x), int(y)), 3, (0, 200, 255), -1)
+        for a, b in SKELETON:
+            if a < len(kps) and b < len(kps):
+                pa = tuple(kps[a].astype(int))
+                pb = tuple(kps[b].astype(int))
+                cv2.line(vis, pa, pb, (255, 128, 0), 2)
+    return vis
+
+
+def save_ply(path, vertices, faces=None):
+    """Minimal ASCII PLY writer (vertices only if faces are unavailable)."""
+    with open(path, "w") as f:
+        f.write("ply\nformat ascii 1.0\n")
+        f.write(f"element vertex {len(vertices)}\n")
+        f.write("property float x\nproperty float y\nproperty float z\n")
+        if faces is not None:
+            f.write(f"element face {len(faces)}\n")
+            f.write("property list uchar int vertex_index\n")
+        f.write("end_header\n")
+        for v in vertices:
+            f.write(f"{v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+        if faces is not None:
+            for tri in faces:
+                f.write(f"3 {tri[0]} {tri[1]} {tri[2]}\n")
+
+
+# ======================
 # Secondary Functions
 # ======================
 
@@ -454,6 +565,26 @@ def recognize_from_image(models):
             )
         else:
             results = predict(models, img_bgr)
+
+        if not results:
+            logger.info("no person detected")
+            continue
+        for pid, person in enumerate(results):
+            logger.info(
+                f"  person {pid}: cam_t={person['pred_cam_t']}, "
+                f"focal={person['focal_length']:.1f}, "
+                f"vertices={person['pred_vertices'].shape}"
+            )
+
+        savepath = get_savepath(args.savepath, image_path, ext=".png")
+        cv2.imwrite(savepath, draw_results(img_bgr, results))
+        logger.info(f"saved at : {savepath}")
+
+        if args.save_ply:
+            for pid, person in enumerate(results):
+                ply_path = os.path.splitext(savepath)[0] + f"_mesh_{pid:03d}.ply"
+                save_ply(ply_path, person["pred_vertices"] + person["pred_cam_t"])
+                logger.info(f"saved at : {ply_path}")
 
     logger.info("Script finished successfully.")
 
