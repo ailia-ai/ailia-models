@@ -200,16 +200,18 @@ def apply_transform(points, M):
 def align_face(image_bgr, keypoints, cfg, border=cv2.BORDER_REPLICATE):
     """Warp ``image_bgr`` into the canonical frame.
 
-    Returns ``(crop, aligned_keypoints)`` or ``(None, None)`` if the keypoints
-    are degenerate.
+    Returns ``(crop, aligned_keypoints, transform)`` or ``(None, None, None)``
+    if the keypoints are degenerate. ``transform`` maps source image pixels to
+    the aligned crop and can be inverted to draw crop-space outputs back onto
+    the source image.
     """
     kp = np.asarray(keypoints, np.float32)
     M = similarity_from_eyes(kp[KP_RIGHT_EYE], kp[KP_LEFT_EYE], cfg)
     if M is None:
-        return None, None
+        return None, None, None
     crop = cv2.warpAffine(image_bgr, M, (cfg.size, cfg.size),
                           flags=cv2.INTER_LINEAR, borderMode=border)
-    return crop, apply_transform(kp, M)
+    return crop, apply_transform(kp, M), M
 
 
 # ======================

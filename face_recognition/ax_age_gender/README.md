@@ -33,6 +33,10 @@ age is: 28.1
 mask is: nomask (99.95)
 ```
 
+The person segmentation used by the model is outlined in yellow. The detected
+face-mask region is outlined and filled in magenta. Pass `--no-segmentation`
+to hide these overlays.
+
 Faces whose head angle falls outside the range the model is accurate on are
 detected, boxed in gray and left unscored. Pass `--no-pose-gate` to score
 them anyway.
@@ -58,6 +62,20 @@ You can use --savepath option to specify the output file to save.
 ```bash
 $ python3 ax_age_gender.py --video VIDEO_PATH --savepath SAVE_VIDEO_PATH
 ```
+
+In video mode, predictions are smoothed for each tracked face by default. The
+full age distribution, gender probabilities and mask probabilities are
+averaged with an exponential smoothing factor of 0.1. Use `--smooth-alpha 0`
+to disable smoothing or specify another value between 0 and 1.
+
+BlazeFace is applied to the full frame, which is intended for portraits and
+webcam images where faces are already large enough for the 256x256 detector.
+
+### Additional options
+
+- `--no-pose-gate`: Estimate faces outside the recommended head-pose range.
+- `--smooth-alpha`: Set the video smoothing factor; 0 disables smoothing.
+- `--no-segmentation`: Hide the person and face-mask segmentation overlays.
 
 ## Reference
 
