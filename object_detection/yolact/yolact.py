@@ -139,8 +139,8 @@ def prep_display(dets_out, img, h, w, class_color=False, mask_alpha=0.45):
         
     # Then draw the stuff that needs to be done on the cpu
     # Note, make sure this is a uint8 tensor or opencv will not anti alias text for whatever reason
-    img_numpy = (img_gpu * 255)
-    
+    img_numpy = (img_gpu * 255).astype(np.uint8)
+
     classes = classes.astype(np.int8)
 
     if args.display_text or args.display_bboxes:
