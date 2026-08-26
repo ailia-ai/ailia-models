@@ -59,7 +59,7 @@ parser.add_argument(
 )
 args = update_parser(parser)
 
-detection = args.detector if args.detector else 'blazeface' if args.video else None
+detection = args.detector if args.detector else 'face-detection-adas' if args.video else None
 
 
 # ======================

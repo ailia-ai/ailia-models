@@ -35,9 +35,11 @@ $ python3 age-gender-recognition-retail.py --input IMAGE_PATH
 
 If you want to perform face detection in preprocessing, use the `--detector` option
 to select the face detector (`blazeface` or `face-detection-adas`).
-In video mode, `blazeface` is used by default.
+`face-detection-adas` is recommended because it is the detector used by the
+official OpenVINO demo pipeline and gives a face crop closest to it.
+In video mode, `face-detection-adas` is used by default.
 ```bash
-$ python3 age-gender-recognition-retail.py --input IMAGE_PATH --detector blazeface
+$ python3 age-gender-recognition-retail.py --input IMAGE_PATH --detector face-detection-adas
 ```
 
 By adding the `--video` option, you can input the video.   
