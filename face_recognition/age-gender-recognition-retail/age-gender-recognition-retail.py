@@ -30,15 +30,10 @@ WEIGHT_PATH = 'age-gender-recognition-retail-0013.onnx'
 MODEL_PATH = 'age-gender-recognition-retail-0013.onnx.prototxt'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/age-gender-recognition-retail/'
 
-BLAZEFACE_WEIGHT_PATH = 'blazefaceback.onnx'
-BLAZEFACE_MODEL_PATH = 'blazefaceback.onnx.prototxt'
-BLAZEFACE_REMOTE_PATH = "https://storage.googleapis.com/ailia-models/blazeface/"
 FACE_DETECTION_ADAS_WEIGHT_PATH = 'face-detection-adas-0001.onnx'
 FACE_DETECTION_ADAS_MODEL_PATH = 'face-detection-adas-0001.onnx.prototxt'
 FACE_DETECTION_ADAS_REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/face-detection-adas/'
 FACE_DETECTION_ADAS_PRIORBOX_PATH = 'mbox_priorbox.npy'
-
-FACE_MIN_SCORE_THRESH = 0.5
 
 IMAGE_PATH = 'demo.jpg'
 IMAGE_SIZE = 62
@@ -53,13 +48,12 @@ parser = get_base_parser(
     'age-gender-recognition', IMAGE_PATH, SAVE_IMAGE_PATH,
 )
 parser.add_argument(
-    '-d', '--detector', default=None, type=str,
-    choices=('blazeface', 'face-detection-adas'),
+    '-d', '--detection', action='store_true',
     help='Use face detection.'
 )
 args = update_parser(parser)
 
-detection = args.detector if args.detector else 'blazeface' if args.video else None
+detection = args.detection or args.video is not None
 
 
 # ======================
@@ -67,38 +61,21 @@ detection = args.detector if args.detector else 'blazeface' if args.video else N
 # ======================
 
 def setup_detector(net):
-    if detection == 'blazeface':
-        from blazeface_utils import compute_blazeface  # noqa
+    mod = load_face_detection_adas(args)
 
-        def _detector(img):
-            detections = compute_blazeface(
-                net,
-                img,
-                anchor_path=os.path.join(top_path, 'face_detection/blazeface/anchorsback.npy'),
-                back=True,
-                min_score_thresh=FACE_MIN_SCORE_THRESH
-            )
-            return detections
+    prior_box = np.squeeze(np.load(os.path.join(
+        top_path, 'face_detection/face-detection-adas', mod.PRIORBOX_PATH)))
 
-        detector = _detector
-    else:
-        mod = load_face_detection_adas(args)
+    model_info = {
+        'net': net,
+        'prior_box': prior_box,
+    }
 
-        prior_box = np.squeeze(np.load(os.path.join(
-            top_path, 'face_detection/face-detection-adas', mod.PRIORBOX_PATH)))
+    def _detector(img):
+        detections = mod.predict(model_info, img)
+        return detections
 
-        model_info = {
-            'net': net,
-            'prior_box': prior_box,
-        }
-
-        def _detector(img):
-            detections = mod.predict(model_info, img)
-            return detections
-
-        detector = _detector
-
-    return detector
+    return _detector
 
 
 # ======================
@@ -172,7 +149,7 @@ def recognize_from_image(net, detector):
         # prepare input data
         logger.info(image_path)
 
-        if detection is not None:
+        if detection:
             image = imread(image_path)
             image = recognize_image(net, detector, image)
 
@@ -265,16 +242,10 @@ def main():
     det_weight_path = det_model_path = None
     if detection:
         logger.info('=== face detection model ===')
-        det_path = {
-            'blazeface': (
-                BLAZEFACE_WEIGHT_PATH, BLAZEFACE_MODEL_PATH, BLAZEFACE_REMOTE_PATH),
-            'face-detection-adas': (
-                FACE_DETECTION_ADAS_WEIGHT_PATH, FACE_DETECTION_ADAS_MODEL_PATH,
-                FACE_DETECTION_ADAS_REMOTE_PATH),
-        }[detection]
-        det_weight_path, det_model_path, remote_path = det_path
+        det_weight_path = FACE_DETECTION_ADAS_WEIGHT_PATH
+        det_model_path = FACE_DETECTION_ADAS_MODEL_PATH
         check_and_download_models(
-            det_weight_path, det_model_path, remote_path
+            det_weight_path, det_model_path, FACE_DETECTION_ADAS_REMOTE_PATH
         )
 
     # load model
