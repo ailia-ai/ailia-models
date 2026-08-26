@@ -78,7 +78,22 @@ def setup_detector(net):
                 back=True,
                 min_score_thresh=FACE_MIN_SCORE_THRESH
             )
-            return detections
+
+            # adjust face rectangle for the BlazeFace crop
+            detect_object = []
+            for d in detections:
+                margin = 1.5
+                r = ailia.DetectorObject(
+                    category=d.category,
+                    prob=d.prob,
+                    x=d.x - d.w * (margin - 1.0) / 2,
+                    y=d.y - d.h * (margin - 1.0) / 2 - d.h * margin / 8,
+                    w=d.w * margin,
+                    h=d.h * margin,
+                )
+                detect_object.append(r)
+
+            return detect_object
 
         detector = _detector
     else:
@@ -114,7 +129,7 @@ def recognize_image(net, detector, image):
         # get detected face
         # make square and enlarge face bounding box for more robust operation
         # of face analytics networks (bb_enlarge_coefficient of OpenVINO demo)
-        margin = 1.2
+        margin = 1.0 if detection == 'blazeface' else 1.2
         crop_img, top_left, bottom_right = crop_blazeface(
             obj, margin, image
         )

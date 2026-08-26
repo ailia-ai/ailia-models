@@ -105,12 +105,16 @@ def crop_face(image, x, y, w, h, margin):
     cx = x + w / 2
     cy = y + h / 2
     cw = max(w, h) * margin
-    fx = max(cx - cw / 2, 0)
-    fy = max(cy - cw / 2, 0)
-    fw = min(cw, im_w - fx)
-    fh = min(cw, im_h - fy)
-    top_left = (int(fx), int(fy))
-    bottom_right = (int(fx + fw), int(fy + fh))
+    fx = cx - cw / 2
+    fy = cy - cw / 2
+    top_left = (
+        int(np.clip(fx, 0, im_w)),
+        int(np.clip(fy, 0, im_h)),
+    )
+    bottom_right = (
+        int(np.clip(fx + cw, 0, im_w)),
+        int(np.clip(fy + cw, 0, im_h)),
+    )
     crop_img = image[
         top_left[1]:bottom_right[1], top_left[0]:bottom_right[0], 0:3
     ]
