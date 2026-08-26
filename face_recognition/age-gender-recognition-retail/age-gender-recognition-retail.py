@@ -78,22 +78,7 @@ def setup_detector(net):
                 back=True,
                 min_score_thresh=FACE_MIN_SCORE_THRESH
             )
-
-            # adjust face rectangle
-            detect_object = []
-            for d in detections:
-                margin = 1.5
-                r = ailia.DetectorObject(
-                    category=d.category,
-                    prob=d.prob,
-                    x=d.x - d.w * (margin - 1.0) / 2,
-                    y=d.y - d.h * (margin - 1.0) / 2 - d.h * margin / 8,
-                    w=d.w * margin,
-                    h=d.h * margin,
-                )
-                detect_object.append(r)
-
-            return detect_object
+            return detections
 
         detector = _detector
     else:
@@ -108,23 +93,8 @@ def setup_detector(net):
         }
 
         def _detector(img):
-            im_h, im_w, _ = img.shape
             detections = mod.predict(model_info, img)
-
-            enlarge = 1.2
-            detect_object = []
-            for d in detections:
-                r = ailia.DetectorObject(
-                    category=d.category,
-                    prob=d.prob,
-                    x=d.x - d.w * (enlarge - 1.0) / 2,
-                    y=d.y - d.h * (enlarge - 1.0) / 2,
-                    w=d.w * enlarge,
-                    h=d.h * enlarge,
-                )
-                detect_object.append(r)
-
-            return detect_object
+            return detections
 
         detector = _detector
 
@@ -142,7 +112,9 @@ def recognize_image(net, detector, image):
     # estimate age and gender
     for obj in detections:
         # get detected face
-        margin = 1.0
+        # make square and enlarge face bounding box for more robust operation
+        # of face analytics networks (bb_enlarge_coefficient of OpenVINO demo)
+        margin = 1.2
         crop_img, top_left, bottom_right = crop_blazeface(
             obj, margin, image
         )
