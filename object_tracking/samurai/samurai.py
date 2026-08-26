@@ -1466,10 +1466,16 @@ def main():
 
     # initialize
     if not args.onnx:
-        backbone = ailia.Net(MODEL_BACKBONE_PATH, WEIGHT_BACKBONE_PATH, env_id=env_id)
-        sam_heads = ailia.Net(MODEL_SAM_PATH, WEIGHT_SAM_PATH, env_id=env_id)
-        memory_encoder = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=env_id)
-        memory_attn = ailia.Net(MODEL_ATN_PATH, WEIGHT_ATN_PATH, env_id=env_id)
+        mem_mode = ailia.get_memory_mode(
+            reduce_constant=True,
+            ignore_input_with_initializer=True,
+            reduce_interstage=False,
+            reuse_interstage=True,
+        )
+        backbone = ailia.Net(MODEL_BACKBONE_PATH, WEIGHT_BACKBONE_PATH, env_id=env_id, memory_mode=mem_mode)
+        sam_heads = ailia.Net(MODEL_SAM_PATH, WEIGHT_SAM_PATH, env_id=env_id, memory_mode=mem_mode)
+        memory_encoder = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=env_id, memory_mode=mem_mode)
+        memory_attn = ailia.Net(MODEL_ATN_PATH, WEIGHT_ATN_PATH, env_id=env_id, memory_mode=mem_mode)
     else:
         import onnxruntime
 
