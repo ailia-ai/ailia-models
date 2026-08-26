@@ -110,6 +110,8 @@ def recognize_image(net, detector, image):
         i = np.argmax(prob)
         gender = 'Female' if i == 0 else 'Male'
         age = round(age_conv3 * 100)
+        logger.info(" gender is: %s (%.2f)" % (gender, prob[i] * 100))
+        logger.info(" age is: %d" % age)
 
         # display label
         LABEL_WIDTH = bottom_right[1] - top_left[1]

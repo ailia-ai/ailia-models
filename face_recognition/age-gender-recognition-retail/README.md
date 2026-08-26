@@ -45,6 +45,20 @@ You can use --savepath option to specify the output file to save.
 $ python3 age-gender-recognition-retail.py --video VIDEO_PATH --savepath SAVE_VIDEO_PATH
 ```
 
+## Verification with OpenVINO
+
+`example_openvino.py` runs the official OpenVINO IR models with the OpenVINO
+runtime (`pip3 install openvino`) using the same interface, so that the
+results can be compared with the ailia sample.
+```bash
+$ python3 example_openvino.py --input IMAGE_PATH
+$ python3 example_openvino.py --input IMAGE_PATH --detection
+```
+Note that the face detector preprocessing differs between the two
+implementations (the ailia sample uses letterbox resize while the OpenVINO
+demo stretches the input), so the detected boxes and therefore the estimated
+ages can differ slightly in `--detection` mode.
+
 ## Reference
 
 - [OpenVINO - Open Model Zoo repository - age-gender-recognition-retail-0013](https://github.com/openvinotoolkit/open_model_zoo/tree/master/models/intel/age-gender-recognition-retail-0013)
