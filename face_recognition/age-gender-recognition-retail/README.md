@@ -33,9 +33,11 @@ If you want to specify the input image, put the image path after the `--input` o
 $ python3 age-gender-recognition-retail.py --input IMAGE_PATH
 ```
 
-If you want to perform face detection in preprocessing, use the `--detection` option.
+If you want to perform face detection in preprocessing, use the `--detector` option
+to select the face detector (`blazeface` or `face-detection-adas`).
+In video mode, `blazeface` is used by default.
 ```bash
-$ python3 age-gender-recognition-retail.py --input IMAGE_PATH --detection
+$ python3 age-gender-recognition-retail.py --input IMAGE_PATH --detector blazeface
 ```
 
 By adding the `--video` option, you can input the video.   
