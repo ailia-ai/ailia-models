@@ -29,6 +29,27 @@ FACE_DETECTOR_IMAGE_HEIGHT = 128
 FACE_DETECTOR_IMAGE_WIDTH = 128
 
 
+def resize_multi_channel(img, dsize, interpolation):
+    # The maximum number of channels of cv2.resize is 512 until OpenCV 4 and 128 from OpenCV 5.
+    CV_CN_MAX = 128
+
+    channels = img.shape[2]
+    if channels <= CV_CN_MAX:
+        return cv2.resize(img, dsize=dsize, interpolation=interpolation)
+
+    # resize every CV_CN_MAX channels
+    resized = np.empty((dsize[1], dsize[0], channels), dtype=img.dtype)
+    for i in range(0, channels, CV_CN_MAX):
+        part = cv2.resize(
+            img[:, :, i:i + CV_CN_MAX], dsize=dsize, interpolation=interpolation
+        )
+        # cv2.resize drops the last axis when the image has only one channel
+        part = part.reshape(dsize[1], dsize[0], -1)
+        resized[:, :, i:i + CV_CN_MAX] = part
+
+    return resized
+
+
 def copy_area(tar, src, lms):
     rect = [
         int(min(lms[:, 1])) - PreProcess.eye_margin,
@@ -238,7 +259,7 @@ class PreProcess:
         mask_re = np.tile(
             np.expand_dims(mask_re, 1), (1, diff.shape[1], 1, 1)
         )  # (3, 136, 64, 64)
-        diff_re = cv2.resize(
+        diff_re = resize_multi_channel(
             diff.squeeze().transpose((1, 2, 0)),
             dsize=self.diff_size,
             interpolation=cv2.INTER_NEAREST,

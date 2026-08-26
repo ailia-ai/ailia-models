@@ -852,5 +852,6 @@ def draw_gazes(img, gazes, pupil_centers, horizontal_flip=False, base_color='r',
                 tip_length = np.sqrt((x2 - x0)**2 + (y2 - y0)**2) / np.sqrt((x2 - x1)**2 + (y2 - y1)**2) * 0.2
             else:
                 tip_length = 0.2
+            tip_length = min(tip_length, 1.0)
             cv2.arrowedLine(img, (x1, y1), (x2, y2), bins_color[bins_valid[-1]],
                             thickness=int(np.round(thickness_)), tipLength=tip_length)

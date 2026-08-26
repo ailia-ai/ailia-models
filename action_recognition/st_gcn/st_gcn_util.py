@@ -234,13 +234,13 @@ def stgcn_visualize(
         skeleton_result += skeleton.astype(float) * 0.25
         skeleton_result += text.astype(float)
         skeleton_result[skeleton_result > 255] = 255
-        skeleton_result.astype(np.uint8)
+        skeleton_result = skeleton_result.astype(np.uint8)
 
         rgb_result = blurred_mask.astype(float) * 0.75
         rgb_result += frame.astype(float) * 0.5
         rgb_result += skeleton.astype(float) * 0.25
         rgb_result[rgb_result > 255] = 255
-        rgb_result.astype(np.uint8)
+        rgb_result = rgb_result.astype(np.uint8)
 
         put_text(skeleton, 'inputs of st-gcn', (0.15, 0.5))
 
