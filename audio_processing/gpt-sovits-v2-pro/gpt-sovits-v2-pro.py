@@ -117,7 +117,7 @@ COPY_BLOB_DATA = not (
 # ======================
 
 if args.distill is not None:
-    REMOTE_PATH_T2S = "https://storage.googleapis.com/ailia-models/gpt-sovits-v2-pro-distill/"
+    REMOTE_PATH_T2S_VITS = "https://storage.googleapis.com/ailia-models/gpt-sovits-v2-pro-distill/"
     MODEL_SIZE = args.distill
     WEIGHT_PATH_T2S_ENCODER = "t2s_encoder_distill_"+MODEL_SIZE+".onnx"
     WEIGHT_PATH_T2S_FIRST_DECODER = "t2s_fsdec_distill_"+MODEL_SIZE+".onnx"
@@ -738,16 +738,16 @@ def main():
 
     # model files check and download
     check_and_download_models(WEIGHT_PATH_SSL, MODEL_PATH_SSL, REMOTE_PATH)
-    check_and_download_models(WEIGHT_PATH_VITS, MODEL_PATH_VITS, REMOTE_PATH)
+    check_and_download_models(WEIGHT_PATH_VITS, MODEL_PATH_VITS, REMOTE_PATH_T2S_VITS)
     check_and_download_models(WEIGHT_PATH_SV, MODEL_PATH_SV, REMOTE_PATH)
     check_and_download_models(
-        WEIGHT_PATH_T2S_ENCODER, MODEL_PATH_T2S_ENCODER, REMOTE_PATH_T2S
+        WEIGHT_PATH_T2S_ENCODER, MODEL_PATH_T2S_ENCODER, REMOTE_PATH_T2S_VITS
     )
     check_and_download_models(
-        WEIGHT_PATH_T2S_FIRST_DECODER, MODEL_PATH_T2S_FIRST_DECODER, REMOTE_PATH_T2S
+        WEIGHT_PATH_T2S_FIRST_DECODER, MODEL_PATH_T2S_FIRST_DECODER, REMOTE_PATH_T2S_VITS
     )
     check_and_download_models(
-        WEIGHT_PATH_T2S_STAGE_DECODER, MODEL_PATH_T2S_STAGE_DECODER, REMOTE_PATH_T2S
+        WEIGHT_PATH_T2S_STAGE_DECODER, MODEL_PATH_T2S_STAGE_DECODER, REMOTE_PATH_T2S_VITS
     )
     if use_zh:
         check_and_download_models(WEIGHT_PATH_BERT, MODEL_PATH_BERT, REMOTE_PATH)
