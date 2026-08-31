@@ -276,14 +276,14 @@ def predict(models, img):
             center_x * im_w, center_y * im_h,
             rect_width * im_w, rect_height * im_h,
             angle)
-        img, roi, pad = preprocess(img, roi)
+        input, roi, pad = preprocess(img, roi)
 
         # feedforward
         net = models['net']
         if not args.onnx:
-            output = net.predict([img])
+            output = net.predict([input])
         else:
-            output = net.run(None, {'input_12': img})
+            output = net.run(None, {'input_12': input})
         landmark_tensors, presence_flag_tensors, _ = output
 
         norm_rect = ROI(
