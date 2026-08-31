@@ -31,7 +31,7 @@ REF_WAV_PATH = "reference_audio_captured_by_ax.wav"
 REF_TEXT = "水をマレーシアから買わなくてはならない。"
 SAVE_WAV_PATH = "output.wav"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/gpt-sovits-v2-pro/"
-REMOTE_PATH_T2S = REMOTE_PATH
+REMOTE_PATH_T2S_VITS = REMOTE_PATH
 WEIGHT_PATH_SSL = "cnhubert.onnx"
 WEIGHT_PATH_T2S_ENCODER = "t2s_encoder.onnx"
 WEIGHT_PATH_T2S_FIRST_DECODER = "t2s_fsdec.onnx"
@@ -117,14 +117,16 @@ COPY_BLOB_DATA = not (
 # ======================
 
 if args.distill is not None:
-    REMOTE_PATH_T2S = "https://storage.googleapis.com/ailia-models/gpt-sovits-v2-pro-distill/"
+    REMOTE_PATH_T2S_VITS = "https://storage.googleapis.com/ailia-models/gpt-sovits-v2-pro-distill/"
     MODEL_SIZE = args.distill
     WEIGHT_PATH_T2S_ENCODER = "t2s_encoder_distill_"+MODEL_SIZE+".onnx"
     WEIGHT_PATH_T2S_FIRST_DECODER = "t2s_fsdec_distill_"+MODEL_SIZE+".onnx"
     WEIGHT_PATH_T2S_STAGE_DECODER = "t2s_sdec_distill_"+MODEL_SIZE+".opt.onnx"
+    WEIGHT_PATH_VITS = "vits_distill_small.onnx"
     MODEL_PATH_T2S_ENCODER = None
     MODEL_PATH_T2S_FIRST_DECODER = None
     MODEL_PATH_T2S_STAGE_DECODER = None
+    MODEL_PATH_VITS = None
 
 # ======================
 # Quantized models
@@ -410,6 +412,8 @@ class GptSoVits:
         repetition_penalty=1.35,
         speed=1.0,
     ):
+        if args.benchmark:
+            start_dec = int(round(time.time() * 1000))
         pred_semantic = self.t2s.forward(
             ref_seq,
             text_seq,
@@ -445,6 +449,9 @@ class GptSoVits:
         if args.benchmark:
             end = int(round(time.time() * 1000))
             logger.info("\tvits processing time {} ms".format(end - start))
+        if args.benchmark:
+            end_dec = int(round(time.time() * 1000))
+            logger.info("\ttotal decoder processing time {} ms".format(end_dec - start_dec))
         return audio1[0]
 
 
@@ -722,22 +729,25 @@ def generate_voice(ssl, t2s_encoder, t2s_first_decoder, t2s_stage_decoder, vits,
 
     logger.info("Script finished successfully.")
 
+    if args.benchmark:
+        logger.info("\taudio length {} sec".format(audio.shape[0] / vits_hps_data_sampling_rate))
+
 
 def main():
     use_zh = args.text_language == "zh" or args.ref_language == "zh"
 
     # model files check and download
     check_and_download_models(WEIGHT_PATH_SSL, MODEL_PATH_SSL, REMOTE_PATH)
-    check_and_download_models(WEIGHT_PATH_VITS, MODEL_PATH_VITS, REMOTE_PATH)
+    check_and_download_models(WEIGHT_PATH_VITS, MODEL_PATH_VITS, REMOTE_PATH_T2S_VITS)
     check_and_download_models(WEIGHT_PATH_SV, MODEL_PATH_SV, REMOTE_PATH)
     check_and_download_models(
-        WEIGHT_PATH_T2S_ENCODER, MODEL_PATH_T2S_ENCODER, REMOTE_PATH_T2S
+        WEIGHT_PATH_T2S_ENCODER, MODEL_PATH_T2S_ENCODER, REMOTE_PATH_T2S_VITS
     )
     check_and_download_models(
-        WEIGHT_PATH_T2S_FIRST_DECODER, MODEL_PATH_T2S_FIRST_DECODER, REMOTE_PATH_T2S
+        WEIGHT_PATH_T2S_FIRST_DECODER, MODEL_PATH_T2S_FIRST_DECODER, REMOTE_PATH_T2S_VITS
     )
     check_and_download_models(
-        WEIGHT_PATH_T2S_STAGE_DECODER, MODEL_PATH_T2S_STAGE_DECODER, REMOTE_PATH_T2S
+        WEIGHT_PATH_T2S_STAGE_DECODER, MODEL_PATH_T2S_STAGE_DECODER, REMOTE_PATH_T2S_VITS
     )
     if use_zh:
         check_and_download_models(WEIGHT_PATH_BERT, MODEL_PATH_BERT, REMOTE_PATH)
