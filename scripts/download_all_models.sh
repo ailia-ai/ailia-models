@@ -127,6 +127,7 @@ cd ../../face_recognition/mediapipe_iris; python3 mediapipe_iris.py ${OPTION}
 cd ../../face_recognition/hopenet; python3 hopenet.py ${OPTION}
 cd ../../face_recognition/ax_gaze_estimation; python3 ax_gaze_estimation.py ${OPTION}
 cd ../../face_recognition/age-gender-recognition-retail; python3 age-gender-recognition-retail.py ${OPTION}
+cd ../../face_recognition/ax_age_gender; python3 ax_age_gender.py ${OPTION}
 cd ../../face_recognition/ferplus; python3 ferplus.py ${OPTION}
 cd ../../face_recognition/face-anti-spoofing; python3 face-anti-spoofing.py ${OPTION}
 cd ../../face_recognition/ax_facial_features; python3 ax_facial_features.py ${OPTION}
