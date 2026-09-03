@@ -22,7 +22,7 @@ logger = getLogger(__name__)
 
 WEIGHT_PATH = 'sac+logos+ava1-l14-linearMSE.onnx'
 MODEL_PATH = 'sac+logos+ava1-l14-linearMSE.onnx.prototxt'
-REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/aesthetic_prediction/'
+REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/aesthetic-predictor-v2/'
 IMAGE_PATH = 'test.jpg'
 
 
@@ -36,6 +36,20 @@ parser = get_base_parser(
     None,
 )
 args = update_parser(parser)
+
+
+# ======================
+# Helper functions
+# ======================
+
+def preprocess(image):
+    pass
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    # model2, preprocess = clip.load("ViT-L/14", device=device)  #RN50x64
+    # image = preprocess(pil_image).unsqueeze(0).to(device)
+    # with torch.no_grad():
+    #    image_features = model2.encode_image(image)
+    # im_emb_arr = normalized(image_features.cpu().detach().numpy() )
 
 
 # ======================
