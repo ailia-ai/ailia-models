@@ -39,73 +39,38 @@ args = update_parser(parser)
 
 
 # ======================
-# Helper functions
-# ======================
-
-def preprocess(img, max_side_len=2400):
-    '''
-    resize image to a size multiple of 32 which is required by the network
-    :param img: the resized image
-    :param max_side_len: limit of max image size to avoid out of memory in gpu
-    :return: the resized image and the resize ratio
-    '''
-    h, w, _ = img.shape
-
-    resize_w = w
-    resize_h = h
-
-    if max(resize_h, resize_w) > max_side_len:
-        ratio = float(max_side_len) / resize_h if resize_h > resize_w else float(max_side_len) / resize_w
-    else:
-        ratio = 1.
-    resize_h = int(resize_h * ratio)
-    resize_w = int(resize_w * ratio)
-
-    resize_h = resize_h if resize_h % 32 == 0 else (resize_h // 32 - 1) * 32
-    resize_w = resize_w if resize_w % 32 == 0 else (resize_w // 32 - 1) * 32
-    resize_h = max(32, resize_h)
-    resize_w = max(32, resize_w)
-    img = cv2.resize(img, (int(resize_w), int(resize_h)))
-
-    ratio_h = resize_h / float(h)
-    ratio_w = resize_w / float(w)
-
-    img = np.expand_dims(img, axis=0).astype(np.float32)
-
-    return img, (ratio_h, ratio_w)
-
-
-# ======================
 # Main functions
 # ======================
 
-def predict(img, net):
-    img, (ratio_h, ratio_w) = preprocess(img)
-
-    net.set_input_shape(img.shape)
-    output = net.predict({'x': img})
-    print(output)
+def predict(image, net):
+    features = np.zeros((1, 768), dtype=np.float32)
+    net.set_input_shape(features.shape)
+    output = net.predict({'x': features})
+    return output[0][0][0]
 
 
 def recognize_from_image(filename, net):
     for image_path in args.input:
         logger.info(image_path)
 
-        img = load_image(image_path)
-        logger.info(f'input image shape: {img.shape}')
+        image = load_image(image_path)
+        logger.info(f'input image shape: {image.shape}')
 
-        img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+        image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
 
         logger.info('Start inference...')
         if args.benchmark:
             logger.info('BENCHMARK mode')
             for i in range(5):
                 start = int(round(time.time() * 1000))
-                score = predict(img, net)
+                score = predict(image, net)
                 end = int(round(time.time() * 1000))
                 logger.info(f'\tailia processing time {end - start} ms')
         else:
-            score = predict(img, net)
+            score = predict(image, net)
+
+    logger.info('### Score ###')
+    logger.info(score)
 
     logger.info('Script finished successfully.')
 
