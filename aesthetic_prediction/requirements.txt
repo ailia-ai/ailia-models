@@ -1,4 +1,0 @@
-webdataset==1.0.2
-pytorch-lightning==2.6.5
-datasets==5.0.1
-openai-clip==1.0.1
