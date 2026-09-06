@@ -25,6 +25,8 @@ WAVE_PATH = "noisy_snr0.wav"
 SAVE_PATH = "output.wav"
 
 MODEL_TYPES = ("DeepFilterNet", "DeepFilterNet2", "DeepFilterNet3")
+# models whose post-filter is applied inside the model and needs a separate onnx (see post_filter)
+PF_MODEL_TYPES = ("DeepFilterNet", "DeepFilterNet2")
 
 # [df] section of the config.ini that ships with every pretrained model.
 # The three models share the same values.
@@ -35,6 +37,7 @@ NB_ERB = 32
 NB_DF = 96
 MIN_NB_ERB_FREQS = 2
 NORM_TAU = 1.0
+PF_BETA = 0.02
 
 # initial state of the exponential moving average used by the two normalizations
 MEAN_NORM_INIT = (-60.0, -90.0)
@@ -52,6 +55,19 @@ parser.add_argument(
     default="DeepFilterNet3",
     choices=MODEL_TYPES,
     help="model type: " + " | ".join(MODEL_TYPES),
+)
+parser.add_argument(
+    "--pf",
+    action="store_true",
+    help="post-filter that slightly over-attenuates very noisy sections.",
+)
+parser.add_argument(
+    "-a",
+    "--atten_lim",
+    metavar="DB",
+    type=int,
+    default=None,
+    help="attenuation limit in dB by mixing the enhanced signal with the noisy signal.",
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
@@ -246,6 +262,27 @@ def df_features(audio):
     return as_real(spec)[:, None], feat_erb, feat_spec
 
 
+def post_filter(enh, spec, beta=PF_BETA):
+    """Post-filter of DeepFilterNet3, proposed by Valin et al.
+
+    In the original implementation this is the last step of the model itself, but it has
+    no weights and only depends on the model output and the model input, so it is applied
+    here instead of inside the onnx. The post-filter of DeepFilterNet / DeepFilterNet2 is
+    a different one that is applied to the ERB mask in the middle of the model, and can
+    not be reproduced from the model output. Those models have a separate `_pf` onnx.
+
+    enh: [C, 1, Tf, F, 2], spec: [C, 1, Tf, F, 2] -> [C, 1, Tf, F, 2]
+    """
+    eps = 1e-12
+    mag_enh = np.sqrt(enh[..., 0] ** 2 + enh[..., 1] ** 2)
+    mag_spec = np.sqrt(spec[..., 0] ** 2 + spec[..., 1] ** 2)
+    mask = np.clip(mag_enh / (mag_spec + eps), eps, 1)
+    mask_sin = mask * np.maximum(np.sin(np.pi * mask / 2), eps)
+    pf = (1 + beta) / (1 + beta * (mask / mask_sin) ** 2)
+
+    return enh * pf[..., None]
+
+
 # ======================
 # Main functions
 # ======================
@@ -264,15 +301,20 @@ def predict(net, spec, feat_erb, feat_spec):
     return enh, m, lsnr
 
 
-def enhance(net, audio):
+def enhance(net, audio, atten_lim_db=None):
     orig_len = audio.shape[-1]
     # pad audio to compensate for the delay due to the real-time STFT implementation
     audio = np.pad(audio, ((0, 0), (0, FFT_SIZE)))
 
     spec, feat_erb, feat_spec = df_features(audio)
     enh, m, lsnr = predict(net, spec, feat_erb, feat_spec)
+    if args.pf and args.model_type not in PF_MODEL_TYPES:
+        enh = post_filter(enh, spec)
 
     enhanced = as_complex(enh.squeeze(1))
+    if atten_lim_db is not None and abs(atten_lim_db) > 0:
+        lim = 10 ** (-abs(atten_lim_db) / 20)
+        enhanced = as_complex(spec.squeeze(1)) * lim + enhanced * (1 - lim)
     audio = synthesis(enhanced)
 
     # the STFT/ISTFT loop introduces an algorithmic delay of FFT_SIZE - HOP_SIZE
@@ -294,7 +336,7 @@ def audio_recognition(net):
             total_time_estimation = 0
             for i in range(args.benchmark_count):
                 start = int(round(time.time() * 1000))
-                enhanced = enhance(net, audio)
+                enhanced = enhance(net, audio, args.atten_lim)
                 end = int(round(time.time() * 1000))
                 estimation_time = end - start
 
@@ -308,7 +350,7 @@ def audio_recognition(net):
             )
         else:
             start = int(round(time.time() * 1000))
-            enhanced = enhance(net, audio)
+            enhanced = enhance(net, audio, args.atten_lim)
             estimation_time = int(round(time.time() * 1000)) - start
             rtf = estimation_time / (enhanced.shape[-1] / SAMPLE_RATE * 1000)
             logger.info(f"\tprocessing time {estimation_time} ms (RT factor {rtf:.3f})")
@@ -324,7 +366,10 @@ def audio_recognition(net):
 
 
 def main():
-    weight_path = "%s.onnx" % args.model_type.lower()
+    weight_path = "%s%s.onnx" % (
+        args.model_type.lower(),
+        "_pf" if args.pf and args.model_type in PF_MODEL_TYPES else "",
+    )
     model_path = weight_path + ".prototxt"
 
     # model files check and download
