@@ -1,3 +1,4 @@
+import json
 import sys
 import cv2
 import time
@@ -13,6 +14,7 @@ import webcamera_utils  # noqa: E402
 from image_utils import imread, load_image  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -63,6 +65,12 @@ parser.add_argument(
     '--scale-factor', type=float, default=SCALE_DEFAULT,
 )
 
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
+)
+
 args = update_parser(parser)
 
 def keypoint_draw(image_path,draw_image, pose_scores, keypoint_scores, keypoint_coords):
@@ -79,6 +87,23 @@ def keypoint_draw(image_path,draw_image, pose_scores, keypoint_scores, keypoint_
             for ki, (s, c) in enumerate(zip(keypoint_scores[pi, :], keypoint_coords[pi, :, :])):
                 print('Keypoint %s, score = %f, coord = %s' % (PART_NAMES[ki], s, c))
     return draw_image
+
+
+def save_json(pose_scores, keypoint_scores, keypoint_coords, json_path):
+    output = []
+    for pose_score, kpt_scores, kpt_coords in zip(pose_scores, keypoint_scores, keypoint_coords):
+        if pose_score < args.threshold_pose:
+            continue
+        output.append({
+            'pose_score': pose_score,
+            'keypoints': [
+                {'pos': [c[1], c[0]], 'prob': s}  # keypoint_coords is in (y, x) order
+                for s, c in zip(kpt_scores, kpt_coords)
+            ],
+        })
+
+    with open(json_path, 'w') as f:
+        json.dump(numpy_type_to_builtin_type(output), f, indent=2)
 
 
 def detect(model,img):
@@ -130,6 +155,11 @@ def recognize_from_image(model):
         savepath = get_savepath(args.savepath, image_path)
         cv2.imwrite( savepath, draw_image)
         logger.info(f'saved at : {savepath}')
+
+        if args.write_json:
+            save_json(pose_scores, keypoint_scores, keypoint_coords,
+                      (savepath.rsplit('.', 1)[0]) + '.json')
+
     logger.info('Script finished successfully.')
 
 
