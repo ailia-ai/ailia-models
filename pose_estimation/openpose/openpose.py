@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 
@@ -13,6 +14,7 @@ import webcamera_utils  # noqa: E402
 from image_utils import imread, load_image  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
+from pose_utils import pose_object_to_dict  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -57,6 +59,11 @@ parser.add_argument(
 parser.add_argument(
     '-t', '--threshold', type=float, default=THRESHOLD_DEFAULT,
     help='The detection threshold. (require ailia SDK 1.2.5 and later)'
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
 )
 args = update_parser(parser)
 
@@ -134,6 +141,16 @@ def display_result(input_img, pose):
              ailia.POSE_KEYPOINT_KNEE_RIGHT)
 
 
+def save_json(pose, json_path):
+    output = [
+        pose_object_to_dict(pose.get_object_pose(idx))
+        for idx in range(pose.get_object_count())
+    ]
+
+    with open(json_path, 'w') as f:
+        json.dump(output, f, indent=2)
+
+
 # ======================
 # Main functions
 # ======================
@@ -176,6 +193,10 @@ def recognize_from_image():
         savepath = get_savepath(args.savepath, image_path)
         logger.info(f'saved at : {savepath}')
         cv2.imwrite(savepath, src_img)
+
+        if args.write_json:
+            save_json(pose, (savepath.rsplit('.', 1)[0]) + '.json')
+
     logger.info('Script finished successfully.')
 
 
