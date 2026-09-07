@@ -42,6 +42,11 @@ parser = get_base_parser(
     IMAGE_PATH,
     None,
 )
+parser.add_argument(
+    '--onnx',
+    action='store_true',
+    help='execute onnxruntime version.'
+)
 args = update_parser(parser)
 
 
@@ -88,10 +93,18 @@ def preprocess(image):
 def predict(image, net_ava, net_vitl14):
     image = preprocess(image)
 
-    features = net_vitl14.predict({'image': image})[0]
+    if not args.onnx:
+        features = net_vitl14.predict({'image': image})[0]
+    else:
+        features = net_vitl14.run(None, {'image': image})[0]
+
     features = features / np.linalg.norm(features, ord=2, axis=-1, keepdims=True)
 
-    score = net_ava.predict({'x': features})[0][0][0]
+    if not args.onnx:
+        score = net_ava.predict({'x': features})[0][0][0]
+    else:
+        score = net_ava.run(None, {'x': features})[0][0][0]
+
     return score
 
 
@@ -125,10 +138,14 @@ def main():
     check_and_download_models(WEIGHT_AVA_PATH, MODEL_AVA_PATH, REMOTE_AVA_PATH)
     check_and_download_models(WEIGHT_VITL14_PATH, MODEL_VITL14_PATH, REMOTE_VITL14_PATH)
 
-    memory_mode = ailia.get_memory_mode(reduce_constant=True, reduce_interstage=True)
-
-    net_ava = ailia.Net(MODEL_AVA_PATH, WEIGHT_AVA_PATH, env_id=args.env_id, memory_mode=memory_mode)
-    net_vitl14 = ailia.Net(MODEL_VITL14_PATH, WEIGHT_VITL14_PATH, env_id=args.env_id, memory_mode=memory_mode)
+    if not args.onnx:
+        memory_mode = ailia.get_memory_mode(reduce_constant=True, reduce_interstage=True)
+        net_ava = ailia.Net(MODEL_AVA_PATH, WEIGHT_AVA_PATH, env_id=args.env_id, memory_mode=memory_mode)
+        net_vitl14 = ailia.Net(MODEL_VITL14_PATH, WEIGHT_VITL14_PATH, env_id=args.env_id, memory_mode=memory_mode)
+    else:
+        import onnxruntime
+        net_ava = onnxruntime.InferenceSession(WEIGHT_AVA_PATH)
+        net_vitl14 = onnxruntime.InferenceSession(WEIGHT_VITL14_PATH)
 
     recognize_from_image(args.input, net_ava, net_vitl14)
 
