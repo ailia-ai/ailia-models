@@ -57,8 +57,8 @@ parser.add_argument(
 )
 
 
-parser.add_argument('-a','--arch', type=int, default=101,
-    help='model layer number lists: ' + ' | '.join(MODEL_LISTS)
+parser.add_argument('-a','--arch', type=str, default='101', choices=MODEL_LISTS,
+    help='select model: ' + ' | '.join(MODEL_LISTS)
 )
 
 parser.add_argument(
