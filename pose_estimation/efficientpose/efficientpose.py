@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 import time
 from os.path import join, normpath
@@ -17,6 +18,7 @@ from logging import getLogger  # noqa: E402
 from image_utils import imread, load_image  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 from webcamera_utils import adjust_frame_size, get_capture  # noqa: E402
 
 logger = getLogger(__name__)
@@ -56,6 +58,11 @@ parser.add_argument(
 parser.add_argument(
     '-o', '--onnx', action='store_true',
     help="Option to use onnxrutime to run or not."
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
 )
 args = update_parser(parser)
 
@@ -137,6 +144,14 @@ def annotate_image(file_path, coordinates):
     # Save annotated image
     image.save(normpath(file_path.split('.')[0] + '_tracked.png'))
 
+def save_json(coordinates, json_path):
+    output = [
+        {'pos': [c[1], c[2]], 'prob': c[3]} for c in coordinates
+    ]
+
+    with open(json_path, 'w') as f:
+        json.dump(numpy_type_to_builtin_type(output), f, indent=2)
+
 # ======================
 # Main functions
 # ======================
@@ -198,6 +213,9 @@ def recognize_from_image():
         logger.info(f'saved at : {savepath}')
 
         cv2.imwrite(savepath, src_img)
+
+        if args.write_json:
+            save_json(coordinates[0], (savepath.rsplit('.', 1)[0]) + '.json')
 
     logger.info('Script finished successfully.')
 
