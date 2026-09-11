@@ -240,6 +240,40 @@ def main():
         from ailia_tokenizer import GPT2Tokenizer
 
         tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer")
+        # Pass added_tokens_decoder of tokenizer_config.json sorted by id.
+        # Omitting a token shifts all the ids that follow it.
+        tokenizer.add_special_tokens(
+            {
+                "additional_special_tokens": [
+                    "<|endoftext|>",
+                    "<|im_start|>",
+                    "<|im_end|>",
+                    "<|object_ref_start|>",
+                    "<|object_ref_end|>",
+                    "<|box_start|>",
+                    "<|box_end|>",
+                    "<|quad_start|>",
+                    "<|quad_end|>",
+                    "<|vision_start|>",
+                    "<|vision_end|>",
+                    "<|vision_pad|>",
+                    "<|image_pad|>",
+                    "<|video_pad|>",
+                    "<tool_call>",
+                    "</tool_call>",
+                    "<|fim_prefix|>",
+                    "<|fim_middle|>",
+                    "<|fim_suffix|>",
+                    "<|fim_pad|>",
+                    "<|repo_name|>",
+                    "<|file_sep|>",
+                    "<tool_response>",
+                    "</tool_response>",
+                    "<think>",
+                    "</think>",
+                ]
+            }
+        )
 
     models = {
         "net": net,
