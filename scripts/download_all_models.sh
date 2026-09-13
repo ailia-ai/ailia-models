@@ -157,6 +157,7 @@ cd ../../generative_adversarial_networks/encoder4editing; python3 encoder4editin
 cd ../../generative_adversarial_networks/lipgan; python3 lipgan.py ${OPTION}
 cd ../../generative_adversarial_networks/live_portrait; python3 live_portrait.py ${OPTION}
 cd ../../generative_adversarial_networks/sadtalker; python3 sadtalker.py ${OPTION}
+cd ../../generative_adversarial_networks/ailia_glasses_removal; python3 ailia_glasses_removal.py ${OPTION}
 cd ../../hand_detection/yolov3-hand; python3 yolov3-hand.py ${OPTION}
 cd ../../hand_detection/hand_detection_pytorch python3 hand_detection_pytorch.py ${OPTION}
 cd ../../hand_detection/blazepalm; python3 blazepalm.py ${OPTION}
