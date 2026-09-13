@@ -36,6 +36,7 @@
 | [dtln](./dtln/) | [Dual-signal Transformation LSTM Network](https://github.com/breizhn/DTLN) | Tensorflow | 1.3.0 and later | May 2020 |  |
 | [voicesplit](./voicesplit/) | [VoiceSplit](https://github.com/Edresson/VoiceSplit) | Pytorch | 1.2.14 and later | May 2020 |  |
 | [audiosep](./audiosep/) | [AudioSep](https://github.com/Audio-AGI/AudioSep) | Pytorch | 1.3.0 and later | Aug 2023 | |
+| [ailia_voice_filter](./ailia_voice_filter/) | [ailia Voice Filter](https://storage.googleapis.com/ailia-models/ailia_voice_filter/voicefilter_stream.onnx) | Pytorch | 1.5.0 and later | Sep 2026 | |
 
 ### Phoneme alignment
 

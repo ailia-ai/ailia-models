@@ -52,6 +52,8 @@ cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
 cd ../../audio_processing/lite-whisper/; python3 lite-whisper.py ${OPTION}
 cd ../../audio_processing/qwen3-tts/; python3 qwen3-tts.py ${OPTION}
 cd ../../audio_processing/voicesplit/; python3 voicesplit.py ${OPTION}
+cd ../../audio_processing/ailia_voice_filter; python3 ailia_voice_filter.py ${OPTION}
+cd ../../audio_processing/ailia_voice_filter; python3 ailia_voice_filter.py -m deepfilternet --input babble_15dB.wav ${OPTION}
 cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
 cd ../../autonomous_driving/segformer; python3 segformer.py ${OPTION}
 #cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}
