@@ -1,4 +1,4 @@
-# AX Glasses Removal
+# ailia Glasses Removal
 
 ## Input
 
@@ -34,13 +34,13 @@ smoothed with the same elapsed-time-based filters as the JavaScript demo.
 The model files are downloaded automatically on the first run.
 
 ```bash
-python3 ax_glasses_removal.py
+python3 ailia_glasses_removal.py
 ```
 
 Specify an input and output path with `--input` and `--savepath`.
 
 ```bash
-python3 ax_glasses_removal.py \
+python3 ailia_glasses_removal.py \
   --input IMAGE_PATH \
   --savepath SAVE_IMAGE_PATH
 ```
@@ -48,7 +48,7 @@ python3 ax_glasses_removal.py \
 Use a video file or webcam (`0`) with `--video`.
 
 ```bash
-python3 ax_glasses_removal.py \
+python3 ailia_glasses_removal.py \
   --video VIDEO_PATH \
   --savepath SAVE_VIDEO_PATH
 ```
@@ -56,14 +56,14 @@ python3 ax_glasses_removal.py \
 Overlay the raw glasses probability for debugging.
 
 ```bash
-python3 ax_glasses_removal.py --show-mask
+python3 ailia_glasses_removal.py --show-mask
 ```
 
 ## Model specification
 
-### AX Glasses Removal Mobile
+### ailia Glasses Removal Mobile
 
-- Model: [ax_glasses_removal_mobile.onnx](https://storage.googleapis.com/ailia-models/ax_glasses_removal/ax_glasses_removal_mobile.onnx)
+- Model: [glasses_removal_mobile.onnx](https://storage.googleapis.com/ailia-models/ailia_glasses_removal/glasses_removal_mobile.onnx)
 - Input: `image`, shape `(1, 3, 128, 256)`, RGB, range `[-1, 1]`
 - Outputs:
   - `clean`, shape `(1, 3, 128, 256)`, RGB, range `[-1, 1]`

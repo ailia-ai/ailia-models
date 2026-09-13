@@ -17,7 +17,7 @@ from model_utils import (  # noqa: E402
 )
 from webcamera_utils import get_capture, get_writer  # noqa: E402
 
-from ax_glasses_removal_utils import (  # noqa: E402
+from ailia_glasses_removal_utils import (  # noqa: E402
     GlassesRemover,
     TemporalSmoother,
     deglass_roi_box,
@@ -27,8 +27,8 @@ from ax_glasses_removal_utils import (  # noqa: E402
 logger = getLogger(__name__)
 
 
-WEIGHT_PATH = "ax_glasses_removal_mobile.onnx"
-REMOTE_PATH = "https://storage.googleapis.com/ailia-models/ax_glasses_removal/"
+WEIGHT_PATH = "glasses_removal_mobile.onnx"
+REMOTE_PATH = "https://storage.googleapis.com/ailia-models/ailia_glasses_removal/"
 
 FACE_DET_WEIGHT_PATH = "face_detector.onnx"
 FACE_DET_MODEL_PATH = "face_detector.onnx.prototxt"
