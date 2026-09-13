@@ -1,6 +1,7 @@
 import sys
 import time
 import math
+import json
 from collections import namedtuple
 
 import cv2
@@ -14,6 +15,7 @@ from model_utils import check_and_download_models
 from image_utils import normalize_image
 from detector_utils import load_image
 from math_utils import sigmoid
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 import webcamera_utils
 # logger
 from logging import getLogger  # noqa
@@ -122,6 +124,11 @@ parser.add_argument(
     '--frame_skip',
     default=None, type=int,
     help='Skip the frames of input video.'
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
 )
 args = update_parser(parser)
 
@@ -430,6 +437,30 @@ def pose_estimate_one_person(models, img):
         face_landmarks
 
 
+def save_json(outputs, json_path):
+    result = []
+    for output in outputs:
+        pose_landmarks, pose_world_landmarks, \
+        left_hand_landmarks, right_hand_landmarks, \
+        face_landmarks, x1, y1, x2, y2 = output
+
+        if len(pose_landmarks) == 0:
+            continue
+
+        result.append({
+            # with --detector, the landmark x/y are normalized by this bbox
+            'bbox': [x1, y1, x2, y2],
+            'pose_landmarks': [lm._asdict() for lm in pose_landmarks],
+            'pose_world_landmarks': [lm._asdict() for lm in pose_world_landmarks],
+            'left_hand_landmarks': [lm._asdict() for lm in left_hand_landmarks],
+            'right_hand_landmarks': [lm._asdict() for lm in right_hand_landmarks],
+            'face_landmarks': [lm._asdict() for lm in face_landmarks],
+        })
+
+    with open(json_path, 'w') as f:
+        json.dump(numpy_type_to_builtin_type(result), f, indent=2)
+
+
 # ======================
 # Main functions
 # ======================
@@ -498,6 +529,9 @@ def recognize_from_image(models):
         savepath = get_savepath(args.savepath, image_path)
         logger.info(f'saved at : {savepath}')
         cv2.imwrite(savepath, img)
+
+        if args.write_json:
+            save_json(outputs, (savepath.rsplit('.', 1)[0]) + '.json')
 
     logger.info('Script finished successfully.')
 

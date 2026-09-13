@@ -1,5 +1,6 @@
 import sys
 import time
+import json
 
 import ailia
 import cv2
@@ -16,6 +17,7 @@ import webcamera_utils  # noqa: E402
 from image_utils import imread  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -50,6 +52,11 @@ parser.add_argument(
     default=MODEL_VARIANT, choices=MODEL_VARIANTS,
     help="The model variant for movenet, 'thunder','lightning'."
 )
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
+)
 
 args = update_parser(parser)
 
@@ -63,6 +70,15 @@ IMAGE_SIZE = RESOLUTION
 # # ======================
 # # Main functions
 # # ======================
+
+def save_json(keypoint_with_scores, json_path):
+    output = [
+        {'pos': [k[1], k[0]], 'prob': k[2]}
+        for k in keypoint_with_scores[0, 0]
+    ]
+
+    with open(json_path, 'w') as f:
+        json.dump(numpy_type_to_builtin_type(output), f, indent=2)
 
 def recognize_from_image():
 
@@ -110,7 +126,10 @@ def recognize_from_image():
         logger.info(f'saved at : {savepath}')
         print(result_image.shape)
         cv2.imwrite(savepath, result_image)
-        
+
+        if args.write_json:
+            save_json(keypoint_with_scores, (savepath.rsplit('.', 1)[0]) + '.json')
+
     logger.info('Script finished successfully.')
 
 def recognize_from_video():

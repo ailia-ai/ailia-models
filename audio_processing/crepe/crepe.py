@@ -1,5 +1,6 @@
 import sys
 import time
+import json
 from logging import getLogger
 
 import numpy as np
@@ -35,6 +36,8 @@ logger = getLogger(__name__)
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/rvc/'
 
 SAMPLE_RATE = 16000
+WINDOW = 160
+TIME_STEP = WINDOW / SAMPLE_RATE
 
 WAV_PATH = 'test.wav'
 FIG_PATH = "output.png"
@@ -59,6 +62,11 @@ parser.add_argument(
     '--evaluate',
     action='store_true',
     help='evaluate with harvest.'
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='Flag to output results to json file.'
 )
 args = update_parser(parser)
 
@@ -149,7 +157,7 @@ def predict(audio, model, f0_method):
     if audio_max > 1:
         audio /= audio_max
 
-    window = 160       
+    window = WINDOW
     p_len = audio.shape[0] // window
 
     pitch = get_f0(
@@ -210,6 +218,18 @@ def recognize_from_audio(models):
         savepath = get_savepath(args.savepath, audio_path, ext='.png')
         logger.info(f'saved at : {savepath}')
         plt.savefig(savepath)
+
+        if args.write_json:
+            json_file = '%s.json' % savepath.rsplit('.', 1)[0]
+            results = {
+                "time_step": TIME_STEP,
+                "f0": output.tolist(),
+            }
+            if args.evaluate:
+                results["harvest"] = harvest.tolist()
+            with open(json_file, 'w') as f:
+                json.dump(results, f, indent=2)
+            logger.info(f'saved json at : {json_file}')
 
     logger.info('Script finished successfully.')
 
