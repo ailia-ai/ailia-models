@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android%20%7C%20Jetson%20%7C%20Raspberry%20Pi-lightgrey)
 
-The collection of pre-trained, state-of-the-art AI models: 419 models covering object detection, speech recognition, image generation, LLMs and more — all runnable from the same simple CLI.
+The collection of pre-trained, state-of-the-art AI models: 420 models covering object detection, speech recognition, image generation, LLMs and more — all runnable from the same simple CLI.
 
 [Tutorial](TUTORIAL.md) · [チュートリアル](TUTORIAL_jp.md) · [Google Colaboratory](https://www.ailia.ai/launch_to_colab) · [Documentation](https://docs.ailia.ai/en/) · [deepwiki](https://deepwiki.com/ailia-ai/ailia-models) · [Update history](https://github.com/ailia-ai/ailia-models/wiki)
 
@@ -22,7 +22,7 @@ python3 yolox.py
 
 # Models
 
-419 models are available. Use [🔍 Search models](https://github.com/ailia-ai/ailia-models/find/master) to find a model by name.
+420 models are available. Use [🔍 Search models](https://github.com/ailia-ai/ailia-models/find/master) to find a model by name.
 
 | | Category | Model list |
 |:---|:---|:---|
@@ -43,7 +43,7 @@ python3 yolox.py
 | [<img src="face_swapping/deepfacelive/sample_results/frame_000001_res.png" width=96px>](/face_swapping/) | [Face swapping](/face_swapping/) | [deepfacelive](/face_swapping/deepfacelive/), [sber-swap](/face_swapping/sber-swap/), [facefusion](/face_swapping/facefusion/) |
 | [<img src="feature_extraction/dinov3/output.png" width=96px>](/feature_extraction/) | [Feature extraction](/feature_extraction/) | [dinov3](/feature_extraction/dinov3/) |
 | [<img src="frame_interpolation/cain/sample_results/output_0.png" width=96px>](/frame_interpolation/) | [Frame interpolation](/frame_interpolation/) | [cain](/frame_interpolation/cain/), [rife](/frame_interpolation/rife/), [flavr](/frame_interpolation/flavr/), [film](/frame_interpolation/film/) |
-| [<img src="generative_adversarial_networks/pytorch-gan/output_anime.png" width=96px>](/generative_adversarial_networks/) | [Generative adversarial networks](/generative_adversarial_networks/) | [pytorch-gan](/generative_adversarial_networks/pytorch-gan/), [lipgan](/generative_adversarial_networks/lipgan/), [council-gan](/generative_adversarial_networks/council-gan/), [sam](/generative_adversarial_networks/sam/), [encoder4editing](/generative_adversarial_networks/encoder4editing/), [restyle-encoder](/generative_adversarial_networks/restyle-encoder/), [SadTalker](/generative_adversarial_networks/sadtalker/), [live_portrait](/generative_adversarial_networks/live_portrait/) |
+| [<img src="generative_adversarial_networks/pytorch-gan/output_anime.png" width=96px>](/generative_adversarial_networks/) | [Generative adversarial networks](/generative_adversarial_networks/) | [pytorch-gan](/generative_adversarial_networks/pytorch-gan/), [lipgan](/generative_adversarial_networks/lipgan/), [council-gan](/generative_adversarial_networks/council-gan/), [ailia_glasses_removal](/generative_adversarial_networks/ailia_glasses_removal/), [sam](/generative_adversarial_networks/sam/), [encoder4editing](/generative_adversarial_networks/encoder4editing/), [restyle-encoder](/generative_adversarial_networks/restyle-encoder/), [SadTalker](/generative_adversarial_networks/sadtalker/), [live_portrait](/generative_adversarial_networks/live_portrait/) |
 | [<img src="hand_detection/hand_detection_pytorch/CARDS_OFFICE_output.jpg" width=96px>](/hand_detection/) | [Hand detection](/hand_detection/) | [hand_detection_pytorch](/hand_detection/hand_detection_pytorch/), [yolov3-hand](/hand_detection/yolov3-hand/), [blazepalm](/hand_detection/blazepalm/) |
 | [<img src="hand_recognition/hand3d/output.png" width=96px>](/hand_recognition/) | [Hand recognition](/hand_recognition/) | [hand3d](/hand_recognition/hand3d/), [v2v-posenet](/hand_recognition/v2v-posenet/), [minimal-hand](/hand_recognition/minimal-hand/), [blazehand](/hand_recognition/blazehand/), [hands_segmentation_pytorch](/hand_recognition/hands_segmentation_pytorch/) |
 | [<img src="image_captioning/image_captioning_pytorch/demo.jpg" width=96px>](/image_captioning/) | [Image captioning](/image_captioning/) | [illustration2vec](/image_captioning/illustration2vec/), [image_captioning_pytorch](/image_captioning/image_captioning_pytorch/), [blip2](/image_captioning/blip2/) |
