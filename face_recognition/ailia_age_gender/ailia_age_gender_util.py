@@ -1,4 +1,4 @@
-"""Utilities for the ax_age_gender sample.
+"""Utilities for the ailia_age_gender sample.
 
 BlazeFace detection with the 6 face keypoints, canonical 2-point face
 alignment and the head-pose gate, ported from the training-side code so the

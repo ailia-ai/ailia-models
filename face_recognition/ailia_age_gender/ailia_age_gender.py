@@ -13,7 +13,7 @@ from image_utils import imread  # noqa
 from model_utils import check_and_download_models  # noqa
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa
 
-from ax_age_gender_util import (BlazeFace, AlignConfig, align_face,  # noqa
+from ailia_age_gender_util import (BlazeFace, AlignConfig, align_face,  # noqa
                                 pose_in_range)
 
 _this = os.path.dirname(os.path.abspath(__file__))
@@ -25,9 +25,9 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
-WEIGHT_PATH = 'ax_age_gender_fp16.onnx'
+WEIGHT_PATH = 'age_gender_fp16.onnx'
 MODEL_PATH = None
-REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/ax_age_gender/'
+REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/ailia_age_gender/'
 
 BLAZEFACE_WEIGHT_PATH = 'blazefaceback.onnx'
 BLAZEFACE_MODEL_PATH = 'blazefaceback.onnx.prototxt'
@@ -56,7 +56,7 @@ SAVE_IMAGE_PATH = 'output.png'
 # ======================
 
 parser = get_base_parser(
-    'ax_age_gender', IMAGE_PATH, SAVE_IMAGE_PATH,
+    'ailia_age_gender', IMAGE_PATH, SAVE_IMAGE_PATH,
 )
 parser.add_argument(
     '--no-pose-gate', action='store_true',
@@ -431,7 +431,7 @@ def recognize_from_video(net, detector):
 
 def main():
     # model files check and download
-    logger.info('=== ax_age_gender model ===')
+    logger.info('=== ailia_age_gender model ===')
     check_and_download_models(
         WEIGHT_PATH, MODEL_PATH, REMOTE_PATH
     )
