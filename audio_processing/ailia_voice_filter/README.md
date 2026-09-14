@@ -121,8 +121,6 @@ PyTorch
 - [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet)
 - [VoiceSplit](https://github.com/Edresson/VoiceSplit)
 - [Real-Time Voice Cloning (GE2E speaker encoder)](https://github.com/CorentinJ/Real-Time-Voice-Cloning)
-- [GE2E-Speaker-Encoder](https://github.com/Edresson/GE2E-Speaker-Encoder), the
-  fork the encoder checkpoint comes from
 
 ## License
 
@@ -130,6 +128,4 @@ PyTorch
 - [LICENSE_DFN](LICENSE_DFN) — [DeepFilterNet](https://github.com/Rikorose/DeepFilterNet),
   dual MIT / Apache-2.0 at your option
 - [LICENSE_GE2E3K](LICENSE_GE2E3K) — [Real-Time Voice Cloning](https://github.com/CorentinJ/Real-Time-Voice-Cloning),
-  MIT. [GE2E-Speaker-Encoder](https://github.com/Edresson/GE2E-Speaker-Encoder),
-  which the checkpoint is taken from, carries no licence file of its own and
-  credits Corentin Jemine.
+  MIT
