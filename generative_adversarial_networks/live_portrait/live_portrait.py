@@ -792,7 +792,7 @@ def predict(models, x_s_info, R_s, f_s, x_s, img):
         src_face = face_analysis(img)
         if len(src_face) == 0:
             logger.info(f"No face detected in the frame")
-            raise Exception(f"No face detected in the frame")
+            return None
         elif len(src_face) > 1:
             logger.info(
                 f"More than one face detected in the driving frame, only pick one face."
@@ -969,16 +969,22 @@ def recognize_from_video(models):
     )
 
     frame_shown = False
+    frame_idx = 0
     while True:
         ret, frame = capture.read()
         if (cv2.waitKey(1) & 0xFF == ord("q")) or not ret:
             break
+        frame_idx += 1
         if frame_shown and cv2.getWindowProperty("frame", cv2.WND_PROP_VISIBLE) == 0:
             break
 
         # inference
         img_rgb = frame[:, :, ::-1]  # BGR -> RGB
         I_p = predict(models, x_s_info, R_s, f_s, x_s, img_rgb)
+        if I_p is None:
+            print(f"No face detected in the driving frame {frame_idx}, skipped.")
+            # keep showing / saving by falling back to the unanimated source crop
+            I_p = crop_info["img_crop"]
 
         if flg_composite:
             driving_img = concat_frame(img_rgb, img_crop_256x256, I_p)
