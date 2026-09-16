@@ -137,7 +137,7 @@ def main():
     # initialize
     memory_mode = ailia.get_memory_mode(reduce_constant=True,reuse_interstage=True)
     net         = ailia.Net(MODEL_PATH,WEIGHT_PATH,env_id=args.env_id,memory_mode=memory_mode)
-    net_decoder = ailia.Net(MODEL_DECODER_PATH,WEIGHT_DECODER_PATH)
+    net_decoder = ailia.Net(MODEL_DECODER_PATH,WEIGHT_DECODER_PATH,env_id=args.env_id)
 
     for point_path in args.input:
         recognize_from_obj(point_path,net,net_decoder)
