@@ -45,6 +45,13 @@ parser.add_argument(
     "-e", "--env_id", type=int, default=ailia.ENVIRONMENT_AUTO,
     help="The backend environment id."
 )
+parser.add_argument(
+    "--memory_mode", type=int,
+    default=ailia.get_memory_mode(
+        reduce_constant=True, ignore_input_with_initializer=True,
+        reduce_interstage=False, reuse_interstage=True),
+    help="ailia memory mode."
+)
 args = parser.parse_args()
 
 # ======================
@@ -70,7 +77,8 @@ def main():
         channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
         range=ailia.NETWORK_IMAGE_RANGE_U_INT8,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOX,
-        env_id=args.env_id)
+        env_id=args.env_id,
+        memory_mode=args.memory_mode)
     detector.set_input_shape(MODEL_INPUT_WIDTH, MODEL_INPUT_HEIGHT)
 
     # tracker initialize

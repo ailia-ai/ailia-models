@@ -235,13 +235,9 @@ def main():
         env_id = 0
     
     # initialize
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-
-    net_sam = ailia.Net(MODEL_FASTSAM_PATH, WEIGHT_FASTSAM_PATH, env_id = env_id, memory_mode = memory_mode)
-    net_image = ailia.Net(MODEL_VIT_IMAGE_PATH, WEIGHT_VIT_IMAGE_PATH, env_id = env_id, memory_mode = memory_mode)
-    net_text  = ailia.Net(MODEL_VIT_TEXT_PATH, WEIGHT_VIT_TEXT_PATH, env_id = env_id, memory_mode = memory_mode)
+    net_sam = ailia.Net(MODEL_FASTSAM_PATH, WEIGHT_FASTSAM_PATH, env_id = env_id, memory_mode = args.memory_mode)
+    net_image = ailia.Net(MODEL_VIT_IMAGE_PATH, WEIGHT_VIT_IMAGE_PATH, env_id = env_id, memory_mode = args.memory_mode)
+    net_text  = ailia.Net(MODEL_VIT_TEXT_PATH, WEIGHT_VIT_TEXT_PATH, env_id = env_id, memory_mode = args.memory_mode)
 
     if args.profile:
         net_sam.set_profile_mode(True)

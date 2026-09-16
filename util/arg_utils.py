@@ -29,6 +29,13 @@ except ImportError:
                    '[--env_id N]')
     AILIA_EXIST = False
 
+DEFAULT_MEMORY_MODE = ailia.get_memory_mode(
+    reduce_constant=True,
+    ignore_input_with_initializer=True,
+    reduce_interstage=False,
+    reuse_interstage=True,
+) if AILIA_EXIST else 11
+
 # On Windows on ARM (WoA) only the headless build of OpenCV is available, so
 # cv2.imshow raises "The function is not implemented". Only in that case, import
 # woa_imshow, which overwrites the highgui functions with a tkinter based
@@ -105,6 +112,11 @@ def get_base_parser(
         default=default_env_id,
         help=('A specific environment id can be specified. By default, '
               'the return value of ailia.get_gpu_environment_id will be used')
+    )
+    parser.add_argument(
+        '--memory_mode', type=int, default=DEFAULT_MEMORY_MODE,
+        help=('ailia memory mode. default 11 = REDUCE_CONSTANT | '
+              'REDUCE_CONSTANT_WITH_INPUT_INITIALIZER | REUSE_INTERSTAGE')
     )
     parser.add_argument(
         '--env_list', action='store_true',
@@ -187,6 +199,14 @@ def update_parser(parser, check_input_type=True):
 
         env = ailia.get_environment(args.env_id)
         logger.info(f'{env.name}')
+
+    # -------------------------------------------------------------------------
+    # 1.5. memory mode
+    if hasattr(args, 'memory_mode'):
+        if AILIA_EXIST and (args.memory_mode & 16) != 0:
+            # AILIA_MEMORY_REDUCE_CONSTANT_WITH_FILE_MAPPED needs a cache path
+            ailia.set_temporary_cache_path('./')
+        logger.info(f'memory_mode: {args.memory_mode}')
 
     # -------------------------------------------------------------------------
     # 2. update input

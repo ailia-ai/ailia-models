@@ -243,11 +243,12 @@ def main():
                 channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
                 range=ailia.NETWORK_IMAGE_RANGE_U_INT8,
                 algorithm=ailia.DETECTOR_ALGORITHM_YOLOX,
-                env_id=env_id)
+                env_id=env_id,
+                memory_mode=args.memory_mode)
         if args.detection_width!=-1 or args.detection_height!=-1:
             detector.set_input_shape(args.detection_width,args.detection_height)
     else:
-        detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+        detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
         if args.detection_width!=-1 or args.detection_height!=-1:
             global WIDTH,HEIGHT
             WIDTH=args.detection_width

@@ -44,7 +44,7 @@ args = update_parser(parser)
 # ======================
 def estimate_from_image():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -103,7 +103,7 @@ def estimate_from_image():
 
 def estimate_from_video():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

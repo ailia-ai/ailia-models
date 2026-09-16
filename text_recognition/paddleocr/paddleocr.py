@@ -773,7 +773,8 @@ class TextDetector(object):
         self.preprocess_op = create_operators(pre_process_list)
         self.postprocess_op = build_post_process(postprocess_params)
         self.net = ailia.Net(self.config['det_model_path'] + '.prototxt',
-                             self.config['det_model_path'], env_id=self.env_id)
+                             self.config['det_model_path'], env_id=self.env_id,
+                             memory_mode=args.memory_mode)
         self.called = False
 
     def order_points_clockwise(self, pts):
@@ -834,7 +835,8 @@ class TextDetector(object):
         # net initialize, Text Detection
         if self.called and self.net.get_input_shape() != img.shape and REOPEN_REQUIRE_IF_SHAPE_CHANED:
             self.net = ailia.Net(self.config['det_model_path'] + '.prototxt',
-                                 self.config['det_model_path'], env_id=self.env_id)
+                                 self.config['det_model_path'], env_id=self.env_id,
+                                 memory_mode=args.memory_mode)
         outputs = self.net.predict(img)
         self.called = True
 
@@ -863,7 +865,8 @@ class TextClassifier(object):
         }
         self.postprocess_op = build_post_process(postprocess_params)
         self.net = ailia.Net(self.cfg['cls_model_path'] + '.prototxt',
-                             self.cfg['cls_model_path'], env_id=self.env_id)
+                             self.cfg['cls_model_path'], env_id=self.env_id,
+                             memory_mode=args.memory_mode)
         self.called = False
 
     def resize_norm_img(self, img):
@@ -920,7 +923,8 @@ class TextClassifier(object):
             # net initialize, Detection Boxes Rectify
             if self.called and self.net.get_input_shape() != norm_img_batch.shape and REOPEN_REQUIRE_IF_SHAPE_CHANED:
                 self.net = ailia.Net(self.cfg['cls_model_path'] + '.prototxt',
-                                     self.cfg['cls_model_path'], env_id=self.env_id)
+                                     self.cfg['cls_model_path'], env_id=self.env_id,
+                                     memory_mode=args.memory_mode)
             self.net.set_input_shape(norm_img_batch.shape)
             prob_out = self.net.predict(norm_img_batch)
             self.called = True
@@ -958,7 +962,8 @@ class TextRecognizer(object):
         }
         self.postprocess_op = build_post_process(postprocess_params)
         self.net = ailia.Net(self.config['rec_model_path'] + '.prototxt',
-                             self.config['rec_model_path'], env_id=self.env_id)
+                             self.config['rec_model_path'], env_id=self.env_id,
+                             memory_mode=args.memory_mode)
         self.called = False
 
     def resize_norm_img(self, img, max_wh_ratio):
@@ -1019,7 +1024,8 @@ class TextRecognizer(object):
             # net initialize, Text Recognition
             if self.called and self.net.get_input_shape() != norm_img_batch.shape and REOPEN_REQUIRE_IF_SHAPE_CHANED:
                 self.net = ailia.Net(self.config['rec_model_path'] + '.prototxt',
-                                     self.config['rec_model_path'], env_id=self.env_id)
+                                     self.config['rec_model_path'], env_id=self.env_id,
+                                     memory_mode=args.memory_mode)
             preds = self.net.predict(norm_img_batch)
             self.called = True
 

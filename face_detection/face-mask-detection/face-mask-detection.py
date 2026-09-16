@@ -88,7 +88,8 @@ def recognize_from_image():
         channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
         range=RANGE,
         algorithm=ALGORITHM,
-        env_id=args.env_id
+        env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
 
     # input image loop
@@ -146,7 +147,8 @@ def recognize_from_video():
         channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
         range=RANGE,
         algorithm=ALGORITHM,
-        env_id=args.env_id
+        env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
 
     capture = webcamera_utils.get_capture(args.video)

@@ -97,12 +97,9 @@ def init(model_paths):
     """Initialize all ailia models"""
     # net initialize
     models = {}
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
     for k, v in model_paths.items():
         models[k] = ailia.Net(v['model_path'], v['weight_path'],
-                              env_id=args.env_id, memory_mode=memory_mode)
+                              env_id=args.env_id, memory_mode=args.memory_mode)
     return models
 
 def tokenize(texts, context_length: int = 77):

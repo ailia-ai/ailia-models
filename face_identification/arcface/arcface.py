@@ -405,7 +405,7 @@ def compare_images():
     imgs = np.concatenate([imgs_1, imgs_2], axis=0)
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     BATCH_SIZE = net.get_input_shape()[0]
 
     # inference
@@ -451,12 +451,12 @@ def compare_video():
     tracks = []
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # detector initialize
     if args.face == "blazeface":
         detector = ailia.Net(
-            FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id
+            FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode
         )
     else:
         detector = ailia.Detector(
@@ -467,7 +467,8 @@ def compare_video():
             channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
             range=FACE_RANGE,
             algorithm=FACE_ALGORITHM,
-            env_id=args.env_id
+            env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
 
     # web camera

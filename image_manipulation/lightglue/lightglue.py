@@ -161,7 +161,8 @@ def main():
 
         extractor_path="superpoint.onnx",
         lightglue_path="superpoint_lightglue.onnx",
-        env_id = env_id
+        env_id = env_id,
+        memory_mode = args.memory_mode
     )
 
     recognize_from_image(runner)

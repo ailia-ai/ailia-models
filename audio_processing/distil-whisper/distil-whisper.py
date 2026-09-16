@@ -47,10 +47,6 @@ parser.add_argument(
     help='the chunk size for chunking.'
 )
 parser.add_argument(
-    '--memory_mode', default=-1, type=int,
-    help='memory mode'
-)
-parser.add_argument(
     '--onnx',
     action='store_true',
     help='execute onnxruntime version.'
@@ -389,14 +385,8 @@ def main():
 
     # initialize
     if not args.onnx:
-        if args.memory_mode == -1:
-            memory_mode = ailia.get_memory_mode(
-                reduce_constant=True, ignore_input_with_initializer=True,
-                reduce_interstage=False, reuse_interstage=True)
-        else:
-            memory_mode = args.memory_mode
-        enc_net = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=env_id, memory_mode=memory_mode)
-        dec_net = ailia.Net(MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=env_id, memory_mode=memory_mode)
+        enc_net = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        dec_net = ailia.Net(MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         cuda = 0 < ailia.get_gpu_environment_id()

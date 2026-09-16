@@ -172,8 +172,8 @@ def recognize_from_image():
     env_id = args.env_id
     
     # initialize
-    net_init = ailia.Net(MODEL_INIT_PATH, WEIGHT_INIT_PATH, env_id=env_id)
-    net_iter = ailia.Net(MODEL_ITER_PATH, WEIGHT_ITER_PATH, env_id=env_id)
+    net_init = ailia.Net(MODEL_INIT_PATH, WEIGHT_INIT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    net_iter = ailia.Net(MODEL_ITER_PATH, WEIGHT_ITER_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     img_A, zoom_xy_A, img_ori_A = load_image(args.input2) # base image
     sift_kp_A, sift_des_A = get_sift_features(img_ori_A, zoom_xy_A)

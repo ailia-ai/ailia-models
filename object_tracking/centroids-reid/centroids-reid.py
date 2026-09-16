@@ -425,7 +425,7 @@ def main():
     # initialize
     env_id = args.env_id
     logger.info(f'env_id: {env_id}')
-    net = ailia.Net(model_path, weight_path, env_id=env_id)
+    net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
     for input_path in args.input:
         recognize_from_image(input_path, net)

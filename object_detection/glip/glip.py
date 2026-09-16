@@ -536,12 +536,9 @@ def main():
     # initialize
     if not args.onnx:
         logger.info("This model requires 30GB or more memory. If you don't have enough vram, please use CPU mode with -e 0 option.")
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True, ignore_input_with_initializer=True,
-            reduce_interstage=False, reuse_interstage=True)
-        backbone = ailia.Net(MODEL_BKBN_PATH, WEIGHT_BKBN_PATH, env_id=env_id, memory_mode=memory_mode)
-        bert_encoder = ailia.Net(MODEL_BERT_PATH, WEIGHT_BERT_PATH, env_id=env_id, memory_mode=memory_mode)
-        rpn = ailia.Net(MODEL_RPN_PATH, WEIGHT_RPN_PATH, env_id=env_id, memory_mode=memory_mode)
+        backbone = ailia.Net(MODEL_BKBN_PATH, WEIGHT_BKBN_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        bert_encoder = ailia.Net(MODEL_BERT_PATH, WEIGHT_BERT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        rpn = ailia.Net(MODEL_RPN_PATH, WEIGHT_RPN_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         backbone = onnxruntime.InferenceSession(WEIGHT_BKBN_PATH)

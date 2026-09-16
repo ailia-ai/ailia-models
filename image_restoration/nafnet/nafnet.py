@@ -181,8 +181,7 @@ def main():
     # net initialize
     env_id = args.env_id
 
-    memory_mode=ailia.get_memory_mode(True,True,False,True)
-    net = ailia.Net(None, WEIGHT_PATH,memory_mode=memory_mode,env_id=env_id)
+    net = ailia.Net(None, WEIGHT_PATH,memory_mode=args.memory_mode,env_id=env_id)
 
     if args.video is not None:
         # video mode

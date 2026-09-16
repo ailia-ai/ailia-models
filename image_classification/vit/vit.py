@@ -157,7 +157,7 @@ def visualize_result(image, mask, probs, labels):
 # ======================
 def recognize_from_image():
     # net initialize
-    classifier = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    classifier = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     # adjust prediction label
     labels = np.array(vit_labels.imagenet_category)
 
@@ -206,7 +206,7 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    classifier = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    classifier = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     # adjust prediction label
     labels = np.array(vit_labels.imagenet_category)
 

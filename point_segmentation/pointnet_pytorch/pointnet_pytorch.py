@@ -257,8 +257,8 @@ def main():
     logger.info(f'env_id: {env_id}')
 
     # initialize
-    net_seg = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-    net_cls = ailia.Net(MODEL_PATH_CLASSIFIER, WEIGHT_PATH_CLASSIFIER, env_id=env_id)
+    net_seg = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    net_cls = ailia.Net(MODEL_PATH_CLASSIFIER, WEIGHT_PATH_CLASSIFIER, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.input:
         for point_path in args.input:

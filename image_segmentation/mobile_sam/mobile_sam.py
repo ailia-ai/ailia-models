@@ -135,8 +135,8 @@ def recognize(image_path,  pos_points, neg_points=None,env_id=0):
         net = onnxruntime.InferenceSession(WEIGHT_PREDICTOR_PATH)
         sam_net = onnxruntime.InferenceSession(WEIGHT_MOBILE_SAM_PATH)
     else:
-        net = ailia.Net(None,WEIGHT_PREDICTOR_PATH,env_id)
-        sam_net = ailia.Net(None,WEIGHT_MOBILE_SAM_PATH,env_id)
+        net = ailia.Net(None,WEIGHT_PREDICTOR_PATH,env_id, memory_mode=args.memory_mode)
+        sam_net = ailia.Net(None,WEIGHT_MOBILE_SAM_PATH,env_id, memory_mode=args.memory_mode)
 
 
     image_embedding = predictor.set_image(net,image,args.onnx)

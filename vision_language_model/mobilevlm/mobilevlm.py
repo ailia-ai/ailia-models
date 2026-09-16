@@ -165,20 +165,13 @@ def load_models(env_id=0):
     # Additional files for tokenizer
     tokenizer_path = f"tokenizer"
     
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True,
-        ignore_input_with_initializer=True,
-        reduce_interstage=False,
-        reuse_interstage=True,
-    )
-    
     for component in MODEL_COMPONENTS:
         model_path = MODEL_PATHS[component]
         weight_path = WEIGHT_PATHS[component]
         logger.info(f"Loading {component}...")
         
         if not args.onnx:
-            models[component] = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=memory_mode)
+            models[component] = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
         else:
             import onnxruntime
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]

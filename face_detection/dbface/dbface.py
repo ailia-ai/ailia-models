@@ -125,7 +125,7 @@ def recognize_from_image(filename):
     logger.debug(f'input image shape: {img.shape}')
     img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
 
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     logger.info('Start inference...')
     if args.benchmark:
@@ -154,7 +154,7 @@ def recognize_from_image(filename):
 
 
 def recognize_from_video(video):
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(video)
 

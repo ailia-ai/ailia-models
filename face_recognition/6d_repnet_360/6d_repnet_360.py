@@ -83,8 +83,8 @@ def resize_and_pad_with_aspect_ratio(raw_img, target_width=640, target_height=48
 
 def recognize_from_image():
     env_id = args.env_id
-    net = ailia.Net(MODEL_PATH_6DRepNet360, WEIGHT_PATH_6DRepNet360, env_id=env_id)
-    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id)
+    net = ailia.Net(MODEL_PATH_6DRepNet360, WEIGHT_PATH_6DRepNet360, env_id=env_id, memory_mode=args.memory_mode)
+    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id, memory_mode=args.memory_mode)
     detector = RetinaFaceOnnx(face_detect)
 
     for image_path in args.input:
@@ -151,8 +151,8 @@ def recognize_from_image():
 
 def recognize_from_video():
     env_id = args.env_id
-    net = ailia.Net(MODEL_PATH_6DRepNet360, WEIGHT_PATH_6DRepNet360, env_id=env_id)
-    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id)
+    net = ailia.Net(MODEL_PATH_6DRepNet360, WEIGHT_PATH_6DRepNet360, env_id=env_id, memory_mode=args.memory_mode)
+    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id, memory_mode=args.memory_mode)
     detector = RetinaFaceOnnx(face_detect)
 
     capture = webcamera_utils.get_capture(args.video)

@@ -136,7 +136,7 @@ def main():
     
     if not args.onnx:
         env_id = args.env_id
-        session = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+        session = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         session = onnxruntime.InferenceSession(WEIGHT_PATH)

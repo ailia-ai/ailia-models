@@ -148,7 +148,7 @@ def main():
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
 
     # model initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

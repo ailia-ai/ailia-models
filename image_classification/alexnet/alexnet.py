@@ -88,7 +88,7 @@ def _softmax(x, axis=None):
 
 
 def recognize_from_image():
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for i, image_path in enumerate(args.input):
@@ -114,7 +114,7 @@ def recognize_from_image():
 
 
 def recognize_from_video():
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
     

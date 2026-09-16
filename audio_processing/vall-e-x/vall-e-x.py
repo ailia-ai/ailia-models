@@ -177,9 +177,8 @@ def main():
             net = onnxruntime.InferenceSession( "./onnx/"+model, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
             models[model] = net
     else:
-        memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
         for model in ALL_MODELS:
-            net = ailia.Net(stream = "./onnx/"+model + ".prototxt", weight = "./onnx/"+model, memory_mode = memory_mode, env_id = args.env_id)
+            net = ailia.Net(stream = "./onnx/"+model + ".prototxt", weight = "./onnx/"+model, memory_mode = args.memory_mode, env_id = args.env_id)
             if args.profile:
                 net.set_profile_mode(True)
             models[model] = net

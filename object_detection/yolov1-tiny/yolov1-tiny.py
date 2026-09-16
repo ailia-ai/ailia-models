@@ -84,6 +84,7 @@ def recognize_from_image():
         range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOV1,
         env_id=args.env_id,
+        memory_mode=args.memory_mode,
     )
     if args.profile:
         detector.set_profile_mode(True)
@@ -136,6 +137,7 @@ def recognize_from_video():
         range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOV1,
         env_id=args.env_id,
+        memory_mode=args.memory_mode,
     )
 
     capture = webcamera_utils.get_capture(args.video)

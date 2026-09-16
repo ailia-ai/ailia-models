@@ -365,7 +365,7 @@ def main():
 		MODEL_PATH,
 		REMOTE_PATH,
 	)
-	ailia_net = ailia.Net(weight=WEIGHT_PATH, env_id = args.env_id)
+	ailia_net = ailia.Net(weight=WEIGHT_PATH, env_id = args.env_id, memory_mode = args.memory_mode)
 
 	blazeface = None
 	if not args.use_dlib:
@@ -374,7 +374,7 @@ def main():
 			FACE_DETECTOR_MODEL_PATH,
 			FACE_DETECTOR_REMOTE_PATH,
 		)
-		blazeface = ailia.Net(FACE_DETECTOR_MODEL_PATH, FACE_DETECTOR_WEIGHT_PATH, env_id = args.env_id)
+		blazeface = ailia.Net(FACE_DETECTOR_MODEL_PATH, FACE_DETECTOR_WEIGHT_PATH, env_id = args.env_id, memory_mode = args.memory_mode)
 	else:
 		check_and_download_models(
 			DLIB_WEIGHT_PATH,
@@ -389,7 +389,7 @@ def main():
 			REALESRGAN_MODEL_PATH,
 			REALESRGAN_REMOTE_PATH,
 		)
-		realesrgan = ailia.Net(REALESRGAN_MODEL_PATH, REALESRGAN_WEIGHT_PATH, env_id = args.env_id)
+		realesrgan = ailia.Net(REALESRGAN_MODEL_PATH, REALESRGAN_WEIGHT_PATH, env_id = args.env_id, memory_mode = args.memory_mode)
 
 	static = args.video is None
 

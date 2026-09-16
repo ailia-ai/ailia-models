@@ -230,10 +230,10 @@ def main():
     check_and_download_models(SR_WEIGHT_PATH, SR_MODEL_PATH, REMOTE_PATH)
 
     env_id = args.env_id
-    detection = ailia.Net(DETECT_MODEL_PATH, DETECT_WEIGHT_PATH, env_id=env_id)
+    detection = ailia.Net(DETECT_MODEL_PATH, DETECT_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     detection.set_input_shape((1, 1, DETECT_WIDTH, DETECT_HEIGHT))
 
-    sr = ailia.Net(SR_MODEL_PATH, SR_WEIGHT_PATH, env_id=env_id)
+    sr = ailia.Net(SR_MODEL_PATH, SR_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     sr.set_input_shape((1, 1, SR_WIDTH, SR_HEIGHT))
 
     if args.video is not None:

@@ -69,10 +69,7 @@ def inference(net,input_data):
 def recognize_from_image():
 
     # net initialize
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-    net = ailia.Net(None, WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
+    net = ailia.Net(None, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     #logger.info(IMAGE_PATH)
 
     for image_path in args.input:
@@ -107,10 +104,7 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-    net = ailia.Net(None, WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
+    net = ailia.Net(None, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

@@ -37,7 +37,7 @@ def _initialize_net(args, face_parser_path):
     env_id = args.env_id
     logger.info(f"env_id (face parser): {env_id}")
     if not args.onnx:
-        net = ailia.Net(face_parser_path[0], face_parser_path[1], env_id=env_id)
+        net = ailia.Net(face_parser_path[0], face_parser_path[1], env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
 

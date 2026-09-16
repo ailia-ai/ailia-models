@@ -236,7 +236,7 @@ def wavfile_input_recognition():
         )
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     for soundf_path in args.input:
         logger.info(soundf_path)
@@ -305,7 +305,7 @@ def microphone_input_recognition():
         spectrogram = create_spectrogram(wav)
 
         # net initialize
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         net.set_input_shape(spectrogram[0].shape)
 
         # inference

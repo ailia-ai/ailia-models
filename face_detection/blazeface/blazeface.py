@@ -223,9 +223,9 @@ def main():
 
     # net initialize
     if args.back == True:
-        net = ailia.Net(MODEL_PATH_BACK, WEIGHT_PATH_BACK, env_id=args.env_id)
+        net = ailia.Net(MODEL_PATH_BACK, WEIGHT_PATH_BACK, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
-        net = ailia.Net(MODEL_PATH_FRONT, WEIGHT_PATH_FRONT, env_id=args.env_id)
+        net = ailia.Net(MODEL_PATH_FRONT, WEIGHT_PATH_FRONT, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

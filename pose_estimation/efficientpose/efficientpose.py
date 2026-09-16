@@ -162,7 +162,7 @@ def recognize_from_image():
         model = onnxruntime.InferenceSession(WEIGHT_PATH)
     else:
         logger.info(f'env_id: {args.env_id}')
-        model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -227,7 +227,7 @@ def recognize_from_video():
         model = onnxruntime.InferenceSession(WEIGHT_PATH)
     else:
         logger.info(f'env_id: {args.env_id}')
-        model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = get_capture(args.video)
 

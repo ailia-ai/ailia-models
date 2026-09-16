@@ -271,7 +271,7 @@ def main():
         import onnxruntime
         net = onnxruntime.InferenceSession(weight_path)
     else:
-        net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+        net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     params = {
         'img_size': img_size,

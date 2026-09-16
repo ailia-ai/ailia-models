@@ -188,7 +188,7 @@ def main():
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.width!=IMAGE_SIZE or args.height!=IMAGE_SIZE:
         net.set_input_shape((1,3,args.height,args.width))
 

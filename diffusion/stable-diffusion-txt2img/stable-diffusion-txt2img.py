@@ -698,22 +698,22 @@ def main():
 
     if not args.onnx:
         logger.info("This model requires 10GB or more memory.")
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True, ignore_input_with_initializer=True,
-            reduce_interstage=False, reuse_interstage=True)
         diffusion_emb = ailia.Net(
-            MODEL_SD_EMB_PATH, WEIGHT_SD_EMB_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_SD_EMB_PATH, WEIGHT_SD_EMB_PATH, env_id=env_id, memory_mode=args.memory_mode)
         if args.legacy:
             diffusion_mid = ailia.Net(
-                MODEL_SD_MID_PATH, WEIGHT_SD_MID_PATH, env_id=env_id, memory_mode=memory_mode)
+                MODEL_SD_MID_PATH, WEIGHT_SD_MID_PATH, env_id=env_id, memory_mode=args.memory_mode)
             diffusion_out = ailia.Net(
-                MODEL_SD_OUT_PATH, WEIGHT_SD_OUT_PATH, env_id=env_id, memory_mode=memory_mode)
+                MODEL_SD_OUT_PATH, WEIGHT_SD_OUT_PATH, env_id=env_id, memory_mode=args.memory_mode)
         autoencoder = ailia.Net(
-            MODEL_VAE_PATH, WEIGHT_VAE_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_VAE_PATH, WEIGHT_VAE_PATH, env_id=env_id, memory_mode=args.memory_mode)
         if not args.transformers_clip:
             env_id_cpu = -1 # clip without low memory mode only work on cpu
+            # requires the hidden state, an intermediate blob read with
+            # get_blob_data(), so REUSE_INTERSTAGE cannot be used
             clip = ailia.Net(
-                MODEL_VITL14_TEXT_PATH, WEIGHT_VITL14_TEXT_PATH, env_id=env_id_cpu) # require hidden state, so use normal memory mode
+                MODEL_VITL14_TEXT_PATH, WEIGHT_VITL14_TEXT_PATH, env_id=env_id_cpu,
+                memory_mode=ailia.get_memory_mode(reduce_constant=True))
         else:
             clip = None
     else:

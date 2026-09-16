@@ -455,9 +455,9 @@ def main():
 
     # initialize
     if not args.onnx:
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-        det_net = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id)
-        bfm_net = ailia.Net(MODEL_BFM_PATH, WEIGHT_BFM_PATH, env_id=env_id)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        det_net = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        bfm_net = ailia.Net(MODEL_BFM_PATH, WEIGHT_BFM_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         cuda = 0 < ailia.get_gpu_environment_id()

@@ -87,10 +87,12 @@ def draw_landmarks(img, points, connections=[], color=(0, 0, 255), size=2):
 def recognize_from_image():
     # net initialize
     detector = ailia.Net(
-        DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id
+        DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
     estimator = ailia.Net(
-        LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id
+        LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
 
     # input image loop
@@ -152,8 +154,8 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    detector = ailia.Net(DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id)
-    estimator = ailia.Net(LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    estimator = ailia.Net(LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     num_hands = args.hands
     thresh = 0.5
     tracking = False

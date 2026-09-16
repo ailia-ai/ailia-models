@@ -373,8 +373,8 @@ def main():
     env_id = args.env_id
 
     # initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-    text_enc = ailia.Net(MODEL_TXTENC_PATH, WEIGHT_TXTENC_PATH, env_id=env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    text_enc = ailia.Net(MODEL_TXTENC_PATH, WEIGHT_TXTENC_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     # additional classes
     additional_classes = args.additional_class

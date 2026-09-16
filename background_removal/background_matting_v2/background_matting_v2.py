@@ -221,7 +221,7 @@ def main():
     
     # net initialize
     if not args.onnx:
-        net = ailia.Net(model_path, weight_path, env_id=env_id)
+        net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         net = onnxruntime.InferenceSession(weight_path)

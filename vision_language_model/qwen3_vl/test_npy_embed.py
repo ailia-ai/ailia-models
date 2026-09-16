@@ -20,6 +20,7 @@ import sys
 import numpy as np
 
 sys.path.append("../../util")
+from arg_utils import DEFAULT_MEMORY_MODE
 from model_utils import check_and_download_file, check_and_download_models
 
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/qwen3_vl/"
@@ -69,7 +70,7 @@ def main():
 
     import ailia
 
-    net = ailia.Net(onnx_path + ".prototxt", onnx_path)
+    net = ailia.Net(onnx_path + ".prototxt", onnx_path, memory_mode=DEFAULT_MEMORY_MODE)
 
     def run_ailia(input_ids):
         return net.predict([input_ids])[0]

@@ -202,10 +202,12 @@ def save_json(landmarks, flags, detections, det_scores, json_path):
 def recognize_from_image():
     # net initialize
     detector = ailia.Net(
-        DETECTOR_MODEL_PATH, DETECTOR_WEIGHT_PATH, env_id=args.env_id
+        DETECTOR_MODEL_PATH, DETECTOR_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
     estimator = ailia.Net(
-        ESTIMATOR_MODEL_PATH, ESTIMATOR_WEIGHT_PATH, env_id=args.env_id
+        ESTIMATOR_MODEL_PATH, ESTIMATOR_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
 
     # input image loop
@@ -294,10 +296,12 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     detector = ailia.Net(
-        DETECTOR_MODEL_PATH, DETECTOR_WEIGHT_PATH, env_id=args.env_id
+        DETECTOR_MODEL_PATH, DETECTOR_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
     estimator = ailia.Net(
-        ESTIMATOR_MODEL_PATH, ESTIMATOR_WEIGHT_PATH, env_id=args.env_id
+        ESTIMATOR_MODEL_PATH, ESTIMATOR_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
 
     capture = webcamera_utils.get_capture(args.video)

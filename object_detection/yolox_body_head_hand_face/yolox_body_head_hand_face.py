@@ -189,11 +189,7 @@ class AbstractModel(ABC):
             self._h_index = 2
             self._w_index = 3
         elif self._runtime == 'ailia':
-            memory_mode = ailia.get_memory_mode(
-                reduce_constant=True, ignore_input_with_initializer=True,
-                reduce_interstage=False, reuse_interstage=False)
-            
-            self._interpreter = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=memory_mode)
+            self._interpreter = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
             self._input_shapes = [list(self._interpreter.get_input_shape())]
             self._input_names = [self._interpreter.get_blob_name(0)]
             self._model = self._interpreter.predict

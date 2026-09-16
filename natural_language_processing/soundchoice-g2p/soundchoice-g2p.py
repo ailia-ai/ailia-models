@@ -351,9 +351,9 @@ def main():
 
     # initialize
     if not args.onnx:
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-        emb = ailia.Net(MODEL_EMB_PATH, WEIGHT_EMB_PATH, env_id=env_id)
-        beam = ailia.Net(MODEL_BEAM_PATH, WEIGHT_BEAM_PATH, env_id=env_id)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        emb = ailia.Net(MODEL_EMB_PATH, WEIGHT_EMB_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        beam = ailia.Net(MODEL_BEAM_PATH, WEIGHT_BEAM_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
 

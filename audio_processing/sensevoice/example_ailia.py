@@ -108,7 +108,10 @@ class SimpleDecoder():
 
 	def __call__(self, wav_content: Union[str, np.ndarray, List[str]], **kwargs):
 		import ailia
-		self.model = ailia.Net(weight="sensevoice_small.onnx", env_id=1, memory_mode=11)
+		memory_mode = ailia.get_memory_mode(
+			reduce_constant=True, ignore_input_with_initializer=True,
+			reduce_interstage=False, reuse_interstage=True)
+		self.model = ailia.Net(weight="sensevoice_small.onnx", env_id=1, memory_mode=memory_mode)
 
 		from ailia_tokenizer import LlamaTokenizer
 		self.tokenizer = LlamaTokenizer.from_pretrained("./tokenizer")

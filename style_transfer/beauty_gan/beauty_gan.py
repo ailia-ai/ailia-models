@@ -260,11 +260,11 @@ def main():
         check_and_download_models(WEIGHT_BLAZE_PATH, MODEL_BLAZE_PATH, REMOTE_BLAZE_PATH)
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode
-        face_net = ailia.Net(MODEL_BLAZE_PATH, WEIGHT_BLAZE_PATH, env_id=args.env_id)
+        face_net = ailia.Net(MODEL_BLAZE_PATH, WEIGHT_BLAZE_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         recognize_from_video(net, face_net)
     else:
         # image mode

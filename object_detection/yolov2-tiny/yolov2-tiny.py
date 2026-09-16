@@ -142,13 +142,14 @@ def recognize_from_image():
             range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV2,
             env_id=args.env_id,
+            memory_mode=args.memory_mode,
         )
         detector.set_anchors(ANCHORS)
         if args.profile:
             detector.set_profile_mode(True)
     else:
         print("path",WEIGHT_PATH)
-        net = ailia.Net(None,WEIGHT_PATH)
+        net = ailia.Net(None,WEIGHT_PATH,memory_mode=args.memory_mode)
     
     # input image loop
     for image_path in args.input:
@@ -228,10 +229,11 @@ def recognize_from_video():
             range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV2,
             env_id=args.env_id,
+            memory_mode=args.memory_mode,
         )
         detector.set_anchors(ANCHORS)
     else:
-        net = ailia.Net(None,WEIGHT_PATH)
+        net = ailia.Net(None,WEIGHT_PATH,memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

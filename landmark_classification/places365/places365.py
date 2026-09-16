@@ -78,7 +78,7 @@ def get_model():
     # model files check and download
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
     # load model
-    model = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    model = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
     # get weight
     weight = None
     if args.model in ['wideresnet18']:

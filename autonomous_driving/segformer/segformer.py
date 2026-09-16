@@ -307,12 +307,9 @@ def main():
         predictor = session
     else:
         env_id = args.env_id
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True, ignore_input_with_initializer=True,
-            reduce_interstage=True, reuse_interstage=False)
         net = ailia.Net(
             MODEL_PATH, WEIGHT_PATH,
-            env_id=env_id, memory_mode=memory_mode)
+            env_id=env_id, memory_mode=args.memory_mode)
         predict_fn = predict_ailia
         predictor = net
 

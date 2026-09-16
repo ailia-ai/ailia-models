@@ -698,8 +698,8 @@ def main():
     env_id = args.env_id
 
     # initialize
-    HC = ailia.Net(MODEL_HC_PATH, WEIGHT_HC_PATH, env_id=env_id)
-    L = ailia.Net(MODEL_L_PATH, WEIGHT_L_PATH, env_id=env_id)
+    HC = ailia.Net(MODEL_HC_PATH, WEIGHT_HC_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    L = ailia.Net(MODEL_L_PATH, WEIGHT_L_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     # the statistics used by the lifter for normalizing inputs
     LS = np.load(LS_path, allow_pickle=True).item()
@@ -713,7 +713,8 @@ def main():
             channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
             range=ailia.NETWORK_IMAGE_RANGE_U_INT8,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOX,
-            env_id=env_id)
+            env_id=env_id,
+            memory_mode=args.memory_mode)
         detect_cars.net.set_input_shape(IMAGE_YOLO_SIZE, IMAGE_YOLO_SIZE)
 
     if args.video is not None:

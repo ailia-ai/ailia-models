@@ -125,7 +125,7 @@ def recognize_from_image():
 
     t0 = time.time()
 
-    model = ailia.Net(None,args.model_name, env_id=args.env_id)
+    model = ailia.Net(None,args.model_name, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.profile:
         model.set_profile_mode(True)
     
@@ -183,7 +183,7 @@ def recognize_from_video():
         writer = webcamera_utils.get_writer(args.savepath, HEIGHT, WIDTH)
     else:
         writer = None
-    model = ailia.Net(None,args.model_name, env_id=args.env_id)
+    model = ailia.Net(None,args.model_name, env_id=args.env_id, memory_mode=args.memory_mode)
     while (True):
         ret, frame = capture.read()
         if (cv2.waitKey(1) & 0xFF == ord('q')) or not ret:

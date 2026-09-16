@@ -54,6 +54,10 @@ from torch import nn
 
 import ailia
 
+MEMORY_MODE = ailia.get_memory_mode(
+    reduce_constant=True, ignore_input_with_initializer=True,
+    reduce_interstage=False, reuse_interstage=True)
+
 ROWS, HIDDEN, HEADS, HEAD_DIM = 64, 64, 8, 8
 STEPS = 8
 STAGES = ["attn", "rope"]
@@ -186,7 +190,8 @@ def sweep_onnxruntime(path, gather, table):
 
 
 def sweep_ailia(path, gather, table, env_id):
-    net = ailia.Net(stream=path + ".prototxt", weight=path, env_id=env_id)
+    net = ailia.Net(stream=path + ".prototxt", weight=path, env_id=env_id,
+                    memory_mode=MEMORY_MODE)
     names = [i.name for i in onnxruntime.InferenceSession(
         path, providers=["CPUExecutionProvider"]).get_inputs()]
     cache = [np.zeros((1, HEADS, 0, HEAD_DIM), np.float32) for _ in range(2)]

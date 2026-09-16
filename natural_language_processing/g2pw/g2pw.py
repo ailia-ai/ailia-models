@@ -45,7 +45,7 @@ class AiliaG2P(G2PWConverter):
 
         model_dir = os.path.dirname(weight_path) or '.'
         download_model(model_dir)
-        self.net = ailia.Net(None, weight_path, env_id=env_id)
+        self.net = ailia.Net(None, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
         class AiliaSession:
             def __init__(self, net):

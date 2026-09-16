@@ -65,7 +65,7 @@ REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/srresnet/'
 # ======================
 def recognize_from_image():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -153,7 +153,7 @@ def tiling(net, img):
 
 def recognize_from_image_tiling():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # processing
     # input image loop
@@ -171,7 +171,7 @@ def recognize_from_image_tiling():
 
 def recognize_from_video():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

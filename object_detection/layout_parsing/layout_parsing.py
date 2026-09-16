@@ -151,6 +151,7 @@ if __name__ == "__main__":
         range=ailia.NETWORK_IMAGE_RANGE_U_INT8,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOX,
         env_id=env_id,
+        memory_mode=args.memory_mode,
     )
     if args.from_pdf:
         infer_from_pdf(detector)

@@ -58,7 +58,7 @@ def main():
     # model files check and download
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
 
-    ailia_model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    ailia_model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.disable_ailia_tokenizer:
         from transformers import BertJapaneseTokenizer
         tokenizer = BertJapaneseTokenizer.from_pretrained(

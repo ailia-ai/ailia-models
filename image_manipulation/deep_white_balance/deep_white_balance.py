@@ -52,9 +52,9 @@ args = update_parser(parser)
 def recognize_from_image():
     # net initialize
     env_id = args.env_id
-    net_awb = ailia.Net(MODEL_AWB_PATH, WEIGHT_AWB_PATH, env_id=env_id)
-    net_s = ailia.Net(MODEL_S_PATH, WEIGHT_S_PATH, env_id=env_id)
-    net_t = ailia.Net(MODEL_T_PATH, WEIGHT_T_PATH, env_id=env_id)
+    net_awb = ailia.Net(MODEL_AWB_PATH, WEIGHT_AWB_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    net_s = ailia.Net(MODEL_S_PATH, WEIGHT_S_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    net_t = ailia.Net(MODEL_T_PATH, WEIGHT_T_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -100,9 +100,9 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     env_id = args.env_id
-    net_awb = ailia.Net(MODEL_AWB_PATH, WEIGHT_AWB_PATH, env_id=env_id)
-    net_s = ailia.Net(MODEL_S_PATH, WEIGHT_S_PATH, env_id=env_id)
-    net_t = ailia.Net(MODEL_T_PATH, WEIGHT_T_PATH, env_id=env_id)
+    net_awb = ailia.Net(MODEL_AWB_PATH, WEIGHT_AWB_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    net_s = ailia.Net(MODEL_S_PATH, WEIGHT_S_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    net_t = ailia.Net(MODEL_T_PATH, WEIGHT_T_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
     # create video writer if savepath is specified as video format

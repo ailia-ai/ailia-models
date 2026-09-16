@@ -1154,20 +1154,14 @@ def main():
 
     # initialize
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         vision_encoder = ailia.Net(
             MODEL_VISION_PATH,
             WEIGHT_VISION_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         language_model = ailia.Net(
-            MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
     else:
         import onnxruntime

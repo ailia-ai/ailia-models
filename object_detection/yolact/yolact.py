@@ -257,7 +257,7 @@ def recognize_from_video(net):
 
 if __name__ == '__main__':
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
-    net = ailia.Net(None,WEIGHT_PATH)
+    net = ailia.Net(None,WEIGHT_PATH,memory_mode=args.memory_mode)
     if args.video is not None:
         # video mode
         recognize_from_video(net)

@@ -55,6 +55,10 @@ import onnxruntime
 
 import ailia
 
+MEMORY_MODE = ailia.get_memory_mode(
+    reduce_constant=True, ignore_input_with_initializer=True,
+    reduce_interstage=False, reuse_interstage=True)
+
 CACHE_LEN = 64
 NUM_KV_HEADS = 8
 HEAD_DIM = 128
@@ -126,7 +130,7 @@ def compare(onnx_dir, env_id=0):
     for name in MODELS:
         path = os.path.join(onnx_dir, name + ".onnx")
         session = onnxruntime.InferenceSession(path, providers=["CPUExecutionProvider"])
-        net = ailia.Net(path + ".prototxt", path, env_id=env_id)
+        net = ailia.Net(path + ".prototxt", path, env_id=env_id, memory_mode=MEMORY_MODE)
         graph = onnx.load(path, load_external_data=False)
         writes = [node.op_type for node in graph.graph.node if "Scatter" in node.op_type]
         print(f"\n{name}.onnx  (torch {graph.producer_version}, "

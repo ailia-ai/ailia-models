@@ -57,8 +57,8 @@ args = update_parser(parser)
 def recognize_from_image():
     env_id = args.env_id
 
-    object_detection_net = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id)
-    l2cs_net = ailia.Net(MODEL_PATH_L2CS,WEIGHT_PATH_L2CS,env_id=env_id)
+    object_detection_net = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id, memory_mode=args.memory_mode)
+    l2cs_net = ailia.Net(MODEL_PATH_L2CS,WEIGHT_PATH_L2CS,env_id=env_id, memory_mode=args.memory_mode)
 
     net = l2cs(object_detection_net,l2cs_net,confidence_threshold=0.5)
 
@@ -95,8 +95,8 @@ def recognize_from_image():
 def recognize_from_video():
     env_id = args.env_id
 
-    object_detection_net = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id)
-    l2cs_net = ailia.Net(MODEL_PATH_L2CS,WEIGHT_PATH_L2CS,env_id=env_id)
+    object_detection_net = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id, memory_mode=args.memory_mode)
+    l2cs_net = ailia.Net(MODEL_PATH_L2CS,WEIGHT_PATH_L2CS,env_id=env_id, memory_mode=args.memory_mode)
     net = l2cs(object_detection_net,l2cs_net,confidence_threshold=0.5)
 
     capture = webcamera_utils.get_capture(args.video)

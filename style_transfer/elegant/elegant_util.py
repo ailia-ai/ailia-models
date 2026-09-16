@@ -26,8 +26,8 @@ class Inference:
         # TODO: can be a hyper-parameter
         self.eyeblur = {'margin': 12, 'blur_size':7}
 
-        self.session1 = ailia.Net(None,"elegant1.onnx")
-        self.session2 = ailia.Net(None,"elegant2.onnx")
+        self.session1 = ailia.Net(None,"elegant1.onnx",memory_mode=args.memory_mode)
+        self.session2 = ailia.Net(None,"elegant2.onnx",memory_mode=args.memory_mode)
 
     def prepare_input(self, *data_inputs):
         """
@@ -311,9 +311,9 @@ class PreProcess:
         self.config_size = 256
         self.use_dlib = args.use_dlib
 
-        self.detector = ailia.Net(*non_dlib_detector_model)
+        self.detector = ailia.Net(*non_dlib_detector_model, memory_mode=args.memory_mode)
         if not self.use_dlib:
-            self.face_alignment = ailia.Net(*non_dlib_face_alegnment_model)
+            self.face_alignment = ailia.Net(*non_dlib_face_alegnment_model, memory_mode=args.memory_mode)
     ############################## Mask Process ##############################
     # mask attribute: 0:background 1:face 2:left-eyebrow 3:right-eyebrow 4:left-eye 5: right-eye 6: nose
     # 7: upper-lip 8: teeth 9: under-lip 10:hair 11: left-ear 12: right-ear 13: neck

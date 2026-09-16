@@ -548,7 +548,7 @@ def main():
 
     # initialize
     if not args.onnx:
-        net_similar = ailia.Net(MODEL_SIMILAR_PATH, WEIGHT_SIMILAR_PATH, env_id=env_id)
+        net_similar = ailia.Net(MODEL_SIMILAR_PATH, WEIGHT_SIMILAR_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         net_similar = onnxruntime.InferenceSession(WEIGHT_SIMILAR_PATH)

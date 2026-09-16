@@ -101,7 +101,7 @@ def recognize_from_video():
         writer = None
 
     weight = args.model_name
-    net = ailia.Net(None,weight)
+    net = ailia.Net(None,weight,memory_mode=args.memory_mode)
     frame_shown = False
     while(True):
         ret, frame = capture.read()
@@ -247,7 +247,7 @@ def detect(net, frame):
 
 def recognize_from_image():
     weight = args.model_name
-    net = ailia.Net(None,weight)
+    net = ailia.Net(None,weight,memory_mode=args.memory_mode)
 
     for image_path in args.input:
         img = imread(image_path, cv2.IMREAD_COLOR)

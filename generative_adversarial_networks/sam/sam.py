@@ -286,15 +286,11 @@ def main():
             FACE_DETECTOR_REMOTE_PATH
         )
 
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-
     if args.video is not None:
         # net initialize
-        encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
-        pretrained_encoder = ailia.Net(PRETRAINED_ENCODER_MODEL_PATH, PRETRAINED_ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
-        decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
+        encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+        pretrained_encoder = ailia.Net(PRETRAINED_ENCODER_MODEL_PATH, PRETRAINED_ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+        decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         net = (encoder, pretrained_encoder, decoder)
         # video mode
         recognize_from_video(SAVE_IMAGE_PATH, net)
@@ -324,16 +320,16 @@ def main():
             # net initialize
             if args.benchmark:
                 start = int(round(time.time() * 1000))
-                encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
-                pretrained_encoder = ailia.Net(PRETRAINED_ENCODER_MODEL_PATH, PRETRAINED_ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
-                decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
+                encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+                pretrained_encoder = ailia.Net(PRETRAINED_ENCODER_MODEL_PATH, PRETRAINED_ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+                decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
                 net = (encoder, pretrained_encoder, decoder)
                 end = int(round(time.time() * 1000))
                 logger.info(f'\tailia initializing time {end - start} ms')
             else:
-                encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
-                pretrained_encoder = ailia.Net(PRETRAINED_ENCODER_MODEL_PATH, PRETRAINED_ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
-                decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=memory_mode)
+                encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+                pretrained_encoder = ailia.Net(PRETRAINED_ENCODER_MODEL_PATH, PRETRAINED_ENCODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+                decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
                 net = (encoder, pretrained_encoder, decoder)
             # input image loop
             for image_path in args.input:

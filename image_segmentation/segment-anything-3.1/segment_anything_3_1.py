@@ -821,61 +821,55 @@ def main():
     env_id = args.env_id
 
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         encoder = ailia.Net(
-            model_enc_path, weight_enc_path, env_id=env_id, memory_mode=memory_mode
+            model_enc_path, weight_enc_path, env_id=env_id, memory_mode=args.memory_mode
         )
         grounder = ailia.Net(
-            MODEL_GND_PATH, WEIGHT_GND_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_GND_PATH, WEIGHT_GND_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
         models = dict(encoder=encoder, grounder=grounder)
         if use_tracking:
             models["prompt_enc"] = ailia.Net(
-                MODEL_PE_PATH, WEIGHT_PE_PATH, env_id=env_id, memory_mode=memory_mode
+                MODEL_PE_PATH, WEIGHT_PE_PATH, env_id=env_id, memory_mode=args.memory_mode
             )
             models["mask_dec"] = ailia.Net(
-                MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=env_id, memory_mode=memory_mode
+                MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=env_id, memory_mode=args.memory_mode
             )
             models["track_dec"] = ailia.Net(
                 MODEL_TDEC_PATH,
                 WEIGHT_TDEC_PATH,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
             models["mem_enc"] = ailia.Net(
                 MODEL_MENC_PATH,
                 WEIGHT_MENC_PATH,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
             models["mem_attn"] = ailia.Net(
                 MODEL_MATTN_PATH,
                 WEIGHT_MATTN_PATH,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
             models["obj_proj"] = ailia.Net(
                 MODEL_PROJ_PATH,
                 WEIGHT_PROJ_PATH,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
             models["iobj_proj"] = ailia.Net(
                 MODEL_IPROJ_PATH,
                 WEIGHT_IPROJ_PATH,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
             models["tpos_proj"] = ailia.Net(
                 MODEL_TPOS_PATH,
                 WEIGHT_TPOS_PATH,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
     else:
         import onnxruntime

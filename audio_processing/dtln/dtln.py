@@ -202,8 +202,8 @@ def main():
         models = [onnxruntime.InferenceSession(WEIGHT1_PATH),
                   onnxruntime.InferenceSession(WEIGHT2_PATH)]
     else:
-        models = [ailia.Net(MODEL1_PATH,WEIGHT1_PATH, env_id = env_id),
-                  ailia.Net(MODEL2_PATH,WEIGHT2_PATH, env_id = env_id)]
+        models = [ailia.Net(MODEL1_PATH,WEIGHT1_PATH, env_id = env_id, memory_mode = args.memory_mode),
+                  ailia.Net(MODEL2_PATH,WEIGHT2_PATH, env_id = env_id, memory_mode = args.memory_mode)]
 
     # initialize
     recognize_from_audio(models)

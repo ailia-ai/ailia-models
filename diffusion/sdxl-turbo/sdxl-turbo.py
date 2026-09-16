@@ -148,39 +148,33 @@ def main():
 
     # initialize
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         net = ailia.Net(
-            MODEL_UNET_PATH, WEIGHT_UNET_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_UNET_PATH, WEIGHT_UNET_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
         text_encoder = ailia.Net(
             MODEL_TEXT_ENCODER_PATH,
             WEIGHT_TEXT_ENCODER_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         text_encoder_2 = ailia.Net(
             MODEL_TEXT_ENCODER_2_PATH,
             WEIGHT_TEXT_ENCODER_2_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         vae_decoder = ailia.Net(
             MODEL_VAE_DECODER_PATH,
             WEIGHT_VAE_DECODER_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         if init_image:
             vae_encoder = ailia.Net(
                 MODEL_VAE_ENCODER_PATH,
                 WEIGHT_VAE_ENCODER_PATH,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
     else:
         import onnxruntime

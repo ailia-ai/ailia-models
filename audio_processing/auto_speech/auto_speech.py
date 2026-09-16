@@ -260,13 +260,13 @@ def main():
     env_id = args.env_id
 
     if args.input1 or args.input2:
-        net = ailia.Net(MODEL_VERI_PATH, WEIGHT_VERI_PATH, env_id=env_id)
+        net = ailia.Net(MODEL_VERI_PATH, WEIGHT_VERI_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
         eval_verification(net)
     else:
         # initialize
-        net = ailia.Net(MODEL_IDENT_PATH, WEIGHT_IDENT_PATH, env_id=env_id)
-        net_classifier = ailia.Net(MODEL_CLASSIFIER_PATH, WEIGHT_CLASSIFIER_PATH, env_id=env_id)
+        net = ailia.Net(MODEL_IDENT_PATH, WEIGHT_IDENT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_classifier = ailia.Net(MODEL_CLASSIFIER_PATH, WEIGHT_CLASSIFIER_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
         eval_identification(net, net_classifier)
 

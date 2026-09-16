@@ -64,14 +64,16 @@ def copy_area(tar, src, lms):
 
 
 class FaceAlignment:
-    def __init__(self, use_onnx, face_alignment_model, face_alignment_weight, env_id):
+    def __init__(self, use_onnx, face_alignment_model, face_alignment_weight, env_id,
+                 memory_mode=None):
         self.face_alignment_model = face_alignment_model
         self.face_alignment_weight = face_alignment_weight
         self.use_onnx = use_onnx
         # initialize net
         if not self.use_onnx:
             self.net = ailia.Net(
-                self.face_alignment_model, self.face_alignment_weight, env_id=env_id
+                self.face_alignment_model, self.face_alignment_weight, env_id=env_id,
+                memory_mode=memory_mode
             )
         else:
             import onnxruntime
@@ -88,7 +90,8 @@ class FaceAlignment:
 
 class FaceDetector:
     def __init__(
-        self, use_onnx, face_detector_model, face_detector_weight, input, env_id
+        self, use_onnx, face_detector_model, face_detector_weight, input, env_id,
+        memory_mode=None
     ):
         self.face_detector_model = face_detector_model
         self.face_detector_weight = face_detector_weight
@@ -97,7 +100,8 @@ class FaceDetector:
         # initialize net
         if not self.use_onnx:
             self.net = ailia.Net(
-                self.face_detector_model, self.face_detector_weight, env_id=env_id
+                self.face_detector_model, self.face_detector_weight, env_id=env_id,
+                memory_mode=memory_mode
             )
         else:
             import onnxruntime
@@ -192,6 +196,7 @@ class PreProcess:
                 face_alignment_path[0],
                 face_alignment_path[1],
                 args.env_id,
+                args.memory_mode,
             )
             self.face_detector = FaceDetector(
                 self.use_onnx,
@@ -199,6 +204,7 @@ class PreProcess:
                 face_detector_path[1],
                 self.input,
                 args.env_id,
+                args.memory_mode,
             )
         self.return_landmarks = return_landmarks
 

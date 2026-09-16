@@ -104,7 +104,7 @@ class Inference(BaseInference):
             model = onnxruntime.InferenceSession(model, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
         else:
             #print("use ailia")
-            model = ailia.Net(seg_path, weight=model, env_id=args.env_id)
+            model = ailia.Net(seg_path, weight=model, env_id=args.env_id, memory_mode=args.memory_mode)
 
         self.model = model
         self.args = args

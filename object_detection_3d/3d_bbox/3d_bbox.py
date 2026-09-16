@@ -119,8 +119,9 @@ def recognize_from_image():
             range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
             env_id=env_id,
+            memory_mode=args.memory_mode,
         )
-    net_3d_bbox = ailia.Net(MODEL_PATH_3D_BBOX,WEIGHT_PATH_3D_BBOX,env_id=env_id)
+    net_3d_bbox = ailia.Net(MODEL_PATH_3D_BBOX,WEIGHT_PATH_3D_BBOX,env_id=env_id,memory_mode=args.memory_mode)
     net_yolov3.set_input_shape(WIDTH, HEIGHT)
 
     # input image loop
@@ -217,8 +218,9 @@ def recognize_from_video():
             range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
             env_id=env_id,
+            memory_mode=args.memory_mode,
         )
-    net_3d_bbox = ailia.Net(MODEL_PATH_3D_BBOX,WEIGHT_PATH_3D_BBOX,env_id=env_id)
+    net_3d_bbox = ailia.Net(MODEL_PATH_3D_BBOX,WEIGHT_PATH_3D_BBOX,env_id=env_id,memory_mode=args.memory_mode)
     net_yolov3.set_input_shape(WIDTH, HEIGHT)
 
     capture = webcamera_utils.get_capture(args.video)

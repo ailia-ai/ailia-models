@@ -100,7 +100,9 @@ def preprocess(img, input_is_bgr=False):
 # ======================
 def compare_images():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    # get_blob_data() reads an intermediate blob (conv5_3), so REUSE_INTERSTAGE cannot be used
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id,
+                    memory_mode=ailia.get_memory_mode(reduce_constant=True))
 
     features = []
 
@@ -140,7 +142,9 @@ def compare_images():
 
 def compare_videoframe_image():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    # get_blob_data() reads an intermediate blob (conv5_3), so REUSE_INTERSTAGE cannot be used
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id,
+                    memory_mode=ailia.get_memory_mode(reduce_constant=True))
 
     # img part
     fname = args.video[1]

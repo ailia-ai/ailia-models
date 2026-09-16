@@ -241,7 +241,7 @@ def main():
     check_and_download_models(YOLOX_WEIGHT_PATH, YOLOX_MODEL_PATH, YOLOX_REMOTE_PATH)
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     yolox = ailia.Detector(
             YOLOX_MODEL_PATH,
             YOLOX_WEIGHT_PATH,
@@ -250,7 +250,8 @@ def main():
             channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
             range=ailia.NETWORK_IMAGE_RANGE_U_INT8,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOX,
-            env_id=args.env_id)
+            env_id=args.env_id,
+            memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

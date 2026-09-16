@@ -261,8 +261,8 @@ def main():
         encoder = onnxruntime.InferenceSession(ENCODER_WEIGHT_PATH, providers=providers)
         decoder = onnxruntime.InferenceSession(DECODER_WEIGHT_PATH, providers=providers)
     else:
-        encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=env_id)
-        decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=env_id)
+        encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.verify:
         verify(encoder, decoder)

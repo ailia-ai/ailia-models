@@ -182,10 +182,12 @@ def draw_face_landmarks(
 def recognize_from_image():
     # net initialize
     detector = ailia.Net(
-        DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id
+        DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
     estimator = ailia.Net(
-        LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id
+        LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
 
     # input image loop
@@ -231,10 +233,12 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     detector = ailia.Net(
-        DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id
+        DETECTION_MODEL_PATH, DETECTION_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
     estimator = ailia.Net(
-        LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id
+        LANDMARK_MODEL_PATH, LANDMARK_WEIGHT_PATH, env_id=args.env_id,
+        memory_mode=args.memory_mode
     )
 
     capture = get_capture(args.video)

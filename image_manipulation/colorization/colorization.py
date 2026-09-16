@@ -86,7 +86,7 @@ def post_process(out, img_lab_orig):
 # ======================
 def recognize_from_image():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     net.set_input_shape((1, 1, IMAGE_HEIGHT, IMAGE_WIDTH))
 
     # input image loop
@@ -118,7 +118,7 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     net.set_input_shape((1, 1, IMAGE_HEIGHT, IMAGE_WIDTH))
 
     capture = webcamera_utils.get_capture(args.video)

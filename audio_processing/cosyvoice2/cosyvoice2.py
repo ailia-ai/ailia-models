@@ -592,44 +592,38 @@ def main():
 
     # initialize
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         speech_tokenizer = ailia.Net(
             MODEL_SPEECH_PATH,
             WEIGHT_SPEECH_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         campplus = ailia.Net(
-            MODEL_CAMP_PATH, WEIGHT_CAMP_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_CAMP_PATH, WEIGHT_CAMP_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
         embed_tokens = ailia.Net(
             MODEL_EMB_TKN_PATH,
             WEIGHT_EMB_TKN_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         llm = ailia.Net(
-            MODEL_LLM_PATH, WEIGHT_LLM_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_LLM_PATH, WEIGHT_LLM_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
         flow_enc = ailia.Net(
             MODEL_FLOW_ENC_PATH,
             WEIGHT_FLOW_ENC_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         flow_dec = ailia.Net(
             MODEL_FLOW_DEC_PATH,
             WEIGHT_FLOW_DEC_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         hift = ailia.Net(
-            MODEL_HIFT_PATH, WEIGHT_HIFT_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_HIFT_PATH, WEIGHT_HIFT_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
     else:
         import onnxruntime

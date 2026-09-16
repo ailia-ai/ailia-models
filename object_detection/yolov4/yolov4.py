@@ -255,9 +255,10 @@ def main():
             range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV4,
             env_id=args.env_id,
+            memory_mode=args.memory_mode,
         )
     else:
-        detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         detector.set_input_shape((1, 3, IMAGE_HEIGHT, IMAGE_WIDTH))
 
     if args.video is not None:

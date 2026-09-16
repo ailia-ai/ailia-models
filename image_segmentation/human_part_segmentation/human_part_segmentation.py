@@ -257,7 +257,7 @@ def main():
 
     # Workaround for accuracy issue on
     # ailia SDK 1.2.4 + opset11 + gpu (metal/vulkan)
-    detector = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    detector = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     params = {
         'img_size': img_size,

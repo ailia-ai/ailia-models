@@ -377,13 +377,12 @@ def main():
         bert = onnxruntime.InferenceSession(WEIGHT_PATH_BERT, providers=providers) if use_zh else None
     else:
         import ailia
-        memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
-        ssl = ailia.Net(weight = WEIGHT_PATH_SSL, stream = MODEL_PATH_SSL, memory_mode = memory_mode, env_id = args.env_id)
-        t2s_encoder = ailia.Net(weight = WEIGHT_PATH_T2S_ENCODER, stream = MODEL_PATH_T2S_ENCODER, memory_mode = memory_mode, env_id = args.env_id)
-        t2s_first_decoder = ailia.Net(weight = WEIGHT_PATH_T2S_FIRST_DECODER, stream = MODEL_PATH_T2S_FIRST_DECODER, memory_mode = memory_mode, env_id = args.env_id)
-        t2s_stage_decoder = ailia.Net(weight = WEIGHT_PATH_T2S_STAGE_DECODER, stream = MODEL_PATH_T2S_STAGE_DECODER, memory_mode = memory_mode, env_id = args.env_id)
-        vits = ailia.Net(weight = WEIGHT_PATH_VITS, stream = MODEL_PATH_VITS, memory_mode = memory_mode, env_id = args.env_id)
-        bert = ailia.Net(weight = WEIGHT_PATH_BERT, stream = MODEL_PATH_BERT, memory_mode = memory_mode, env_id = args.env_id) if use_zh else None
+        ssl = ailia.Net(weight = WEIGHT_PATH_SSL, stream = MODEL_PATH_SSL, memory_mode = args.memory_mode, env_id = args.env_id)
+        t2s_encoder = ailia.Net(weight = WEIGHT_PATH_T2S_ENCODER, stream = MODEL_PATH_T2S_ENCODER, memory_mode = args.memory_mode, env_id = args.env_id)
+        t2s_first_decoder = ailia.Net(weight = WEIGHT_PATH_T2S_FIRST_DECODER, stream = MODEL_PATH_T2S_FIRST_DECODER, memory_mode = args.memory_mode, env_id = args.env_id)
+        t2s_stage_decoder = ailia.Net(weight = WEIGHT_PATH_T2S_STAGE_DECODER, stream = MODEL_PATH_T2S_STAGE_DECODER, memory_mode = args.memory_mode, env_id = args.env_id)
+        vits = ailia.Net(weight = WEIGHT_PATH_VITS, stream = MODEL_PATH_VITS, memory_mode = args.memory_mode, env_id = args.env_id)
+        bert = ailia.Net(weight = WEIGHT_PATH_BERT, stream = MODEL_PATH_BERT, memory_mode = args.memory_mode, env_id = args.env_id) if use_zh else None
         if args.profile:
             ssl.set_profile_mode(True)
             t2s_encoder.set_profile_mode(True)

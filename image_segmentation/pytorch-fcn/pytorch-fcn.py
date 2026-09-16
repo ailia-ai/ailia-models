@@ -136,8 +136,7 @@ def main():
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
     
     logger.info('model type : ' + args.model_type)
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
-    net = ailia.Net(model_path, weight_path, memory_mode=mem_mode)
+    net = ailia.Net(model_path, weight_path, memory_mode=args.memory_mode)
 
     recognize(net)
 

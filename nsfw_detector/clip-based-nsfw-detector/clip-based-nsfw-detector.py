@@ -178,8 +178,8 @@ def main():
 
     # initialize
     if not args.onnx:
-        net_nsfw = ailia.Net(nsfw_model, nsfw_weigth, env_id=env_id)
-        net_image = ailia.Net(clip_model, clip_weigth, env_id=env_id)
+        net_nsfw = ailia.Net(nsfw_model, nsfw_weigth, env_id=env_id, memory_mode=args.memory_mode)
+        net_image = ailia.Net(clip_model, clip_weigth, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         net_nsfw = onnxruntime.InferenceSession(nsfw_weigth)

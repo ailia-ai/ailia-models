@@ -123,8 +123,7 @@ def recognize_from_image():
         cfg = rut.cfg_mnet
     elif args.arch == "resnet50":
         cfg = rut.cfg_re50
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=mem_mode)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     resize = args.rescale
 
     # input image loop
@@ -182,8 +181,7 @@ def recognize_from_video():
         cfg = rut.cfg_mnet
     elif args.arch == "resnet50":
         cfg = rut.cfg_re50
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=mem_mode)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     resize = args.rescale
 
     capture = webcamera_utils.get_capture(args.video)

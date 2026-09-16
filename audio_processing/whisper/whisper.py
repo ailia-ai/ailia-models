@@ -146,7 +146,6 @@ parser.add_argument(
     choices=("transcribe", "translate"),
     help="task type",
 )
-parser.add_argument("--memory_mode", default=-1, type=int, help="memory mode")
 parser.add_argument("--prompt", default=None, help="prompt for word vocabulary")
 parser.add_argument(
     "--intermediate", action="store_true", help="display intermediate state."
@@ -244,16 +243,6 @@ if not args.onnx:
     )
     SAVE_ENC_SHAPE = ()
     SAVE_DEC_SHAPE = ()
-
-    if args.memory_mode == -1:
-        args.memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
-    if (args.memory_mode & 16) != 0:
-        ailia.set_temporary_cache_path("./")
 else:
     LAYER_NORM_ENABLE = False
     if args.fp16:

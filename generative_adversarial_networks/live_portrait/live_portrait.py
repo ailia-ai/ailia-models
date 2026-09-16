@@ -1027,19 +1027,19 @@ def main():
 
     # initialize
     if not args.onnx:
-        net_f = ailia.Net(MODEL_F_PATH, WEIGHT_F_PATH, env_id=env_id)
-        net_m = ailia.Net(MODEL_M_PATH, WEIGHT_M_PATH, env_id=env_id)
-        net_w = ailia.Net(MODEL_W_PATH, WEIGHT_W_PATH, env_id=env_id)
-        net_g = ailia.Net(MODEL_G_PATH, WEIGHT_G_PATH, env_id=env_id)
-        net_s = ailia.Net(MODEL_S_PATH, WEIGHT_S_PATH, env_id=env_id)
-        net_l = ailia.Net(MODEL_L_PATH, WEIGHT_L_PATH, env_id=env_id)
+        net_f = ailia.Net(MODEL_F_PATH, WEIGHT_F_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_m = ailia.Net(MODEL_M_PATH, WEIGHT_M_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_w = ailia.Net(MODEL_W_PATH, WEIGHT_W_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_g = ailia.Net(MODEL_G_PATH, WEIGHT_G_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_s = ailia.Net(MODEL_S_PATH, WEIGHT_S_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_l = ailia.Net(MODEL_L_PATH, WEIGHT_L_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
         if args.det == "insightface":
-            det_face = ailia.Net(MODEL_IF_DET_PATH, WEIGHT_IF_DET_PATH, env_id=env_id)
-            landmark = ailia.Net(MODEL_IF_LMK_PATH, WEIGHT_IF_LMK_PATH, env_id=env_id)
+            det_face = ailia.Net(MODEL_IF_DET_PATH, WEIGHT_IF_DET_PATH, env_id=env_id, memory_mode=args.memory_mode)
+            landmark = ailia.Net(MODEL_IF_LMK_PATH, WEIGHT_IF_LMK_PATH, env_id=env_id, memory_mode=args.memory_mode)
         else:
-            det_face = ailia.Net(MODEL_FM_DET_PATH, WEIGHT_FM_DET_PATH, env_id=env_id)
-            landmark = ailia.Net(MODEL_FM_LMK_PATH, WEIGHT_FM_LMK_PATH, env_id=env_id)
+            det_face = ailia.Net(MODEL_FM_DET_PATH, WEIGHT_FM_DET_PATH, env_id=env_id, memory_mode=args.memory_mode)
+            landmark = ailia.Net(MODEL_FM_LMK_PATH, WEIGHT_FM_LMK_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
 

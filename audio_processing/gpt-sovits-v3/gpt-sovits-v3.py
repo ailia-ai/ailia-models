@@ -792,58 +792,52 @@ def main():
     env_id = args.env_id
 
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         ssl = ailia.Net(
             weight=WEIGHT_PATH_SSL,
             stream=MODEL_PATH_SSL,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         )
         t2s_encoder = ailia.Net(
             weight=WEIGHT_PATH_T2S_ENCODER,
             stream=MODEL_PATH_T2S_ENCODER,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         )
         t2s_first_decoder = ailia.Net(
             weight=WEIGHT_PATH_T2S_FIRST_DECODER,
             stream=MODEL_PATH_T2S_FIRST_DECODER,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         )
         t2s_stage_decoder = ailia.Net(
             weight=WEIGHT_PATH_T2S_STAGE_DECODER,
             stream=MODEL_PATH_T2S_STAGE_DECODER,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         )
         vq = ailia.Net(
             weight=WEIGHT_PATH_VQ,
             stream=MODEL_PATH_VQ,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         )
         vq_cfm = ailia.Net(
             weight=WEIGHT_PATH_CFM,
             stream=MODEL_PATH_CFM,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         )
         vgan = ailia.Net(
             weight=WEIGHT_PATH_VGAN,
             stream=MODEL_PATH_VGAN,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         )
         bert_net = ailia.Net(
             weight=WEIGHT_PATH_BERT,
             stream=MODEL_PATH_BERT,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
             env_id=env_id,
         ) if use_zh else None
         if args.profile:

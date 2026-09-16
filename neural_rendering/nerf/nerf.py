@@ -112,7 +112,7 @@ def main():
         import onnxruntime
         net = onnxruntime.InferenceSession(WEIGHT_PATH)
     else:
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # load angles
     render_poses = load_llff_data(args.datadir, args.factor,

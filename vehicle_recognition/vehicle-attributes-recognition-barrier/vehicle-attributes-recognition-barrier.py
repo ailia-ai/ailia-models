@@ -286,7 +286,7 @@ def main():
 
     # net initialize
     net = ailia.Net(
-        MODEL_PATH, WEIGHT_PATH, env_id=env_id
+        MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode
     )
     if args.video or args.detection:
         detector = ailia.Detector(
@@ -298,6 +298,7 @@ def main():
             range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
             env_id=env_id,
+            memory_mode=args.memory_mode,
         )
     else:
         detector = None

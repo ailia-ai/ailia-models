@@ -182,8 +182,7 @@ def main():
 
     # initialize
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(True, True, False, True)
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         cuda = 0 < ailia.get_gpu_environment_id()

@@ -34,6 +34,10 @@ import onnxruntime
 
 import ailia
 
+MEMORY_MODE = ailia.get_memory_mode(
+    reduce_constant=True, ignore_input_with_initializer=True,
+    reduce_interstage=False, reuse_interstage=True)
+
 MODELS = ["gather_rope", "input_rope", "gather_attn", "input_attn"]
 HIDDEN, HEADS, HEAD_DIM, ROWS = 64, 8, 8, 64
 STEPS = 8
@@ -94,7 +98,8 @@ def sweep_onnxruntime(path, names):
 
 
 def sweep_ailia(path, names, env_id):
-    net = ailia.Net(stream=path + ".prototxt", weight=path, env_id=env_id)
+    net = ailia.Net(stream=path + ".prototxt", weight=path, env_id=env_id,
+                    memory_mode=MEMORY_MODE)
     cache = [np.zeros((1, HEADS, 0, HEAD_DIM), np.float32) for _ in range(2)]
     outputs = []
     for named in calls():

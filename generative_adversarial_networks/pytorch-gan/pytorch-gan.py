@@ -72,7 +72,7 @@ def generate_image():
     rand_input = np.random.rand(1, 512).astype(np.float32)
 
     # net initialize
-    gnet = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    gnet = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # inference
     logger.info('Start inference...')
@@ -104,7 +104,7 @@ def generate_image():
 
 def generate_video():
     # net initialize
-    gnet = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    gnet = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # create video writer if savepath is specified as video format
     if args.savepath != SAVE_IMAGE_PATH:

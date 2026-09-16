@@ -537,8 +537,8 @@ def main():
         GMM_net = onnxruntime.InferenceSession(WEIGHT_GMM_PATH)
         TOM_net = onnxruntime.InferenceSession(WEIGHT_TOM_PATH)
     else:
-        GMM_net = ailia.Net(MODEL_GMM_PATH, WEIGHT_GMM_PATH, env_id=args.env_id)
-        TOM_net = ailia.Net(MODEL_TOM_PATH, WEIGHT_TOM_PATH, env_id=args.env_id)
+        GMM_net = ailia.Net(MODEL_GMM_PATH, WEIGHT_GMM_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+        TOM_net = ailia.Net(MODEL_TOM_PATH, WEIGHT_TOM_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video or not args.keypoints:
         det_net = ailia.Detector(
@@ -550,13 +550,14 @@ def main():
             range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
             env_id=args.env_id,
+            memory_mode=args.memory_mode,
         )
         pose_net = ailia.Net(
-            MODEL_POSE_PATH, WEIGHT_POSE_PATH, env_id=args.env_id)
+            MODEL_POSE_PATH, WEIGHT_POSE_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         det_net = pose_net = None
     if args.video or not args.parse:
-        seg_net = ailia.Net(MODEL_SEG_PATH, WEIGHT_SEG_PATH, env_id=args.env_id)
+        seg_net = ailia.Net(MODEL_SEG_PATH, WEIGHT_SEG_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         seg_net = None
 

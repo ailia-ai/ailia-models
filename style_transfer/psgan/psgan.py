@@ -111,7 +111,7 @@ def _prepare_data(args, preprocess, image_type, frame=None):
 
 def _initialize_net(args):
     if not args.onnx:
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
 

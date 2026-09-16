@@ -29,7 +29,7 @@ class MTCNN(object):
     """
 
     def __init__(self, min_face_size: int = 20, steps_threshold: list = None,
-                 scale_factor: float = 0.709):
+                 scale_factor: float = 0.709, memory_mode=None):
         """
         Initializes the MTCNN.
         :param weights_file: file uri with the weights of the P, R and O networks from MTCNN. By default it will load
@@ -37,6 +37,7 @@ class MTCNN(object):
         :param min_face_size: minimum size of the face to detect
         :param steps_threshold: step's thresholds values
         :param scale_factor: scale factor
+        :param memory_mode: ailia memory mode
         """
         if steps_threshold is None:
             steps_threshold = [0.6, 0.7, 0.7]
@@ -45,9 +46,9 @@ class MTCNN(object):
         self._steps_threshold = steps_threshold
         self._scale_factor = scale_factor
 
-        self._pnet = ailia.Net(None,"pnet.onnx")
-        self._rnet = ailia.Net(None,"rnet.onnx")
-        self._onet = ailia.Net(None,"onet.onnx")
+        self._pnet = ailia.Net(None,"pnet.onnx",memory_mode=memory_mode)
+        self._rnet = ailia.Net(None,"rnet.onnx",memory_mode=memory_mode)
+        self._onet = ailia.Net(None,"onet.onnx",memory_mode=memory_mode)
 
 
     @property

@@ -324,7 +324,8 @@ def recognize_from_video():
     print(f'env_id: {env_id}')
     if args.arch=="lw_human_pose":
         pose = ailia.PoseEstimator(
-            MODEL_PATH, WEIGHT_PATH, env_id=env_id, algorithm=ALGORITHM
+            MODEL_PATH, WEIGHT_PATH, env_id=env_id, algorithm=ALGORITHM,
+            memory_mode=args.memory_mode
         )
 
         detector = None
@@ -337,13 +338,14 @@ def recognize_from_video():
             channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
             range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
-            env_id=env_id
+            env_id=env_id,
+            memory_mode=args.memory_mode
         )
 
-        pose = ailia.Net(POSE_MODEL_PATH, POSE_WEIGHT_PATH, env_id=env_id)
+        pose = ailia.Net(POSE_MODEL_PATH, POSE_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     # tracker class instance
-    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=env_id)
+    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     metric = NearestNeighborDistanceMetric(
         "cosine", MAX_COSINE_DISTANCE, NN_BUDGET
     )
@@ -357,7 +359,7 @@ def recognize_from_video():
     # action recognition
     env_id = args.env_id
     print(f'env_id: {env_id}')
-    model = ailia.Net(ACTION_MODEL_PATH, ACTION_WEIGHT_PATH, env_id=env_id)
+    model = ailia.Net(ACTION_MODEL_PATH, ACTION_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     action_data = {}
 

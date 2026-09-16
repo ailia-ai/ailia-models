@@ -337,7 +337,7 @@ def main():
         check_and_download_models(
             PATHS[m], MODEL_PATHS[m], REMOTE_PATH
         )
-        net = ailia.Net(MODEL_PATHS[m], PATHS[m], args.env_id)
+        net = ailia.Net(MODEL_PATHS[m], PATHS[m], args.env_id, memory_mode=args.memory_mode)
         if args.benchmark:
             net = BenchmarkWrapper(net, m)
         models[m] = net

@@ -1220,9 +1220,9 @@ def main():
 
     # initialize
     if not args.onnx:
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-        net_face = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id)
-        net_marker = ailia.Net(MODEL_MARKER_PATH, WEIGHT_MARKER_PATH, env_id=env_id)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_face = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_marker = ailia.Net(MODEL_MARKER_PATH, WEIGHT_MARKER_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
 

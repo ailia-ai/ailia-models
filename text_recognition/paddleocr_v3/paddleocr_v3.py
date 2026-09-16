@@ -709,7 +709,8 @@ class TextDetector(object):
         self.preprocess_op = create_operators(pre_process_list)
         self.postprocess_op = build_post_process(postprocess_params)
         self.net = ailia.Net(self.config['det_model_path'] + '.prototxt',
-                             self.config['det_model_path'], env_id=self.env_id)
+                             self.config['det_model_path'], env_id=self.env_id,
+                             memory_mode=args.memory_mode)
         self.called = False
 
     def order_points_clockwise(self, pts):
@@ -796,7 +797,8 @@ class TextClassifier(object):
         }
         self.postprocess_op = build_post_process(postprocess_params)
         self.net = ailia.Net(self.cfg['cls_model_path'] + '.prototxt',
-                             self.cfg['cls_model_path'], env_id=self.env_id)
+                             self.cfg['cls_model_path'], env_id=self.env_id,
+                             memory_mode=args.memory_mode)
         self.called = False
 
     def resize_norm_img(self, img):
@@ -888,7 +890,8 @@ class TextRecognizer(object):
         }
         self.postprocess_op = build_post_process(postprocess_params)
         self.net = ailia.Net(self.config['rec_model_path'] + '.prototxt',
-                             self.config['rec_model_path'], env_id=self.env_id)
+                             self.config['rec_model_path'], env_id=self.env_id,
+                             memory_mode=args.memory_mode)
         self.called = False
 
     def resize_norm_img(self, img, max_wh_ratio):

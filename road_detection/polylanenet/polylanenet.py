@@ -178,7 +178,7 @@ def main():
     # model files check and download
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
 
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.input:
         recognize_from_image(net)

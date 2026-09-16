@@ -879,23 +879,17 @@ def main():
     if not args.onnx:
         import ailia
 
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         vision_encoder = ailia.Net(
-            MODEL_VIS_PATH, WEIGHT_VIS_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_VIS_PATH, WEIGHT_VIS_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
         if not args.npy_embed:
             # embed_tokens is a single Gather over a 1.6GB (4b) / 2.5GB (8b)
             # table; run it on CPU to avoid consuming GPU memory for a lookup.
             embed_net = ailia.Net(
-                MODEL_EMBED_PATH, WEIGHT_EMBED_PATH, memory_mode=memory_mode
+                MODEL_EMBED_PATH, WEIGHT_EMBED_PATH, memory_mode=args.memory_mode
             )
         language_model = ailia.Net(
-            model_lm_path, weight_lm_path, env_id=env_id, memory_mode=memory_mode
+            model_lm_path, weight_lm_path, env_id=env_id, memory_mode=args.memory_mode
         )
     else:
         import onnxruntime

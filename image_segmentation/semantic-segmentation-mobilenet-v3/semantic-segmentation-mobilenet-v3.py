@@ -175,7 +175,7 @@ def main():
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
 
     # initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     net.set_input_shape((1, IMAGE_HEIGHT, IMAGE_WIDTH, 3))
 
     if args.video is not None:

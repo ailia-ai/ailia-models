@@ -141,22 +141,22 @@ def main():
         # model files check and download
         check_and_download_models(BASE_1k_WEIGHT_PATH, BASE_1k_MODEL_PATH, REMOTE_PATH)
         # net initialize
-        net = ailia.Net(BASE_1k_MODEL_PATH, BASE_1k_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(BASE_1k_MODEL_PATH, BASE_1k_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.model == 'small_1k':
         # model files check and download
         check_and_download_models(SMALL_1k_WEIGHT_PATH, SMALL_1k_MODEL_PATH, REMOTE_PATH)
         # net initialize
-        net = ailia.Net(SMALL_1k_MODEL_PATH, SMALL_1k_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(SMALL_1k_MODEL_PATH, SMALL_1k_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.model == 'tiny_1k':
         # model files check and download
         check_and_download_models(TINY_1k_WEIGHT_PATH, TINY_1k_MODEL_PATH, REMOTE_PATH)
         # net initialize
-        net = ailia.Net(TINY_1k_MODEL_PATH, TINY_1k_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(TINY_1k_MODEL_PATH, TINY_1k_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.model == 'cifar10':
         # model files check and download
         check_and_download_models(CIFAR10_WEIGHT_PATH, CIFAR10_MODEL_PATH, REMOTE_PATH)
         # net initialize
-        net = ailia.Net(CIFAR10_MODEL_PATH, CIFAR10_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(CIFAR10_MODEL_PATH, CIFAR10_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         exit()
 

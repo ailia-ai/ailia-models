@@ -344,9 +344,9 @@ def main():
     check_and_download_models(WEIGHT_GA_PATH, MODEL_GA_PATH, REMOTE_PATH)
 
     # initialize
-    det_model = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=args.env_id)
-    rec_model = ailia.Net(MODEL_REC_PATH, WEIGHT_REC_PATH, env_id=args.env_id)
-    ga_model = ailia.Net(MODEL_GA_PATH, WEIGHT_GA_PATH, env_id=args.env_id)
+    det_model = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    rec_model = ailia.Net(MODEL_REC_PATH, WEIGHT_REC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    ga_model = ailia.Net(MODEL_GA_PATH, WEIGHT_GA_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         recognize_from_video(args.video, det_model, rec_model, ga_model)

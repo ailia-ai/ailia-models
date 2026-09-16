@@ -126,7 +126,7 @@ def apply_threshold(preds, threshold=0.25, threshold_rule='constant'):
 # ======================
 def recognize_tag_from_image():
     # net initialize
-    tag_net = ailia.Net(TAG_MODEL_PATH, TAG_WEIGHT_PATH, env_id=args.env_id)
+    tag_net = ailia.Net(TAG_MODEL_PATH, TAG_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -166,7 +166,7 @@ def recognize_tag_from_image():
 
 def extract_feature_vec_from_image():
     # net initialize
-    fe_net = ailia.Net(FE_MODEL_PATH, FE_WEIGHT_PATH, env_id=args.env_id)
+    fe_net = ailia.Net(FE_MODEL_PATH, FE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -203,7 +203,7 @@ def extract_feature_vec_from_image():
 
 def recognize_tag_from_video():
     # net initialize
-    tag_net = ailia.Net(TAG_MODEL_PATH, TAG_WEIGHT_PATH, env_id=args.env_id)
+    tag_net = ailia.Net(TAG_MODEL_PATH, TAG_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 
@@ -259,7 +259,7 @@ def recognize_tag_from_video():
 
 def extract_feature_vec_from_video():
     # net initialize
-    fe_net = ailia.Net(FE_MODEL_PATH, FE_WEIGHT_PATH, env_id=args.env_id)
+    fe_net = ailia.Net(FE_MODEL_PATH, FE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

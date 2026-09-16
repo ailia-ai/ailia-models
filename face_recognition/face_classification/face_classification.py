@@ -74,6 +74,7 @@ def recognize_from_image():
         format=ailia.NETWORK_IMAGE_FORMAT_GRAY,
         range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
         channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
+        memory_mode=args.memory_mode,
     )
     gender_classifier = ailia.Classifier(
         GENDER_MODEL_PATH,
@@ -82,6 +83,7 @@ def recognize_from_image():
         format=ailia.NETWORK_IMAGE_FORMAT_GRAY,
         range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
         channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
+        memory_mode=args.memory_mode,
     )
 
     # input image loop
@@ -154,6 +156,7 @@ def recognize_from_video():
         format=ailia.NETWORK_IMAGE_FORMAT_GRAY,
         range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
         channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
+        memory_mode=args.memory_mode,
     )
     gender_classifier = ailia.Classifier(
         GENDER_MODEL_PATH,
@@ -162,8 +165,9 @@ def recognize_from_video():
         format=ailia.NETWORK_IMAGE_FORMAT_GRAY,
         range=ailia.NETWORK_IMAGE_RANGE_S_FP32,
         channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
+        memory_mode=args.memory_mode,
     )
-    detector = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

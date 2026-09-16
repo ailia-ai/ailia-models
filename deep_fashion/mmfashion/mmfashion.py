@@ -316,9 +316,9 @@ def main():
         weight_path = model_path = None
 
     # initialize
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if weight_path:
-        pp_net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+        pp_net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         pp_net = None
 

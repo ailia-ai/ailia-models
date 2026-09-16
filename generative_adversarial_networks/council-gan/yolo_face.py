@@ -16,11 +16,10 @@ IOU = 0.45
 
 class FaceLocator():
     """Face detector for use with coucil_gan, in order to improve performace at various distances"""
-    def __init__(self):
+    def __init__(self, env_id=None, memory_mode=None):
         check_and_download_models(WEIGHT_PATH_YOLO, MODEL_PATH_YOLO, REMOTE_PATH_YOLO)
-        
+
         # net initialize
-        env_id = args.env_id
         self.detector = detector = ailia.Detector(
                                     MODEL_PATH_YOLO,
                                     WEIGHT_PATH_YOLO,
@@ -29,7 +28,8 @@ class FaceLocator():
                                     channel=ailia.NETWORK_IMAGE_CHANNEL_FIRST,
                                     range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
                                     algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
-                                    env_id=env_id
+                                    env_id=env_id,
+                                    memory_mode=memory_mode
                                 )
        
     def get_faces(self, img):

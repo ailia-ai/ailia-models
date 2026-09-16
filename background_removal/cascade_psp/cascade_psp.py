@@ -331,7 +331,7 @@ def recognize_from_image(net, net_s8):
         # generate mask
         if args.generate_mask:
             check_and_download_models(MASK_WEIGHT_PATH, MASK_MODEL_PATH, MASK_REMOTE_PATH)
-            mask_net = ailia.Net(MASK_MODEL_PATH, MASK_WEIGHT_PATH, env_id=args.env_id)
+            mask_net = ailia.Net(MASK_MODEL_PATH, MASK_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
             mask_output = generate_mask(mask_net, img)
             mask_img = mask_output[:,:,0]
             cv2.imwrite("generated_mask.png",mask_output)
@@ -386,11 +386,8 @@ def main():
 
     # net initialize
     logger.info("This model requires 10GB or more memory.")
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode)
-    net_s8 = ailia.Net(MODEL_INTER_S8_PATH, WEIGHT_INTER_S8_PATH, env_id=env_id, memory_mode=memory_mode)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    net_s8 = ailia.Net(MODEL_INTER_S8_PATH, WEIGHT_INTER_S8_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     recognize_from_image(net, net_s8)
 

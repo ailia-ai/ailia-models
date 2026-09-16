@@ -268,7 +268,7 @@ def main():
     env_id = args.env_id
 
     # net initialize
-    net = ailia.Net(MASK_MODEL_PATH, MASK_WEIGHT_PATH, env_id=env_id)
+    net = ailia.Net(MASK_MODEL_PATH, MASK_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     if args.width!=IMAGE_SIZE or args.height!=IMAGE_SIZE:
         net.set_input_shape((1,3,args.height,args.width))
 

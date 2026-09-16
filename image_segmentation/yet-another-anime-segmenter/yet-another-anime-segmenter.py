@@ -78,7 +78,7 @@ def recognize_from_image():
         import onnxruntime
         sess = onnxruntime.InferenceSession(WEIGHT_PATH)
     else:
-        segmentor = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        segmentor = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # inference
     logger.info('Start inference...')
@@ -125,7 +125,7 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     # This model requires fuge gpu memory so fallback to cpu mode
-    segmentor = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    segmentor = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = get_capture(args.video)
 

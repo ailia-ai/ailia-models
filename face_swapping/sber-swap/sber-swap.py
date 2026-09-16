@@ -336,15 +336,15 @@ def main():
 
     # initialize
     if not args.onnx:
-        net_iface = ailia.Net(MODEL_ARCFACE_PATH, WEIGHT_ARCFACE_PATH, env_id=env_id)
-        net_back = ailia.Net(MODEL_BACKBONE_PATH, WEIGHT_BACKBONE_PATH, env_id=env_id)
-        net_G = ailia.Net(MODEL_G_PATH, WEIGHT_G_PATH, env_id=env_id)
-        net_lmk = ailia.Net(MODEL_LANDMARK_PATH, WEIGHT_LANDMARK_PATH, env_id=env_id)
+        net_iface = ailia.Net(MODEL_ARCFACE_PATH, WEIGHT_ARCFACE_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_back = ailia.Net(MODEL_BACKBONE_PATH, WEIGHT_BACKBONE_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_G = ailia.Net(MODEL_G_PATH, WEIGHT_G_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        net_lmk = ailia.Net(MODEL_LANDMARK_PATH, WEIGHT_LANDMARK_PATH, env_id=env_id, memory_mode=args.memory_mode)
         if args.use_sr:
             pix2pix_env_id = env_id
             if "FP16" in ailia.get_environment(args.env_id).props:  # disable FP16
                 pix2pix_env_id = 0
-            net_pix2pix = ailia.Net(MODEL_PIX2PIX_PATH, WEIGHT_PIX2PIX_PATH, env_id=pix2pix_env_id)
+            net_pix2pix = ailia.Net(MODEL_PIX2PIX_PATH, WEIGHT_PIX2PIX_PATH, env_id=pix2pix_env_id, memory_mode=args.memory_mode)
         else:
             net_pix2pix = None
     else:

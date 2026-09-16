@@ -73,8 +73,8 @@ def style_transfer(vgg, decoder, content, style, alpha=args.alpha):
 # ======================
 def image_style_transfer():
     # net initialize
-    vgg = ailia.Net(VGG_MODEL_PATH, VGG_WEIGHT_PATH, env_id=args.env_id)
-    decoder = ailia.Net(DEC_MODEL_PATH, DEC_WEIGHT_PATH, env_id=args.env_id)
+    vgg = ailia.Net(VGG_MODEL_PATH, VGG_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    decoder = ailia.Net(DEC_MODEL_PATH, DEC_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -122,8 +122,8 @@ def image_style_transfer():
 
 def video_style_transfer():
     # net initialize
-    vgg = ailia.Net(VGG_MODEL_PATH, VGG_WEIGHT_PATH, env_id=args.env_id)
-    decoder = ailia.Net(DEC_MODEL_PATH, DEC_WEIGHT_PATH, env_id=args.env_id)
+    vgg = ailia.Net(VGG_MODEL_PATH, VGG_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    decoder = ailia.Net(DEC_MODEL_PATH, DEC_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

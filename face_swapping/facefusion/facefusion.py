@@ -215,7 +215,7 @@ def main():
 
     # initialize
     if not args.onnx:
-        nets = {k: ailia.Net(v[1], v[0], env_id=0) for k, v in dic_model.items()}
+        nets = {k: ailia.Net(v[1], v[0], env_id=0, memory_mode=args.memory_mode) for k, v in dic_model.items()}
     else:
         import onnxruntime
         cuda = 0 < ailia.get_gpu_environment_id()

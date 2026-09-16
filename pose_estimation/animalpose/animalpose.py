@@ -435,6 +435,7 @@ def main():
                 range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
                 algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
                 env_id=env_id,
+                memory_mode=args.memory_mode,
             )
         else:
             det_net = ailia.Detector(
@@ -446,10 +447,11 @@ def main():
                 range=ailia.NETWORK_IMAGE_RANGE_U_INT8,
                 algorithm=ailia.DETECTOR_ALGORITHM_YOLOX,
                 env_id=env_id,
+                memory_mode=args.memory_mode,
             )
     else:
         det_net = None
-    net = ailia.Net(model_path, weight_path, env_id=env_id)
+    net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

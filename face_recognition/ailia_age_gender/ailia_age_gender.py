@@ -445,10 +445,10 @@ def main():
 
     # net initialize
     net = ailia.Net(
-        MODEL_PATH, WEIGHT_PATH, env_id=env_id
+        MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode
     )
     detector_net = ailia.Net(
-        BLAZEFACE_MODEL_PATH, BLAZEFACE_WEIGHT_PATH, env_id=env_id
+        BLAZEFACE_MODEL_PATH, BLAZEFACE_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode
     )
     detector = BlazeFace(detector_net, BLAZEFACE_ANCHORS_PATH)
 

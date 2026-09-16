@@ -193,9 +193,9 @@ def main():
     check_and_download_models(WEIGHT_FEAT_PATH, MODEL_FEAT_PATH, REMOTE_PATH)
 
     # initialize
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
     my_resnet = ailia.Net(
-        MODEL_FEAT_PATH, WEIGHT_FEAT_PATH, env_id=args.env_id
+        MODEL_FEAT_PATH, WEIGHT_FEAT_PATH, env_id=args.env_id, memory_mode=args.memory_mode
     )
 
     if args.video is not None:

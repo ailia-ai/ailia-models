@@ -22,7 +22,7 @@ WINDOW_SIZE = 1024  # samples
 UNVOICED = np.nan
 
 
-def load_model(env_id=0, flg_onnx=False, tiny=False):
+def load_model(env_id=0, flg_onnx=False, tiny=False, memory_mode=None):
     # initialize
     if tiny:
         model_path = MODEL_CREPE_TINY_PATH
@@ -31,7 +31,7 @@ def load_model(env_id=0, flg_onnx=False, tiny=False):
         model_path = MODEL_CREPE_PATH
         weight_path = WEIGHT_CREPE_PATH
     if not flg_onnx:
-        model = ailia.Net(model_path, weight_path, env_id=env_id)
+        model = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=memory_mode)
     else:
         import onnxruntime
         providers = ["CPUExecutionProvider", "CUDAExecutionProvider"]

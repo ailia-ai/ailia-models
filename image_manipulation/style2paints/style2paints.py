@@ -346,14 +346,11 @@ def main():
     check_and_download_models(WEIGHT_GIRD_PATH, MODEL_GIRD_PATH, REMOTE_PATH)
 
     # initialize
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-    net_head = ailia.Net(MODEL_HEAD_PATH, WEIGHT_HEAD_PATH, env_id=args.env_id, memory_mode=memory_mode)
-    net_neck = ailia.Net(MODEL_NECK_PATH, WEIGHT_NECK_PATH, env_id=args.env_id, memory_mode=memory_mode)
-    net_baby = ailia.Net(MODEL_BABY_PATH, WEIGHT_BABY_PATH, env_id=args.env_id, memory_mode=memory_mode)
-    net_tail = ailia.Net(MODEL_TAIL_PATH, WEIGHT_TAIL_PATH, env_id=args.env_id, memory_mode=memory_mode)
-    net_gird = ailia.Net(MODEL_GIRD_PATH, WEIGHT_GIRD_PATH, env_id=args.env_id, memory_mode=memory_mode)
+    net_head = ailia.Net(MODEL_HEAD_PATH, WEIGHT_HEAD_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    net_neck = ailia.Net(MODEL_NECK_PATH, WEIGHT_NECK_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    net_baby = ailia.Net(MODEL_BABY_PATH, WEIGHT_BABY_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    net_tail = ailia.Net(MODEL_TAIL_PATH, WEIGHT_TAIL_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    net_gird = ailia.Net(MODEL_GIRD_PATH, WEIGHT_GIRD_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     dict_net = {
         "head": net_head,

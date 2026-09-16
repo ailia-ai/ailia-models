@@ -232,8 +232,8 @@ def main():
         daclip = onnxruntime.InferenceSession(DACLIP_WEIGHT_PATH)
         IR = onnxruntime.InferenceSession(IR_WEIGHT_PATH)
     else:
-        daclip = ailia.Net(DACLIP_MODEL_PATH, DACLIP_WEIGHT_PATH, args.env_id)
-        IR = ailia.Net(IR_MODEL_PATH, IR_WEIGHT_PATH, args.env_id)
+        daclip = ailia.Net(DACLIP_MODEL_PATH, DACLIP_WEIGHT_PATH, args.env_id, memory_mode=args.memory_mode)
+        IR = ailia.Net(IR_MODEL_PATH, IR_WEIGHT_PATH, args.env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

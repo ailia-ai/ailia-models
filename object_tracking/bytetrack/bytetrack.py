@@ -348,8 +348,7 @@ def main():
     env_id = args.env_id
 
     # initialize
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
-    net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=mem_mode)
+    net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.benchmark:
         benchmarking(net)

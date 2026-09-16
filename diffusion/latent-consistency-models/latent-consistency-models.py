@@ -317,20 +317,16 @@ def main():
     if not args.onnx:
         
         logger.info("This model requires 10GB or more memory.")
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True, ignore_input_with_initializer=True,
-            reduce_interstage=False, reuse_interstage=True)
-            
         unet = ailia.Net(
-            MODEL_UNET_PATH, WEIGHT_UNET_PATH, env_id=args.env_id, memory_mode=memory_mode)
+            MODEL_UNET_PATH, WEIGHT_UNET_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         vae_decoder_model = ailia.Net(
-            MODEL_VAE_DECODER_PATH, WEIGHT_VAE_DECODER_PATH, env_id=args.env_id, memory_mode=memory_mode)
+            MODEL_VAE_DECODER_PATH, WEIGHT_VAE_DECODER_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         text_encoder = ailia.Net \
-            (MODEL_TEXT_ENCODER_PATH, WEIGHT_TEXT_ENCODER_PATH, env_id=args.env_id, memory_mode=memory_mode)
-        """   
-        if args.img2img is True:   
+            (MODEL_TEXT_ENCODER_PATH, WEIGHT_TEXT_ENCODER_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+        """
+        if args.img2img is True:
             vae_encoder_model = ailia.Net(
-                MODEL_VAE_ENCODER_PATH, WEIGHT_VAE_ENCODER_PATH, env_id=args.env_id, memory_mode=memory_mode)
+                MODEL_VAE_ENCODER_PATH, WEIGHT_VAE_ENCODER_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         """
     else:
         import onnxruntime

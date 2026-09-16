@@ -47,7 +47,7 @@ args = update_parser(parser)
 # ======================
 class InvNet():
     def __init__(self):
-        self.net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        self.net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     def predict(self, input):
         input = input.astype(np.float32) / 255. # image array to Numpy float32, HWC, BGR, [0,1]

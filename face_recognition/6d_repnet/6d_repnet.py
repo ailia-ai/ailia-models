@@ -67,8 +67,8 @@ args = update_parser(parser)
 # ======================
 def recognize_from_image():
     env_id = args.env_id
-    net = ailia.Net(MODEL_PATH_6DRepNet, WEIGHT_PATH_6DRepNet, env_id=env_id)
-    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id)
+    net = ailia.Net(MODEL_PATH_6DRepNet, WEIGHT_PATH_6DRepNet, env_id=env_id, memory_mode=args.memory_mode)
+    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id, memory_mode=args.memory_mode)
     detector = RetinaFaceOnnx(face_detect)
 
     # input image loop
@@ -140,8 +140,8 @@ def recognize_from_image():
 
 def recognize_from_video():
     env_id = args.env_id
-    net = ailia.Net(MODEL_PATH_6DRepNet, WEIGHT_PATH_6DRepNet, env_id=env_id)
-    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id)
+    net = ailia.Net(MODEL_PATH_6DRepNet, WEIGHT_PATH_6DRepNet, env_id=env_id, memory_mode=args.memory_mode)
+    face_detect = ailia.Net(MODEL_PATH_FACE, WEIGHT_PATH_FACE, env_id=env_id, memory_mode=args.memory_mode)
     detector = RetinaFaceOnnx(face_detect)
 
     capture = webcamera_utils.get_capture(args.video)

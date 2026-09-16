@@ -214,8 +214,8 @@ def main():
     check_and_download_models(WEIGHT_DEC_PATH, MODEL_DEC_PATH, REMOTE_PATH)
 
     # net initialize
-    enc = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=args.env_id)
-    dec = ailia.Net(MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=args.env_id)
+    enc = ailia.Net(MODEL_ENC_PATH, WEIGHT_ENC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    dec = ailia.Net(MODEL_DEC_PATH, WEIGHT_DEC_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # video mode
     recognize_from_video(enc, dec)

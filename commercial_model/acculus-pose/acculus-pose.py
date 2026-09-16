@@ -125,7 +125,8 @@ def display_result(input_img, pose):
 def recognize_from_image():
     # net initialize
     pose = ailia.PoseEstimator(
-        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM
+        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM,
+        memory_mode=args.memory_mode
     )
 
     # input image loop
@@ -164,7 +165,8 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     pose = ailia.PoseEstimator(
-        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM
+        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM,
+        memory_mode=args.memory_mode
     )
 
     capture = get_capture(args.video)

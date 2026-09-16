@@ -602,11 +602,11 @@ def main():
 
     # net initialize
     # Mask R-CNN
-    net_maskrcnn = ailia.Net(MODEL_PATH_MASKRCNN, WEIGHT_PATH_MASKRCNN, env_id=args.env_id)
+    net_maskrcnn = ailia.Net(MODEL_PATH_MASKRCNN, WEIGHT_PATH_MASKRCNN, env_id=args.env_id, memory_mode=args.memory_mode)
     # RootNet
-    net_root = ailia.Net(MODEL_PATH_ROOTNET, WEIGHT_PATH_ROOTNET, env_id=args.env_id)
+    net_root = ailia.Net(MODEL_PATH_ROOTNET, WEIGHT_PATH_ROOTNET, env_id=args.env_id, memory_mode=args.memory_mode)
     # PoseNet
-    net_pose = ailia.Net(MODEL_PATH_POSENET, WEIGHT_PATH_POSENET, env_id=args.env_id)
+    net_pose = ailia.Net(MODEL_PATH_POSENET, WEIGHT_PATH_POSENET, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video is None:
         # image mode

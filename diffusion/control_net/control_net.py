@@ -559,23 +559,23 @@ def main():
     # initialize
     if not args.onnx:
         logger.info("This model requires 10GB or more memory.")
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True, ignore_input_with_initializer=True,
-            reduce_interstage=False, reuse_interstage=True)
         control_net = ailia.Net(
-            MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
         diffusion_emb = ailia.Net(
-            MODEL_DFSN_EMB_PATH, WEIGHT_DFSN_EMB_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_DFSN_EMB_PATH, WEIGHT_DFSN_EMB_PATH, env_id=env_id, memory_mode=args.memory_mode)
         diffusion_mid = ailia.Net(
-            MODEL_DFSN_MID_PATH, WEIGHT_DFSN_MID_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_DFSN_MID_PATH, WEIGHT_DFSN_MID_PATH, env_id=env_id, memory_mode=args.memory_mode)
         diffusion_out = ailia.Net(
-            MODEL_DFSN_OUT_PATH, WEIGHT_DFSN_OUT_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_DFSN_OUT_PATH, WEIGHT_DFSN_OUT_PATH, env_id=env_id, memory_mode=args.memory_mode)
         autoencoder = ailia.Net(
-            MODEL_AUTO_ENC_PATH, WEIGHT_AUTO_ENC_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_AUTO_ENC_PATH, WEIGHT_AUTO_ENC_PATH, env_id=env_id, memory_mode=args.memory_mode)
         if not args.transformers_clip:
             env_id_cpu = -1 # clip without low memory mode only work on cpu
+            # requires the hidden state, an intermediate blob read with
+            # get_blob_data(), so REUSE_INTERSTAGE cannot be used
             clip = ailia.Net(
-                MODEL_VITL14_TEXT_PATH, WEIGHT_VITL14_TEXT_PATH, env_id=env_id_cpu) # require hidden state, so use normal memory mode
+                MODEL_VITL14_TEXT_PATH, WEIGHT_VITL14_TEXT_PATH, env_id=env_id_cpu,
+                memory_mode=ailia.get_memory_mode(reduce_constant=True))
         else:
             clip = None
     else:
@@ -593,10 +593,10 @@ def main():
     if det_model == "pose":
         if not args.onnx:
             det_net = ailia.Net(
-                MODEL_POSE_BODY_PATH, WEIGHT_POSE_BODY_PATH, env_id=env_id, memory_mode=memory_mode)
+                MODEL_POSE_BODY_PATH, WEIGHT_POSE_BODY_PATH, env_id=env_id, memory_mode=args.memory_mode)
             if args.hand_detect:
                 ext_net = ailia.Net(
-                    MODEL_POSE_HAND_PATH, WEIGHT_POSE_HAND_PATH, env_id=env_id, memory_mode=memory_mode)
+                    MODEL_POSE_HAND_PATH, WEIGHT_POSE_HAND_PATH, env_id=env_id, memory_mode=args.memory_mode)
         else:
             det_net = onnxruntime.InferenceSession(WEIGHT_POSE_BODY_PATH)
             if args.hand_detect:
@@ -604,7 +604,7 @@ def main():
     elif det_model == "seg":
         if not args.onnx:
             det_net = ailia.Net(
-                MODEL_SEG_UNIF_PATH, WEIGHT_SEG_UNIF_PATH, env_id=env_id, memory_mode=memory_mode)
+                MODEL_SEG_UNIF_PATH, WEIGHT_SEG_UNIF_PATH, env_id=env_id, memory_mode=args.memory_mode)
         else:
             det_net = onnxruntime.InferenceSession(WEIGHT_SEG_UNIF_PATH)
 

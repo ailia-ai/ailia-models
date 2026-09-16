@@ -125,7 +125,7 @@ def compute(net,face_helper,img):
 def recognize_from_image(net):
     # input image loop
 
-    net = ailia.Net(None,"codeformer.onnx")
+    net = ailia.Net(None,"codeformer.onnx", memory_mode=args.memory_mode)
 
     face_helper = FaceRestoreHelper(
         #args.upscale,
@@ -169,7 +169,7 @@ def recognize_from_image(net):
 def recognize_from_video(net):
     capture = webcamera_utils.get_capture(args.video)
 
-    net = ailia.Net(None,WEIGHT_PATH)
+    net = ailia.Net(None,WEIGHT_PATH, memory_mode=args.memory_mode)
 
     face_helper = FaceRestoreHelper(
         #args.upscale,
@@ -227,8 +227,7 @@ def main():
     check_and_download_models(WEIGHT_PATH_RETINALFACE_MOBILE, MODEL_PATH_RETINALFACE_MOBILE, RETINAFACE_REMOTE_PATH)
 
     # net initialize
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=mem_mode)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.video is not None:
         # video mode
         recognize_from_video(net)

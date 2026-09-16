@@ -94,8 +94,8 @@ def run_inference(wc_net, bm_net, img, org_img):
 
 def unwarp_from_image():
     # net initialize
-    bm_net = ailia.Net(BM_MODEL_PATH, BM_WEIGHT_PATH, env_id=args.env_id)
-    wc_net = ailia.Net(WC_MODEL_PATH, WC_WEIGHT_PATH, env_id=args.env_id)
+    bm_net = ailia.Net(BM_MODEL_PATH, BM_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    wc_net = ailia.Net(WC_MODEL_PATH, WC_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -129,8 +129,8 @@ def unwarp_from_image():
 
 def unwarp_from_video():
     # net initialize
-    bm_net = ailia.Net(BM_MODEL_PATH, BM_WEIGHT_PATH, env_id=args.env_id)
-    wc_net = ailia.Net(WC_MODEL_PATH, WC_WEIGHT_PATH, env_id=args.env_id)
+    bm_net = ailia.Net(BM_MODEL_PATH, BM_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    wc_net = ailia.Net(WC_MODEL_PATH, WC_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

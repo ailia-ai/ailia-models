@@ -159,11 +159,11 @@ def main():
     # net initialize
     if not args.onnx:
         net_text_branch = \
-            ailia.Net(CLAP_TEXT_ROBERTAMODEL_MODEL_PATH, CLAP_TEXT_ROBERTAMODEL_WEIGHT_PATH, env_id=args.env_id)
+            ailia.Net(CLAP_TEXT_ROBERTAMODEL_MODEL_PATH, CLAP_TEXT_ROBERTAMODEL_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         net_text_projection = \
-            ailia.Net(CLAP_TEXT_PROJECTION_MODEL_PATH, CLAP_TEXT_PROJECTION_WEIGHT_PATH, env_id=args.env_id)
+            ailia.Net(CLAP_TEXT_PROJECTION_MODEL_PATH, CLAP_TEXT_PROJECTION_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         net_audio = \
-            ailia.Net(CLAP_AUDIO_MODEL_PATH, CLAP_AUDIO_WEIGHT_PATH, env_id=args.env_id)
+            ailia.Net(CLAP_AUDIO_MODEL_PATH, CLAP_AUDIO_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         net_text_branch = \

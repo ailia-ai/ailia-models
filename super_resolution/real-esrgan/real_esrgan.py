@@ -60,8 +60,7 @@ def enhance_image():
         img = imread(image_path, cv2.IMREAD_UNCHANGED)
 
         # net initialize
-        mem_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
-        model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=mem_mode)
+        model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         model.set_input_shape((3,img.shape[1],img.shape[0]))
         upsampler = RealESRGAN(model)
 
@@ -86,7 +85,7 @@ def enhance_image():
 
 def enhance_video():
     # net initialize
-    model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     upsampler = RealESRGAN(model)
 
     capture = get_capture(args.video)

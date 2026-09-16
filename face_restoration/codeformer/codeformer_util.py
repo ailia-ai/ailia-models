@@ -208,9 +208,8 @@ class FaceRestoreHelper(object):
             self.cfg = rut.cfg_re50
 
 
-        mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
-        self.net = ailia.Net(None,"face_parse.onnx",env_id=args.env_id, memory_mode=mem_mode)
-        self.retinaface = ailia.Net(None, det_model+".onnx",env_id=args.env_id, memory_mode=mem_mode)
+        self.net = ailia.Net(None,"face_parse.onnx",env_id=args.env_id, memory_mode=args.memory_mode)
+        self.retinaface = ailia.Net(None, det_model+".onnx",env_id=args.env_id, memory_mode=args.memory_mode)
 
     def set_upscale_factor(self, upscale_factor):
         self.upscale_factor = upscale_factor

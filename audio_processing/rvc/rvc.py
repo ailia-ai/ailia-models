@@ -538,8 +538,11 @@ def main():
 
     # initialize
     if not args.onnx:
-        hubert = ailia.Net(MODEL_HUBERT_PATH, WEIGHT_HUBERT_PATH, env_id=env_id)
-        net_g = ailia.Net(MODEL_VC_PATH, WEIGHT_VC_PATH, env_id=env_id)
+        # hubert reads an intermediate blob (/encoder/Slice_5_output_0) with
+        # get_blob_data(), so REUSE_INTERSTAGE cannot be used
+        hubert = ailia.Net(MODEL_HUBERT_PATH, WEIGHT_HUBERT_PATH, env_id=env_id,
+                           memory_mode=ailia.get_memory_mode(reduce_constant=True))
+        net_g = ailia.Net(MODEL_VC_PATH, WEIGHT_VC_PATH, env_id=env_id, memory_mode=args.memory_mode)
         if args.profile:
             hubert.set_profile_mode(True)
             net_g.set_profile_mode(True)
@@ -551,7 +554,8 @@ def main():
 
     if args.f0 == 1 and (args.f0_method == "crepe" or args.f0_method == "crepe_tiny"):
         import mod_crepe
-        f0_model = mod_crepe.load_model(env_id, args.onnx, args.f0_method == "crepe_tiny")
+        f0_model = mod_crepe.load_model(env_id, args.onnx, args.f0_method == "crepe_tiny",
+                                        memory_mode=args.memory_mode)
         if args.profile:
             f0_model.set_profile_mode(True)
     else:

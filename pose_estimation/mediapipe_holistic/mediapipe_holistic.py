@@ -649,12 +649,12 @@ def main():
 
     # initialize
     if not args.onnx:
-        pose_det = ailia.Net(MODEL_DETECTOR_PATH, WEIGHT_DETECTOR_PATH, env_id=env_id)
-        pose_lmk = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-        face_det = ailia.Net(MODEL_FACE_DETECTOR_PATH, WEIGHT_FACE_DETECTOR_PATH, env_id=env_id)
-        face_lmk = ailia.Net(MODEL_FACE_LANDMARK_PATH, WEIGHT_FACE_LANDMARK_PATH, env_id=env_id)
-        hand_det = ailia.Net(MODEL_HAND_DETECTOR_PATH, WEIGHT_HAND_DETECTOR_PATH, env_id=env_id)
-        hand_lmk = ailia.Net(MODEL_HAND_LANDMARK_PATH, WEIGHT_HAND_LANDMARK_PATH, env_id=env_id)
+        pose_det = ailia.Net(MODEL_DETECTOR_PATH, WEIGHT_DETECTOR_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        pose_lmk = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        face_det = ailia.Net(MODEL_FACE_DETECTOR_PATH, WEIGHT_FACE_DETECTOR_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        face_lmk = ailia.Net(MODEL_FACE_LANDMARK_PATH, WEIGHT_FACE_LANDMARK_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        hand_det = ailia.Net(MODEL_HAND_DETECTOR_PATH, WEIGHT_HAND_DETECTOR_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        hand_lmk = ailia.Net(MODEL_HAND_LANDMARK_PATH, WEIGHT_HAND_LANDMARK_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         pose_det = onnxruntime.InferenceSession(WEIGHT_DETECTOR_PATH)
@@ -677,6 +677,7 @@ def main():
             range=ailia.NETWORK_IMAGE_RANGE_U_INT8,
             algorithm=ailia.DETECTOR_ALGORITHM_YOLOX,
             env_id=env_id,
+            memory_mode=args.memory_mode,
         )
         det_net.set_input_shape(args.detection_width, args.detection_width)
 

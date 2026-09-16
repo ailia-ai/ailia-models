@@ -186,17 +186,11 @@ def main():
 
         # Load CLIP image encoder
         if not args.onnx:
-            memory_mode = ailia.get_memory_mode(
-                reduce_constant=True,
-                ignore_input_with_initializer=True,
-                reduce_interstage=False,
-                reuse_interstage=False,
-            )
             net_image = ailia.Net(
                 clip_model_image,
                 clip_weight_image,
                 env_id=env_id,
-                memory_mode=memory_mode,
+                memory_mode=args.memory_mode,
             )
         else:
             import onnxruntime
@@ -207,7 +201,7 @@ def main():
 
     # Load aesthetic predictor (linear layer)
     if not args.onnx:
-        net = ailia.Net(model_path, weight_path, env_id=env_id)
+        net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
 

@@ -309,8 +309,8 @@ def main():
     env_id = args.env_id
 
     # initialize
-    encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id = env_id)
-    decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id = env_id)
+    encoder = ailia.Net(ENCODER_MODEL_PATH, ENCODER_WEIGHT_PATH, env_id = env_id, memory_mode = args.memory_mode)
+    decoder = ailia.Net(DECODER_MODEL_PATH, DECODER_WEIGHT_PATH, env_id = env_id, memory_mode = args.memory_mode)
 
     model = T5Model(encoder, decoder, tokenizer)
 

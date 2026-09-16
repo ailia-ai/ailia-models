@@ -203,8 +203,8 @@ def main(args):
         model = T5Model(encoder_sess, decoder_sess, tokenizer)
     else:
         import ailia
-        encoder_sess = ailia.Net(ENCODER_PROTOTXT_PATH, ENCODER_ONNX_PATH)
-        decoder_sess = ailia.Net(DECODER_PROTOTXT_PATH, DECODER_ONNX_PATH)
+        encoder_sess = ailia.Net(ENCODER_PROTOTXT_PATH, ENCODER_ONNX_PATH, memory_mode=args.memory_mode)
+        decoder_sess = ailia.Net(DECODER_PROTOTXT_PATH, DECODER_ONNX_PATH, memory_mode=args.memory_mode)
         model = T5Model(encoder_sess, decoder_sess, tokenizer)
 
     if args.benchmark:

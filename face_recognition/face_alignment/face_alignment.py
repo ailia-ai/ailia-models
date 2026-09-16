@@ -325,11 +325,12 @@ def draw_gaussian(img, point, sigma):
 # ======================
 def recognize_from_image():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.active_3d:
         logger.info('>>> 3D mode is activated!')
         depth_net = ailia.Net(
-            DEPTH_MODEL_PATH, DEPTH_WEIGHT_PATH, env_id=args.env_id
+            DEPTH_MODEL_PATH, DEPTH_WEIGHT_PATH, env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
 
     # input image loop
@@ -399,13 +400,14 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.active_3d:
         logger.info('>>> 3D mode is activated!')
         depth_net = ailia.Net(
-            DEPTH_MODEL_PATH, DEPTH_WEIGHT_PATH, env_id=args.env_id
+            DEPTH_MODEL_PATH, DEPTH_WEIGHT_PATH, env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
-    detector = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

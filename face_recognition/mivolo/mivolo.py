@@ -690,8 +690,8 @@ def main():
 
     # net initialize
     logger.info(f'env_id: {args.env_id}')
-    net_YOLO = ailia.Net(MODEL_YOLO_PATH, WEIGHT_YOLO_PATH, env_id=args.env_id)
-    net_mivolo = ailia.Net(MODEL_MIVOLO_PATH, WEIGHT_MIVOLO_PATH, env_id=args.env_id)
+    net_YOLO = ailia.Net(MODEL_YOLO_PATH, WEIGHT_YOLO_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    net_mivolo = ailia.Net(MODEL_MIVOLO_PATH, WEIGHT_MIVOLO_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     tracker_face = BYTETracker(track_thresh=TRACK_THRESH, track_buffer=TRACK_BUFFER,
                                match_thresh=MATCH_THRESH, frame_rate=FRAME_RATE, mot20=MOT20)

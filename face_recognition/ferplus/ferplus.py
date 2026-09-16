@@ -344,10 +344,10 @@ def main():
     env_id = args.env_id
 
     # initialize
-    net = ailia.Net(model_path, weight_path, env_id=env_id)
+    net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
     detector = None
     if args.video or args.detection:
-        detector = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=env_id)
+        detector = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         recognize_from_video(net, detector)

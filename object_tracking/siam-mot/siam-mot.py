@@ -411,10 +411,10 @@ def main():
 
     # initialize
     if not args.onnx:
-        rpn = ailia.Net(model_rpn_path, weight_rpn_path, env_id=env_id)
-        box = ailia.Net(model_box_path, weight_box_path, env_id=env_id)
-        tracker = ailia.Net(model_track_path, weight_track_path, env_id=env_id)
-        feat_ext = ailia.Net(model_feat_path, weight_feat_path, env_id=env_id)
+        rpn = ailia.Net(model_rpn_path, weight_rpn_path, env_id=env_id, memory_mode=args.memory_mode)
+        box = ailia.Net(model_box_path, weight_box_path, env_id=env_id, memory_mode=args.memory_mode)
+        tracker = ailia.Net(model_track_path, weight_track_path, env_id=env_id, memory_mode=args.memory_mode)
+        feat_ext = ailia.Net(model_feat_path, weight_feat_path, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         rpn = onnxruntime.InferenceSession(weight_rpn_path)

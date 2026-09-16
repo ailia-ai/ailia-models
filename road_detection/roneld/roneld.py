@@ -64,7 +64,7 @@ WIDTH = 976
 
 
 def recognize_from_image():
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     net.set_input_shape((1, 3, HEIGHT, WIDTH))
 
     prev_lanes = []
@@ -115,7 +115,7 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

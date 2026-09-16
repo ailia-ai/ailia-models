@@ -83,10 +83,12 @@ class HeadPoseEstimator:
         """
         # net initialize
         self.face_detector = ailia.Net(
-            FACE_DETECTION_MODEL_PATH, FACE_DETECTION_WEIGHT_PATH, env_id=args.env_id
+            FACE_DETECTION_MODEL_PATH, FACE_DETECTION_WEIGHT_PATH, env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
         self.hp_estimator = ailia.Net(
-            HEAD_POSE_MODEL_PATH, HEAD_POSE_WEIGHT_PATH, env_id=args.env_id
+            HEAD_POSE_MODEL_PATH, HEAD_POSE_WEIGHT_PATH, env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
 
     def predict(self, img):

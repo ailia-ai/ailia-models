@@ -190,16 +190,7 @@ def main():
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
     # net initialize
-    if args.img_res == 1024:
-        mem_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
-    else:
-        mem_mode = None
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=mem_mode)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     recognize_from_image(net, img_shape)
 

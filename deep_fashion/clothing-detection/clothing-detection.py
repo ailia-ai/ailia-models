@@ -230,7 +230,7 @@ def main():
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
     # initialize
-    detector = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    detector = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
     id_image_shape = detector.find_blob_index_by_name("image_shape")
     detector.set_input_shape(
         (1, 3, args.detection_width, args.detection_width)

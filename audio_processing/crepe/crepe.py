@@ -242,7 +242,8 @@ def main():
 
     env_id = args.env_id
 
-    f0_model = mod_crepe.load_model(env_id, args.onnx, args.f0_method == "crepe_tiny")
+    f0_model = mod_crepe.load_model(env_id, args.onnx, args.f0_method == "crepe_tiny",
+                                    memory_mode=args.memory_mode)
     if args.profile:
         f0_model.set_profile_mode(True)
     else:

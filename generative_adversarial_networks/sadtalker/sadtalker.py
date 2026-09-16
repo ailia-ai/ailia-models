@@ -100,7 +100,7 @@ def load_model(model_path, weight_path, env_id=args.env_id, use_onnx=args.onnx):
         )
         return onnxruntime.InferenceSession(weight_path, providers=providers)
     else:
-        return ailia.Net(model_path, weight_path, env_id=env_id)
+        return ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
 def generate_ref_coeff(preprocess_model, video_path, save_dir):
     if not video_path:
@@ -142,8 +142,8 @@ def download_and_load_models():
         "generator_net": load_model(MODEL_ANIMATION_GENERATOR_PATH, WEIGHT_ANIMATION_GENERATOR_PATH),
         "kp_detector_net": load_model(MODEL_KP_DETECTOR_PATH, WEIGHT_KP_DETECTOR_PATH),
         "mapping_net": load_model(MODEL_MAPPING_NET, WEIGHT_MAPPING_NET),
-        "retinaface_net": ailia.Net(MODEL_FACE_DET_PATH, WEIGHT_FACE_DET_PATH, env_id=args.env_id),
-        "gfpgan_net": ailia.Net(MODEL_GFPGAN_PATH, WEIGHT_GFPGAN_PATH, env_id=args.env_id) if args.enhancer else None
+        "retinaface_net": ailia.Net(MODEL_FACE_DET_PATH, WEIGHT_FACE_DET_PATH, env_id=args.env_id, memory_mode=args.memory_mode),
+        "gfpgan_net": ailia.Net(MODEL_GFPGAN_PATH, WEIGHT_GFPGAN_PATH, env_id=args.env_id, memory_mode=args.memory_mode) if args.enhancer else None
     }
     return models
 

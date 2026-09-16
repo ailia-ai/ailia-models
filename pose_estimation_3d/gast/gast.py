@@ -420,10 +420,6 @@ def main():
 
     num_person = args.num_person
 
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-
     # net initialize
     detector = ailia.Detector(
         MODEL_YOLOV3_PATH,
@@ -434,12 +430,12 @@ def main():
         range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
         env_id=args.env_id,
-        memory_mode=memory_mode,
+        memory_mode=args.memory_mode,
     )
-    pose_net = ailia.Net(MODEL_POSE_PATH, WEIGHT_POSE_PATH, env_id=args.env_id, memory_mode=memory_mode)
+    pose_net = ailia.Net(MODEL_POSE_PATH, WEIGHT_POSE_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if not args.onnx:
-        net = ailia.Net(MODEL_27FRAME_17JOINT_PATH, WEIGHT_27FRAME_17JOINT_PATH, env_id=args.env_id, memory_mode=memory_mode)
+        net = ailia.Net(MODEL_27FRAME_17JOINT_PATH, WEIGHT_27FRAME_17JOINT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         net = onnxruntime.InferenceSession(WEIGHT_27FRAME_17JOINT_PATH)

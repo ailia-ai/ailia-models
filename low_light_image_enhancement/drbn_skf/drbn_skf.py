@@ -46,8 +46,8 @@ parser.add_argument(
 )
 args = update_parser(parser)
 
-def get_model(model_path, weight_path, env_id, mem_mode):
-    return ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=mem_mode)
+def get_model(model_path, weight_path, env_id):
+    return ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
 
 def postprocess(pred):
@@ -60,12 +60,11 @@ def postprocess(pred):
 
 def recognize_from_image(weight_path, model_path):
     env_id = args.env_id
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reduce_interstage=True)
 
     if args.onnx:
         net = onnxruntime.InferenceSession(weight_path)
     else:
-        net = get_model(model_path, weight_path, env_id, mem_mode)
+        net = get_model(model_path, weight_path, env_id)
 
     for image_path in args.input:
         logger.info(image_path)
@@ -105,8 +104,7 @@ def recognize_from_image(weight_path, model_path):
 
 def recognize_from_video(weight_path, model_path):
     env_id = args.env_id
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reduce_interstage=True)
-    net = get_model(model_path, weight_path, env_id, mem_mode)
+    net = get_model(model_path, weight_path, env_id)
     capture = webcamera_utils.get_capture(args.video)
 
     if args.savepath != SAVE_IMAGE_PATH:

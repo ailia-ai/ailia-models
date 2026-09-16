@@ -194,21 +194,20 @@ def recognize_from_video(net):
     logger.info('Script finished successfully.')
 
 def main():
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
     if args.task == 'monodepth':
         check_and_download_models(WEIGHT_MONODEPTH_PATH, MODEL_MONODEPTH_PATH, REMOTE_PATH)
         if args.onnx:
             import onnxruntime
             net = onnxruntime.InferenceSession(WEIGHT_MONODEPTH_PATH)
         else:
-            net = ailia.Net(MODEL_MONODEPTH_PATH, WEIGHT_MONODEPTH_PATH, env_id=args.env_id, memory_mode=mem_mode)
+            net = ailia.Net(MODEL_MONODEPTH_PATH, WEIGHT_MONODEPTH_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.task == 'segmentation':
         check_and_download_models(WEIGHT_SEGMENTATION_PATH, MODEL_SEGMENTATION_PATH, REMOTE_PATH)
         if args.onnx:
             import onnxruntime
             net = onnxruntime.InferenceSession(WEIGHT_SEGMENTATION_PATH)
         else:
-            net = ailia.Net(MODEL_SEGMENTATION_PATH, WEIGHT_SEGMENTATION_PATH, env_id=args.env_id, memory_mode=mem_mode)
+            net = ailia.Net(MODEL_SEGMENTATION_PATH, WEIGHT_SEGMENTATION_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

@@ -206,15 +206,11 @@ def main():
         from ailia_tokenizer import CLIPTokenizer
         tokenizer = CLIPTokenizer.from_pretrained(TOKENIZER_PATH)
 
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=False, reuse_interstage=True)
-    
     models = dict(
-        text_encoder = ailia.Net(TEXT_ENCODER_MODEL_PATH, TEXT_ENCODER_WEIGHT_PATH, args.env_id, memory_mode = memory_mode),
+        text_encoder = ailia.Net(TEXT_ENCODER_MODEL_PATH, TEXT_ENCODER_WEIGHT_PATH, args.env_id, memory_mode = args.memory_mode),
         tokenizer = tokenizer,
-        unet = ailia.Net(UNET_MODEL_PATH, UNET_WEIGHT_PATH, args.env_id, memory_mode = memory_mode),
-        vae_decoder = ailia.Net(VAE_DECODER_MODEL_PATH, VAE_DECODER_WEIGHT_PATH, args.env_id, memory_mode = memory_mode)
+        unet = ailia.Net(UNET_MODEL_PATH, UNET_WEIGHT_PATH, args.env_id, memory_mode = args.memory_mode),
+        vae_decoder = ailia.Net(VAE_DECODER_MODEL_PATH, VAE_DECODER_WEIGHT_PATH, args.env_id, memory_mode = args.memory_mode)
     )
 
     generate_from_image_text(

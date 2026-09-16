@@ -98,6 +98,7 @@ def recognize_from_image():
         range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
         env_id=args.env_id,
+        memory_mode=args.memory_mode,
     )
     if args.detection_width != DETECTION_SIZE or args.detection_height != DETECTION_SIZE:
         detector.set_input_shape(
@@ -158,6 +159,7 @@ def recognize_from_video():
         range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
         env_id=args.env_id,
+        memory_mode=args.memory_mode,
     )
     if args.detection_width != DETECTION_SIZE or args.detection_height != DETECTION_SIZE:
         detector.set_input_shape(

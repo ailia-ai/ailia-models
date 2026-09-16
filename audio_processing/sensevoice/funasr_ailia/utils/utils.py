@@ -76,9 +76,9 @@ class OrtInferSession:
 class AiliaInferSession:
     session = None
 
-    def __init__(self, model_file, env_id = -1, profile = False):
+    def __init__(self, model_file, env_id = -1, profile = False, memory_mode = None):
         import ailia
-        self.session = ailia.Net(weight=model_file, env_id=env_id, memory_mode=11)
+        self.session = ailia.Net(weight=model_file, env_id=env_id, memory_mode=memory_mode)
         self.profile = profile
         if self.profile:
             self.session.set_profile_mode(ailia.PROFILE_AVERAGE)

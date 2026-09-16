@@ -118,23 +118,28 @@ def main():
     # initialize
     unet = OnnxRuntimeModel.from_pretrained(
         "./", "unet.onnx", args.onnx, env_id,
-        {'provider': 'CPUExecutionProvider', 'sess_options': None}
+        {'provider': 'CPUExecutionProvider', 'sess_options': None},
+        memory_mode=args.memory_mode
     )
     safety_checker = OnnxRuntimeModel.from_pretrained(
         "./", "safety_checker.onnx", args.onnx, env_id,
-        {'provider': 'CPUExecutionProvider', 'sess_options': None}
+        {'provider': 'CPUExecutionProvider', 'sess_options': None},
+        memory_mode=args.memory_mode
     )
     vae_decoder = OnnxRuntimeModel.from_pretrained(
         "./", "vae_decoder.onnx", args.onnx, env_id,
-        {'provider': 'CPUExecutionProvider', 'sess_options': None}
+        {'provider': 'CPUExecutionProvider', 'sess_options': None},
+        memory_mode=args.memory_mode
     )
     text_encoder = OnnxRuntimeModel.from_pretrained(
         "./", "text_encoder.onnx", args.onnx, env_id,
-        {'provider': 'CPUExecutionProvider', 'sess_options': None}
+        {'provider': 'CPUExecutionProvider', 'sess_options': None},
+        memory_mode=args.memory_mode
     )
     vae_encoder = OnnxRuntimeModel.from_pretrained(
         "./", "vae_encoder.onnx", args.onnx, env_id,
-        {'provider': 'CPUExecutionProvider', 'sess_options': None}
+        {'provider': 'CPUExecutionProvider', 'sess_options': None},
+        memory_mode=args.memory_mode
     )
 
     pndm_scheduler = df.schedulers.scheduling_pndm.PNDMScheduler.from_pretrained(

@@ -53,6 +53,7 @@ def recognize_from_image():
         env_id=args.env_id,
         format=ailia.NETWORK_IMAGE_FORMAT_RGB,
         range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
+        memory_mode=args.memory_mode,
     )
 
     # input image loop
@@ -92,6 +93,7 @@ def recognize_from_video():
         env_id=args.env_id,
         format=ailia.NETWORK_IMAGE_FORMAT_RGB,
         range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
+        memory_mode=args.memory_mode,
     )
 
     capture = webcamera_utils.get_capture(args.video)

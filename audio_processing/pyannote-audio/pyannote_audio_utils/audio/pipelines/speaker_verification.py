@@ -98,7 +98,7 @@ class ONNXWeSpeakerPretrainedSpeakerEmbedding(BaseInference):
         else:
             #print("use ailia")
 
-            self.session_ = ailia.Net(emb_path, weight=embedding, env_id=args.env_id)
+            self.session_ = ailia.Net(emb_path, weight=embedding, env_id=args.env_id, memory_mode=args.memory_mode)
         
         self.args = args
  

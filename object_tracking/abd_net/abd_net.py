@@ -335,7 +335,7 @@ def main():
 
     # initialize
     logger.info(f'env_id: {args.env_id}')
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     for input_path in args.input:
         

@@ -93,7 +93,7 @@ def detect_faces(image):
     else:
         from gazelle_utils.face_detection import ailia_face_detect
         check_and_download_models(FACE_WEIGHT_PATH, FACE_MODEL_PATH, FACE_REMOTE_PATH)
-        net_retinaface = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id)
+        net_retinaface = ailia.Net(FACE_MODEL_PATH, FACE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         bboxes = ailia_face_detect(image, net_retinaface, args.face_detect_arch)
     return bboxes
 
@@ -231,8 +231,8 @@ def main():
     check_and_download_models(WEIGHT_DECODER_PATH, MODEL_DECODER_PATH, REMOTE_PATH)
 
     # model initialize
-    net_backbone = ailia.Net(MODEL_BACKBONE_PATH, WEIGHT_BACKBONE_PATH, env_id=args.env_id)
-    net_decoder = ailia.Net(MODEL_DECODER_PATH, WEIGHT_DECODER_PATH, env_id=args.env_id)
+    net_backbone = ailia.Net(MODEL_BACKBONE_PATH, WEIGHT_BACKBONE_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    net_decoder = ailia.Net(MODEL_DECODER_PATH, WEIGHT_DECODER_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     model = GazeLLE(backbone=net_backbone, decoder=net_decoder, inout=INOUT)
 
     if args.video is not None:

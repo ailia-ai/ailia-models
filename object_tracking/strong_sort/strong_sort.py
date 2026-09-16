@@ -393,11 +393,10 @@ def main():
     # initialize
     linker = None
     if args.AFLink:
-        linker = ailia.Net(MODEL_AFLINK_PATH, WEIGHT_AFLINK_PATH, env_id=env_id)
-    frid_net = ailia.Net(MODEL_FRID_PATH, WEIGHT_FRID_PATH, env_id=env_id)
+        linker = ailia.Net(MODEL_AFLINK_PATH, WEIGHT_AFLINK_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    frid_net = ailia.Net(MODEL_FRID_PATH, WEIGHT_FRID_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
-    mem_mode = ailia.get_memory_mode(reduce_constant=True, reuse_interstage=True)
-    det_net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=mem_mode)
+    det_net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     detector = setup_detector(det_net)
 
     max_cosine_distance = 0.45

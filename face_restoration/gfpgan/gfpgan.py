@@ -264,7 +264,7 @@ def main():
 
     # initialize
     if not args.onnx:
-        gfpgan = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+        gfpgan = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         available_providers = onnxruntime.get_available_providers()
@@ -298,7 +298,7 @@ def main():
         else:
             assert not args.onnx, "onnx option not supported for face_det"
 
-            face_det = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id)
+            face_det = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id, memory_mode=args.memory_mode)
             models["face_det"] = face_det
 
     if upscale > 1 and args.realesrgan:

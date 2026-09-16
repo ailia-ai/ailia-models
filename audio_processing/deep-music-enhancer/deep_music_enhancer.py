@@ -165,7 +165,7 @@ def main():
     env_id = args.env_id
 
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
-    net = ailia.Net(model_path, weight_path, env_id=env_id)
+    net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
     audio_bandwidth_extension(net)
 

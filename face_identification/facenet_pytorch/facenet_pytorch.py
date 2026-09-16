@@ -106,14 +106,14 @@ def main():
     check_and_download_models(FACENET_WEIGHT_PATH, FACENET_MODEL_PATH, REMOTE_PATH)
 
     # initialize
-    pnet = ailia.Net(PNET_MODEL_PATH, PNET_WEIGHT_PATH, env_id=args.env_id)
-    rnet = ailia.Net(RNET_MODEL_PATH, RNET_WEIGHT_PATH, env_id=args.env_id)
-    onet = ailia.Net(ONET_MODEL_PATH, ONET_WEIGHT_PATH, env_id=args.env_id)
+    pnet = ailia.Net(PNET_MODEL_PATH, PNET_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    rnet = ailia.Net(RNET_MODEL_PATH, RNET_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
+    onet = ailia.Net(ONET_MODEL_PATH, ONET_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     mtcnn = MTCNN(pnet, rnet, onet,
                   image_size=160, margin=0, min_face_size=20,
                   thresholds=[0.6, 0.7, 0.7], factor=0.709, post_process=True,
     )
-    facenet = ailia.Net(FACENET_MODEL_PATH, FACENET_WEIGHT_PATH, env_id=args.env_id)
+    facenet = ailia.Net(FACENET_MODEL_PATH, FACENET_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
 
     # prepare data

@@ -257,32 +257,26 @@ def main():
 
     # initialize
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         net = ailia.Net(
-            MODEL_UNET_PATH, WEIGHT_UNET_PATH, env_id=env_id, memory_mode=memory_mode
+            MODEL_UNET_PATH, WEIGHT_UNET_PATH, env_id=env_id, memory_mode=args.memory_mode
         )
         vae_encoder = ailia.Net(
             MODEL_VAE_ENC_PATH,
             WEIGHT_VAE_ENC_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         vae_decoder = ailia.Net(
             MODEL_VAE_DEC_PATH,
             WEIGHT_VAE_DEC_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
         audio_encoder = ailia.Net(
             MODEL_AUDIO_ENC_PATH,
             WEIGHT_AUDIO_ENC_PATH,
             env_id=env_id,
-            memory_mode=memory_mode,
+            memory_mode=args.memory_mode,
         )
     else:
         import onnxruntime

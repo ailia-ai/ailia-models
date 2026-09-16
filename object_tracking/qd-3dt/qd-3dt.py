@@ -804,9 +804,9 @@ def main():
 
     # initialize
     if not args.onnx:
-        net_det = ailia.Net(MODEL_DETECTOR_PATH, WEIGHT_DETECTOR_PATH, env_id=env_id)
-        lstm_pred = ailia.Net(MODEL_MOTION_PRED_PATH, WEIGHT_MOTION_PRED_PATH, env_id=env_id)
-        lstm_ref = ailia.Net(MODEL_MOTION_REFINE_PATH, WEIGHT_MOTION_REFINE_PATH, env_id=env_id)
+        net_det = ailia.Net(MODEL_DETECTOR_PATH, WEIGHT_DETECTOR_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        lstm_pred = ailia.Net(MODEL_MOTION_PRED_PATH, WEIGHT_MOTION_PRED_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        lstm_ref = ailia.Net(MODEL_MOTION_REFINE_PATH, WEIGHT_MOTION_REFINE_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         net_det = onnxruntime.InferenceSession(WEIGHT_DETECTOR_PATH)

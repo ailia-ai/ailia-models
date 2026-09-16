@@ -848,14 +848,6 @@ def main():
         os.makedirs(TOKENIZER_DIR, exist_ok=True)
         check_and_download_file(VOCAB_PATH, REMOTE_PATH)
         check_and_download_file(MERGES_PATH, REMOTE_PATH)
-    memory_mode = None
-    if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-        reduce_constant=True,
-        ignore_input_with_initializer=True,
-        reduce_interstage=False,
-        reuse_interstage=True
-        )
     # 0. 乱数シード (サンプリングの再現性用)
     if args.seed is not None:
         np.random.seed(args.seed)
@@ -863,7 +855,7 @@ def main():
     # 1. セットアップ
     if args.onnx:
         logger.info("onnxruntime providers: {}".format(", ".join(ONNX_PROVIDERS)))
-    tts_engine = Qwen3TTS(memory_mode, args.env_id)
+    tts_engine = Qwen3TTS(args.memory_mode, args.env_id)
 
     # 2. 検証用データの指定
     wav_text = args.ref_text

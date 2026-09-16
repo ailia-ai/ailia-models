@@ -328,8 +328,8 @@ def main():
     if not args.onnx:
         env_id = args.env_id
 
-        net = ailia.Net(model_path, weight_path, env_id=env_id)
-        embedder = ailia.Net(model_emb_path, weight_emb_path, env_id=env_id)
+        net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
+        embedder = ailia.Net(model_emb_path, weight_emb_path, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
 

@@ -55,8 +55,7 @@ args = update_parser(parser)
 def create_instance(weight_path, model_path, ):
     if not args.onnx:
         env_id = args.env_id
-        memory_mode = ailia.get_memory_mode(reuse_interstage=True)
-        session = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=memory_mode)
+        session = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         session = onnxruntime.InferenceSession(weight_path)

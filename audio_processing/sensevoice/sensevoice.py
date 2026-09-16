@@ -105,8 +105,8 @@ def recognize_from_audio():
 	for audio_path in args.input:
 		logger.info(audio_path)
 
-		model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH, disable_optimization=args.quantize is not None)
-		vad = Fsmn_vad_online(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, profile=args.profile, model_file=VAD_WEIGHT_PATH)
+		model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH, disable_optimization=args.quantize is not None, memory_mode=args.memory_mode)
+		vad = Fsmn_vad_online(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, profile=args.profile, model_file=VAD_WEIGHT_PATH, memory_mode=args.memory_mode)
 
 		# vad
 		speech, sample_rate = soundfile.read(audio_path)
@@ -180,8 +180,8 @@ def recognize_from_mic():
 	# input audio loop
 	logger.info("Start inference...")
 
-	model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH, disable_optimization=args.quantize is not None)
-	vad = Fsmn_vad_online(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, profile=args.profile, model_file=VAD_WEIGHT_PATH)
+	model = SenseVoiceSmall(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, ailia_tokenizer=not args.disable_ailia_tokenizer, profile=args.profile, model_file=WEIGHT_PATH, disable_optimization=args.quantize is not None, memory_mode=args.memory_mode)
+	vad = Fsmn_vad_online(env_id=args.env_id, onnx=args.onnx, ailia_audio=not args.disable_ailia_audio, profile=args.profile, model_file=VAD_WEIGHT_PATH, memory_mode=args.memory_mode)
 
 	import sounddevice
 

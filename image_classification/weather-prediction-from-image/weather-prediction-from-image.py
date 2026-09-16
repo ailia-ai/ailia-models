@@ -66,7 +66,7 @@ def _prepare_data(args, image_path=None, frame=None):
 
 
 def _initialize_net(args):
-    return ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    return ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
 
 def _infer(img, net):

@@ -74,7 +74,7 @@ def main():
 
     candidate_labels = CANDIDATE_LABELS.split(", ")
 
-    ailia_model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    ailia_model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.disable_ailia_tokenizer:
         from transformers import AutoTokenizer

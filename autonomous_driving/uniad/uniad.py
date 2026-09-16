@@ -1456,26 +1456,41 @@ def main():
 
     # initialize
     if not args.onnx:
-        bev_encoder = ailia.Net(MODEL_BEV_ENC_PATH, WEIGHT_BEV_ENC_PATH, env_id=env_id)
+        bev_encoder = ailia.Net(
+            MODEL_BEV_ENC_PATH, WEIGHT_BEV_ENC_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
+        )
         track_head = ailia.Net(
-            MODEL_TRACK_HEAD_PATH, WEIGHT_TRACK_HEAD_PATH, env_id=env_id
+            MODEL_TRACK_HEAD_PATH, WEIGHT_TRACK_HEAD_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
         )
         memory_bank = ailia.Net(
-            MODEL_MEMORY_BANK_PATH, WEIGHT_MEMORY_BANK_PATH, env_id=env_id
+            MODEL_MEMORY_BANK_PATH, WEIGHT_MEMORY_BANK_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
         )
         memory_bank_update = ailia.Net(
-            MODEL_MEMORY_BANK_UPD_PATH, WEIGHT_MEMORY_BANK_UPD_PATH, env_id=env_id
+            MODEL_MEMORY_BANK_UPD_PATH, WEIGHT_MEMORY_BANK_UPD_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
         )
         query_interact = ailia.Net(
-            MODEL_QUERY_INTERACTION_PATH, WEIGHT_QUERY_INTERACTION_PATH, env_id=env_id
+            MODEL_QUERY_INTERACTION_PATH, WEIGHT_QUERY_INTERACTION_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
         )
-        seg_head = ailia.Net(MODEL_SEG_HEAD_PATH, WEIGHT_SEG_HEAD_PATH, env_id=env_id)
+        seg_head = ailia.Net(
+            MODEL_SEG_HEAD_PATH, WEIGHT_SEG_HEAD_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
+        )
         motion_head = ailia.Net(
-            MODEL_MOTION_HEAD_PATH, WEIGHT_MOTION_HEAD_PATH, env_id=env_id
+            MODEL_MOTION_HEAD_PATH, WEIGHT_MOTION_HEAD_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
         )
-        occ_head = ailia.Net(MODEL_OCC_HEAD_PATH, WEIGHT_OCC_HEAD_PATH, env_id=env_id)
+        occ_head = ailia.Net(
+            MODEL_OCC_HEAD_PATH, WEIGHT_OCC_HEAD_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
+        )
         planning_head = ailia.Net(
-            MODEL_PLANNING_HEAD_PATH, WEIGHT_PLANNING_HEAD_PATH, env_id=env_id
+            MODEL_PLANNING_HEAD_PATH, WEIGHT_PLANNING_HEAD_PATH, env_id=env_id,
+            memory_mode=args.memory_mode
         )
     else:
         import onnxruntime

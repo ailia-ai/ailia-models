@@ -152,7 +152,7 @@ def main():
                 shutil.unpack_archive('ipadic.zip', '')
             tokenizer = BertJapaneseWordPieceTokenizer.from_pretrained(dict_path='ipadic', pretrained_model_name_or_path='./tokenizer/bert-base-japanese-whole-word-masking/')
 
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     net.set_input_blob_shape(
         (1, PADDING_LEN), net.find_blob_index_by_name("token_type_ids")
     )

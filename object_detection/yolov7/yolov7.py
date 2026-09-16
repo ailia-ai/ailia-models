@@ -246,7 +246,7 @@ def main():
 
     env_id = args.env_id
 
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     if args.detection_width!=-1 or args.detection_height!=-1:
         global WIDTH,HEIGHT
         imgsz = max(args.detection_width, args.detection_height)

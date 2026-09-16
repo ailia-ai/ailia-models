@@ -405,9 +405,9 @@ def main():
     env_id = args.env_id
 
     # initialize
-    face_detector = ailia.Net(model_path, weight_path, env_id=env_id)
+    face_detector = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
     landmark_detector = ailia.Net(
-        MODEL_LANDMARK_PATH, WEIGHT_LANDMARK_PATH, env_id=env_id)
+        MODEL_LANDMARK_PATH, WEIGHT_LANDMARK_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         recognize_from_video(landmark_detector, face_detector)

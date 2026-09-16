@@ -413,10 +413,10 @@ def main():
     # initialize
     bls_net = None
     if not args.onnx:
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
-        det_net = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+        det_net = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=env_id, memory_mode=args.memory_mode)
         if args.blendshape:
-            bls_net = ailia.Net(MODEL_BLENDSHAPE_PATH, WEIGHT_BLENDSHAPE_PATH, env_id=env_id)
+            bls_net = ailia.Net(MODEL_BLENDSHAPE_PATH, WEIGHT_BLENDSHAPE_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         cuda = 0 < ailia.get_gpu_environment_id()

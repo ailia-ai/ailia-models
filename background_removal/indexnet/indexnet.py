@@ -212,6 +212,7 @@ def recognize_from_image(net):
             SEGMENTATION_MODEL_PATH,
             SEGMENTATION_WEIGHT_PATH,
             env_id=args.env_id,
+            memory_mode=args.memory_mode,
         )
 
     # input image loop
@@ -255,6 +256,7 @@ def recognize_from_video(net):
         SEGMENTATION_MODEL_PATH,
         SEGMENTATION_WEIGHT_PATH,
         env_id=args.env_id,
+        memory_mode=args.memory_mode,
     )
 
     capture = webcamera_utils.get_capture(args.video)
@@ -331,7 +333,7 @@ def main():
     )
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

@@ -222,7 +222,7 @@ def main():
     env_id = args.env_id
 
     # initialize
-    net = ailia.Net(None, WEIGHT_PATH, env_id=env_id)
+    net = ailia.Net(None, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         recognize_from_video(net)

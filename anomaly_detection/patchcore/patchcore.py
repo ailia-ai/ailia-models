@@ -106,6 +106,10 @@ parser.add_argument(
 )
 args = update_parser(parser)
 
+# get_blob_data() reads an intermediate blob, so REUSE_INTERSTAGE cannot be used
+args.memory_mode = ailia.get_memory_mode(reduce_constant=True)
+logger.info(f'memory_mode: {args.memory_mode} (overridden)')
+
 
 # ======================
 # Main functions
@@ -427,7 +431,7 @@ def main():
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
     # create net instance
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
     train_and_infer(net, params)
 
 

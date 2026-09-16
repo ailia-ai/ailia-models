@@ -215,7 +215,9 @@ def train_button_clicked():
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
     # create net instance
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    # get_blob_data() reads an intermediate blob, so REUSE_INTERSTAGE cannot be used
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id,
+                    memory_mode=ailia.get_memory_mode(reduce_constant=True))
 
     # training
     batch_size = 32
@@ -258,7 +260,9 @@ def test_button_clicked():
 
     # create net instance
     env_id = ailia.get_gpu_environment_id()
-    net = ailia.Net(model_path, weight_path, env_id=env_id)
+    # get_blob_data() reads an intermediate blob, so REUSE_INTERSTAGE cannot be used
+    net = ailia.Net(model_path, weight_path, env_id=env_id,
+                    memory_mode=ailia.get_memory_mode(reduce_constant=True))
 
     # load trained model
     with open("train.pkl", 'rb') as f:

@@ -61,7 +61,8 @@ class OnnxRuntimeModel:
         return self.model.run(None, inputs)
 
     @staticmethod
-    def load_model(path: Union[str, Path], onnx=False, env_id=-1, provider=None, sess_options=None):
+    def load_model(path: Union[str, Path], onnx=False, env_id=-1, provider=None, sess_options=None,
+                   memory_mode=None):
         """
         Loads an ONNX Inference session with an ExecutionProvider. Default provider is `CPUExecutionProvider`
 
@@ -73,9 +74,6 @@ class OnnxRuntimeModel:
         """
         if not onnx:
             import ailia
-            memory_mode = ailia.get_memory_mode(
-                reduce_constant=True, ignore_input_with_initializer=True,
-                reduce_interstage=False, reuse_interstage=True)
             return ailia.Net(weight = path, env_id = env_id, memory_mode = memory_mode)
 
         if provider is None:
@@ -98,6 +96,7 @@ class OnnxRuntimeModel:
         file_name: Optional[str] = None,
         provider: Optional[str] = None,
         sess_options: Optional["ort.SessionOptions"] = None,
+        memory_mode=None,
         **kwargs,
     ):
         """
@@ -128,7 +127,8 @@ class OnnxRuntimeModel:
         # load model from local directory
         if os.path.isdir(model_id):
             model = OnnxRuntimeModel.load_model(
-                os.path.join(model_id, model_file_name), onnx, env_id, provider=provider, sess_options=sess_options
+                os.path.join(model_id, model_file_name), onnx, env_id, provider=provider,
+                sess_options=sess_options, memory_mode=memory_mode
             )
             kwargs["model_save_dir"] = Path(model_id)
         # load model from hub
@@ -160,6 +160,7 @@ class OnnxRuntimeModel:
         force_download: bool = True,
         use_auth_token: Optional[str] = None,
         cache_dir: Optional[str] = None,
+        memory_mode=None,
         **model_kwargs,
     ):
         revision = None
@@ -175,5 +176,6 @@ class OnnxRuntimeModel:
             force_download=force_download,
             use_auth_token=use_auth_token,
             file_name=file_name,
+            memory_mode=memory_mode,
             **model_kwargs,
         )

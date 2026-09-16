@@ -431,11 +431,10 @@ def main():
         postnet = onnxruntime.InferenceSession(WEIGHT_PATH_POSTNET)
         waveglow = onnxruntime.InferenceSession(WEIGHT_PATH_WAVEGLOW)
     else:
-        memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
-        decoder_iter = ailia.Net(stream = MODEL_PATH_DECODER_ITER, weight = WEIGHT_PATH_DECODER_ITER, memory_mode = memory_mode, env_id = args.env_id)
-        encoder = ailia.Net(stream = MODEL_PATH_ENCODER, weight = WEIGHT_PATH_ENCODER, memory_mode = memory_mode, env_id = args.env_id)
-        postnet = ailia.Net(stream = MODEL_PATH_POSTNET, weight = WEIGHT_PATH_POSTNET, memory_mode = memory_mode, env_id = args.env_id)
-        waveglow = ailia.Net(stream = MODEL_PATH_WAVEGLOW, weight = WEIGHT_PATH_WAVEGLOW, memory_mode = memory_mode, env_id = args.env_id)
+        decoder_iter = ailia.Net(stream = MODEL_PATH_DECODER_ITER, weight = WEIGHT_PATH_DECODER_ITER, memory_mode = args.memory_mode, env_id = args.env_id)
+        encoder = ailia.Net(stream = MODEL_PATH_ENCODER, weight = WEIGHT_PATH_ENCODER, memory_mode = args.memory_mode, env_id = args.env_id)
+        postnet = ailia.Net(stream = MODEL_PATH_POSTNET, weight = WEIGHT_PATH_POSTNET, memory_mode = args.memory_mode, env_id = args.env_id)
+        waveglow = ailia.Net(stream = MODEL_PATH_WAVEGLOW, weight = WEIGHT_PATH_WAVEGLOW, memory_mode = args.memory_mode, env_id = args.env_id)
         if args.profile:
             decoder_iter.set_profile_mode(True)
             encoder.set_profile_mode(True)

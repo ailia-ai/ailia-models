@@ -37,6 +37,7 @@ class SenseVoiceSmall:
         profile: bool = False,
         model_file = "./sensevoice_small.onnx",
         disable_optimization: bool = False,
+        memory_mode = None,
     ):
 
         config_file = "./s2t_config/config.yaml"
@@ -56,7 +57,7 @@ class SenseVoiceSmall:
             )
         else:
             self.ort_infer = AiliaInferSession(
-                model_file, env_id = env_id, profile = profile
+                model_file, env_id = env_id, profile = profile, memory_mode = memory_mode
             )
         self.batch_size = batch_size
         self.blank_id = 0

@@ -373,14 +373,8 @@ def main():
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
     if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
         net = ailia.Net(
-            model_path, weight_path, env_id=args.env_id, memory_mode=memory_mode
+            model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode
         )
     else:
         import onnxruntime

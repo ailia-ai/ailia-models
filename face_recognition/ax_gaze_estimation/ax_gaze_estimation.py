@@ -155,21 +155,26 @@ class GazeEstimator:
         self.include_head_pose = include_head_pose
         # net initialize
         self.face_detector = ailia.Net(
-            FACE_DET_MODEL_PATH, FACE_DET_WEIGHT_PATH, env_id=args.env_id
+            FACE_DET_MODEL_PATH, FACE_DET_WEIGHT_PATH, env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
         self.face_estimator = ailia.Net(
-            FACE_LM_MODEL_PATH, FACE_LM_WEIGHT_PATH, env_id=args.env_id
+            FACE_LM_MODEL_PATH, FACE_LM_WEIGHT_PATH, env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
         if self.include_iris:
             self.iris_estimator = ailia.Net(
-                IRIS_LM_MODEL_PATH, IRIS_LM_WEIGHT_PATH, env_id=args.env_id
+                IRIS_LM_MODEL_PATH, IRIS_LM_WEIGHT_PATH, env_id=args.env_id,
+                memory_mode=args.memory_mode
             )
         if self.include_head_pose:
             self.hp_estimator = ailia.Net(
-                HEAD_POSE_MODEL_PATH, HEAD_POSE_WEIGHT_PATH, env_id=args.env_id
+                HEAD_POSE_MODEL_PATH, HEAD_POSE_WEIGHT_PATH, env_id=args.env_id,
+                memory_mode=args.memory_mode
             )
         self.gaze_estimator = ailia.Net(
-            GAZE_MODEL_PATH, GAZE_WEIGHT_PATH, env_id=args.env_id
+            GAZE_MODEL_PATH, GAZE_WEIGHT_PATH, env_id=args.env_id,
+            memory_mode=args.memory_mode
         )
 
     def predict(self, img, gazes_only=True):

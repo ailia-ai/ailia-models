@@ -84,6 +84,7 @@ def recognize_from_image():
         env_id=args.env_id,
         format=IMAGE_FORMAT,
         range=IMAGE_RANGE,
+        memory_mode=args.memory_mode,
     )
 
     # input image loop
@@ -125,6 +126,7 @@ def recognize_from_video():
         env_id=args.env_id,
         format=IMAGE_FORMAT,
         range=IMAGE_RANGE,
+        memory_mode=args.memory_mode,
     )
 
     capture = webcamera_utils.get_capture(args.video)

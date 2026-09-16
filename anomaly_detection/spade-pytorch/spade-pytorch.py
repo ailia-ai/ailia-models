@@ -85,6 +85,10 @@ parser.add_argument(
 )
 args = update_parser(parser)
 
+# get_blob_data() reads an intermediate blob, so REUSE_INTERSTAGE cannot be used
+args.memory_mode = ailia.get_memory_mode(reduce_constant=True)
+logger.info(f'memory_mode: {args.memory_mode} (overridden)')
+
 
 # ======================
 # Secondaty Functions
@@ -511,7 +515,7 @@ def main():
     # load model
     env_id = args.env_id
 
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     recognize_from_image(net)
 

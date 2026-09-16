@@ -159,7 +159,8 @@ def save_json(pose, json_path):
 def recognize_from_image():
     # net initialize
     pose = ailia.PoseEstimator(
-        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM
+        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM,
+        memory_mode=args.memory_mode
     )
     if args.detection_width!=IMAGE_WIDTH or args.detection_height!=IMAGE_HEIGHT:
         pose.set_input_shape((1,3,args.detection_height,args.detection_width))
@@ -209,7 +210,8 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     pose = ailia.PoseEstimator(
-        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM
+        MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, algorithm=ALGORITHM,
+        memory_mode=args.memory_mode
     )
     if args.detection_width!=IMAGE_WIDTH or args.detection_height!=IMAGE_HEIGHT:
         pose.set_input_shape((1,3,args.detection_height,args.detection_width))

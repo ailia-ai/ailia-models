@@ -418,21 +418,18 @@ def main():
     # initialize
     if not args.onnx:
         logger.info("This model requires 10GB or more memory.")
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True, ignore_input_with_initializer=True,
-            reduce_interstage=False, reuse_interstage=True)
         transformer_emb = ailia.Net(
-            MODEL_TRANS_EMB_PATH, WEIGHT_TRANS_EMB_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_TRANS_EMB_PATH, WEIGHT_TRANS_EMB_PATH, env_id=env_id, memory_mode=args.memory_mode)
         transformer_attn = ailia.Net(
-            MODEL_TRANS_ATTN_PATH, WEIGHT_TRANS_ATTN_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_TRANS_ATTN_PATH, WEIGHT_TRANS_ATTN_PATH, env_id=env_id, memory_mode=args.memory_mode)
         diffusion_emb = ailia.Net \
-            (MODEL_DFSN_EMB_PATH, WEIGHT_DFSN_EMB_PATH, env_id=env_id, memory_mode=memory_mode)
+            (MODEL_DFSN_EMB_PATH, WEIGHT_DFSN_EMB_PATH, env_id=env_id, memory_mode=args.memory_mode)
         diffusion_mid = ailia.Net(
-            MODEL_DFSN_MID_PATH, WEIGHT_DFSN_MID_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_DFSN_MID_PATH, WEIGHT_DFSN_MID_PATH, env_id=env_id, memory_mode=args.memory_mode)
         diffusion_out = ailia.Net(
-            MODEL_DFSN_OUT_PATH, WEIGHT_DFSN_OUT_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_DFSN_OUT_PATH, WEIGHT_DFSN_OUT_PATH, env_id=env_id, memory_mode=args.memory_mode)
         autoencoder = ailia.Net(
-            MODEL_AUTO_ENC_PATH, WEIGHT_AUTO_ENC_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_AUTO_ENC_PATH, WEIGHT_AUTO_ENC_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         transformer_emb = onnxruntime.InferenceSession(WEIGHT_TRANS_EMB_PATH)

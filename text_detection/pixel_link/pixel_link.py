@@ -143,11 +143,10 @@ def main():
 
     # load model
     env_id = args.env_id
-    memory_mode=ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
     logger.info(f'env_id: {env_id}')
 
     # initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         recognize_from_video(args.video, net)

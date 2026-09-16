@@ -19,6 +19,7 @@ import argparse
 import numpy as np
 
 sys.path.append("../../util")
+from arg_utils import DEFAULT_MEMORY_MODE  # noqa
 from model_utils import check_and_download_models  # noqa
 
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/qwen2_vl/"
@@ -72,13 +73,7 @@ def benchmark_ailia_dynamic(args):
         model_path = "Qwen2-VL-2B.onnx.prototxt"
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True,
-        ignore_input_with_initializer=True,
-        reduce_interstage=False,
-        reuse_interstage=True,
-    )
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=memory_mode)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.profile:
         net.set_profile_mode(ailia.PROFILE_AVERAGE)
@@ -293,13 +288,7 @@ def benchmark_ailia_static(args):
         model_path = "Qwen2-VL-2B.onnx.prototxt"
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True,
-        ignore_input_with_initializer=True,
-        reduce_interstage=False,
-        reuse_interstage=True,
-    )
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=memory_mode)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # Use a fixed seq_len for all steps (no dynamic shape change)
     seq_len = args.init_tokens + args.warmup + args.steps
@@ -378,6 +367,8 @@ def main():
         description="Benchmark dynamic shape overhead: ailia vs ONNX Runtime")
     parser.add_argument("--model_type", type=str, default="fp32",
                         choices=["fp32", "int4"])
+    parser.add_argument("--memory_mode", type=int, default=DEFAULT_MEMORY_MODE,
+                        help="ailia memory mode (default 11)")
     parser.add_argument("--env_id", type=int, default=1,
                         help="ailia environment id (default: 1 = CPU-BLAS)")
     parser.add_argument("--onnxruntime", action="store_true",

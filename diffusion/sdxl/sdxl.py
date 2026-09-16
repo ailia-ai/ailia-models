@@ -719,16 +719,8 @@ def main():
 
     env_id = args.env_id
 
-    memory_mode = None
     providers = None
-    if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
-    else:
+    if args.onnx:
         cuda = 0 < ailia.get_gpu_environment_id()
         providers = (
             ["CUDAExecutionProvider", "CPUExecutionProvider"]
@@ -739,7 +731,7 @@ def main():
     def load_net(model_path, weight_path):
         if not args.onnx:
             return ailia.Net(
-                model_path, weight_path, env_id=env_id, memory_mode=memory_mode
+                model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode
             )
         else:
             import onnxruntime

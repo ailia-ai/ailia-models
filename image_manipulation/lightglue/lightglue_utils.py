@@ -15,12 +15,13 @@ class LightGlueRunner:
         self,
         lightglue_path: str,
         extractor_path=None,
-        env_id=None
+        env_id=None,
+        memory_mode=None
     ):
         self.extractor = (
-            ailia.Net(None,extractor_path,env_id=env_id)
+            ailia.Net(None,extractor_path,env_id=env_id,memory_mode=memory_mode)
         )
-        self.lightglue = ailia.Net(None,lightglue_path,env_id=env_id)
+        self.lightglue = ailia.Net(None,lightglue_path,env_id=env_id,memory_mode=memory_mode)
 
     def run(self, image0: np.ndarray, image1: np.ndarray, scales0, scales1):
         if self.extractor is None:

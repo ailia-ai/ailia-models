@@ -200,25 +200,25 @@ def main():
 
     # net initialize
     if args.model == 'color':
-        net = ailia.Net(COLOR_MODEL_PATH, COLOR_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(COLOR_MODEL_PATH, COLOR_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         n_channels = 3
         #qf_list = [10, 20, 30, 40, 50, 60, 70, 80, 90]
         qf = 10
         qf2 = False
     elif args.model == 'color_real':
-        net = ailia.Net(COLOR_REAL_MODEL_PATH, COLOR_REAL_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(COLOR_REAL_MODEL_PATH, COLOR_REAL_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         n_channels = 3
         #qf_list = [5, 10, 30, 50, 70, 90]
         qf = False
         qf2 = False
     elif args.model == 'gray':
-        net = ailia.Net(GRAY_MODEL_PATH, GRAY_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(GRAY_MODEL_PATH, GRAY_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         n_channels = 1
         #qf_list = [10, 20, 30, 40, 50, 60, 70, 80, 90]
         qf = 10
         qf2 = False
     elif args.model == 'gray_doublejpeg':
-        net = ailia.Net(GRAY_DOUBLEJPEG_MODEL_PATH, GRAY_DOUBLEJPEG_WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(GRAY_DOUBLEJPEG_MODEL_PATH, GRAY_DOUBLEJPEG_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         n_channels = 1
         #qf_list = [10, 30, 50]
         qf = 10

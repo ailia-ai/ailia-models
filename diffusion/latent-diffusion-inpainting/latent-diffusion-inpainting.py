@@ -326,15 +326,12 @@ def main():
     # initialize
     if not args.onnx:
         logger.info("This model requires 10GB or more memory.")
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True, ignore_input_with_initializer=True,
-            reduce_interstage=False, reuse_interstage=True)
         cond_stage_model = ailia.Net(
-            MODEL_COND_STAGE_PATH, WEIGHT_COND_STAGE_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_COND_STAGE_PATH, WEIGHT_COND_STAGE_PATH, env_id=env_id, memory_mode=args.memory_mode)
         diffusion_model = ailia.Net(
-            MODEL_DFSN_PATH, WEIGHT_DFSN_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_DFSN_PATH, WEIGHT_DFSN_PATH, env_id=env_id, memory_mode=args.memory_mode)
         autoencoder = ailia.Net(
-            MODEL_AUTO_ENC_PATH, WEIGHT_AUTO_ENC_PATH, env_id=env_id, memory_mode=memory_mode)
+            MODEL_AUTO_ENC_PATH, WEIGHT_AUTO_ENC_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else:
         import onnxruntime
         cond_stage_model = onnxruntime.InferenceSession(WEIGHT_COND_STAGE_PATH)

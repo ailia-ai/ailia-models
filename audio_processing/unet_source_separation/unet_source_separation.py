@@ -152,8 +152,7 @@ def recognize_one_audio(input_path):
         logger.info('Use ailia')
         env_id = args.env_id
         logger.info(f'env_id: {env_id}')
-        memory_mode = ailia.get_memory_mode(reuse_interstage=True)
-        session = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode)
+        session = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     else :
         logger.info('Use onnxruntime')
         import onnxruntime

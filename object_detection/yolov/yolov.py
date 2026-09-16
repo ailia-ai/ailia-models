@@ -329,7 +329,7 @@ def main():
 
     env_id = args.env_id
 
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

@@ -162,9 +162,9 @@ def main(func):
 
     # create instance
     if args.mode == "audio_tagging":
-        model = ailia.Net(None,WEIGHT_TAGGING_PATH)
+        model = ailia.Net(None,WEIGHT_TAGGING_PATH, memory_mode=args.memory_mode)
     elif args.mode == "sound_event_detection":
-        model = ailia.Net(None,WEIGHT_DETECTION_PATH)
+        model = ailia.Net(None,WEIGHT_DETECTION_PATH, memory_mode=args.memory_mode)
 
     logger.info('Start inference...')
     if args.benchmark:

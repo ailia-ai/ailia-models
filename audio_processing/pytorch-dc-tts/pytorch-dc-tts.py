@@ -95,8 +95,8 @@ def generate_sentence(sentence):
     L, Y, zeros, A = preprocess(sentence)
 
     # model initialize
-    net_t2m = ailia.Net(MODEL_PATH_T2M, WEIGHT_PATH_T2M, env_id=args.env_id)
-    net_ssrm = ailia.Net(MODEL_PATH_SSRM, WEIGHT_PATH_SSRM, env_id=args.env_id)
+    net_t2m = ailia.Net(MODEL_PATH_T2M, WEIGHT_PATH_T2M, env_id=args.env_id, memory_mode=args.memory_mode)
+    net_ssrm = ailia.Net(MODEL_PATH_SSRM, WEIGHT_PATH_SSRM, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # inference
     logger.info('Start inference...')

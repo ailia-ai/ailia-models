@@ -269,8 +269,8 @@ def main():
 
         # initialize
         if not args.onnx:
-            net_image = ailia.Net(MODEL_IMAGE_PATH, WEIGHT_IMAGE_PATH, env_id=env_id)
-            net_text = ailia.Net(MODEL_TEXT_PATH, WEIGHT_TEXT_PATH, env_id=env_id)
+            net_image = ailia.Net(MODEL_IMAGE_PATH, WEIGHT_IMAGE_PATH, env_id=env_id, memory_mode=args.memory_mode)
+            net_text = ailia.Net(MODEL_TEXT_PATH, WEIGHT_TEXT_PATH, env_id=env_id, memory_mode=args.memory_mode)
         else:
             import onnxruntime
 
@@ -285,7 +285,7 @@ def main():
 
         # initialize
         if not args.onnx:
-            net = ailia.Net(MODEL_PATH, WEIGTH_PATH, env_id=env_id)
+            net = ailia.Net(MODEL_PATH, WEIGTH_PATH, env_id=env_id, memory_mode=args.memory_mode)
         else:
             import onnxruntime
 

@@ -232,21 +232,21 @@ def main():
 
     # net initialize
     if args.model_1 == 'streetview_affine':
-        net_1 = ailia.Net(MODEL_STREETVIEW_AFFINE_PATH, WEIGHT_STREETVIEW_AFFINE_PATH, env_id=args.env_id)
+        net_1 = ailia.Net(MODEL_STREETVIEW_AFFINE_PATH, WEIGHT_STREETVIEW_AFFINE_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.model_1 == 'streetview_hom':
-        net_1 = ailia.Net(MODEL_STREETVIEW_HOM_PATH, WEIGHT_STREETVIEW_HOM_PATH, env_id=args.env_id)
+        net_1 = ailia.Net(MODEL_STREETVIEW_HOM_PATH, WEIGHT_STREETVIEW_HOM_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.model_1 == 'streetview_tps':
-        net_1 = ailia.Net(MODEL_STREETVIEW_TPS_PATH, WEIGHT_STREETVIEW_TPS_PATH, env_id=args.env_id)
+        net_1 = ailia.Net(MODEL_STREETVIEW_TPS_PATH, WEIGHT_STREETVIEW_TPS_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     net_1.set_input_shape((1, 1, IMAGE_HEIGHT, IMAGE_WIDTH))
 
     # net_2 initialize
     net_2 = None
     if args.model_2 == 'streetview_affine':
-        net_2 = ailia.Net(MODEL_STREETVIEW_AFFINE_PATH, WEIGHT_STREETVIEW_AFFINE_PATH, env_id=args.env_id)
+        net_2 = ailia.Net(MODEL_STREETVIEW_AFFINE_PATH, WEIGHT_STREETVIEW_AFFINE_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.model_2 == 'streetview_hom':
-        net_2 = ailia.Net(MODEL_STREETVIEW_HOM_PATH, WEIGHT_STREETVIEW_HOM_PATH, env_id=args.env_id)
+        net_2 = ailia.Net(MODEL_STREETVIEW_HOM_PATH, WEIGHT_STREETVIEW_HOM_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     elif args.model_2 == 'streetview_tps':
-        net_2 = ailia.Net(MODEL_STREETVIEW_TPS_PATH, WEIGHT_STREETVIEW_TPS_PATH, env_id=args.env_id)
+        net_2 = ailia.Net(MODEL_STREETVIEW_TPS_PATH, WEIGHT_STREETVIEW_TPS_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.model_2 is not None:
         net_2.set_input_shape((1, 1, IMAGE_HEIGHT, IMAGE_WIDTH))
 

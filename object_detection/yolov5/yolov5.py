@@ -111,7 +111,7 @@ else:
 # ======================
 def recognize_from_image():
     # net initialize
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.profile:
         detector.set_profile_mode(True)
 
@@ -173,7 +173,7 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     detector = None
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     capture = webcamera_utils.get_capture(args.video)
 

@@ -243,7 +243,7 @@ def main():
 
     # initialize
     if not args.onnx:
-        det_model = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=args.env_id)
+        det_model = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         # ik_model = ailia.Net(MODEL_IK_PATH, WEIGHT_IK_PATH, env_id=args.env_id)
     else:
         import onnxruntime

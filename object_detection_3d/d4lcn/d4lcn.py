@@ -494,10 +494,7 @@ def main():
     env_id = args.env_id
 
     # initialize
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True, ignore_input_with_initializer=True,
-        reduce_interstage=True, reuse_interstage=False)
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     recognize_from_image(net)
 

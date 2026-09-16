@@ -14,6 +14,7 @@ import argparse
 import numpy as np
 
 sys.path.append("../../util")
+from arg_utils import DEFAULT_MEMORY_MODE  # noqa
 from model_utils import check_and_download_models  # noqa
 
 
@@ -48,13 +49,7 @@ def benchmark_ailia(args, weight_path, model_path, input_ids, inputs_embeds,
                     position_ids, attention_mask, past_key_values, seq_len):
     import ailia
 
-    memory_mode = ailia.get_memory_mode(
-        reduce_constant=True,
-        ignore_input_with_initializer=True,
-        reduce_interstage=False,
-        reuse_interstage=True,
-    )
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=memory_mode)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # First run to initialize
     all_inputs = [input_ids, inputs_embeds, position_ids, attention_mask, *past_key_values]
@@ -221,6 +216,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_type", type=str, default="fp32", choices=["fp32", "int4"])
     parser.add_argument("--env_id", type=int, default=-1)
+    parser.add_argument("--memory_mode", type=int, default=DEFAULT_MEMORY_MODE,
+                        help="ailia memory mode (default 11)")
     parser.add_argument("--seq_len", type=int, default=100,
                         help="Simulated past sequence length for KV cache")
     parser.add_argument("--onnxruntime", action="store_true",

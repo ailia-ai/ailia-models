@@ -341,8 +341,9 @@ def main():
         range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
         env_id=env_id,
+        memory_mode=args.memory_mode,
     )
-    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=env_id)
+    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.benchmark:
         args.no_detector = True

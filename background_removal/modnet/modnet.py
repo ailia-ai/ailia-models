@@ -45,7 +45,7 @@ INFERENCE_HEIGHT = 512
 # ======================
 def recognize_from_image():
     env_id = args.env_id
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -94,7 +94,7 @@ def recognize_from_image():
 def recognize_from_video():
     # net initialize
     env_id = args.env_id
-    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+    detector = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     capture = webcamera_utils.get_capture(args.video)
 
     # create video writer if savepath is specified as video format

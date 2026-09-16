@@ -164,7 +164,7 @@ def main():
 
     # net initialize
     env_id = args.env_id
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
     if args.arch=="erfnet":
         net.set_input_shape((1, 3, HEIGHT, WIDTH))
     elif args.arch=="scnn":

@@ -97,7 +97,7 @@ def main():
     splited_text, *input_data = preprocess(tokenizer, text)
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # inference
     logger.info('Start summarize...')

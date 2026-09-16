@@ -169,7 +169,7 @@ def init():
     models = {}
     for k, v in MODELS.items():
         models[k] = ailia.Net(v['model_path'], v['weight_path'],
-                                env_id=args.env_id)
+                                env_id=args.env_id, memory_mode=args.memory_mode)
     return models
 
 def predict(models, raw_img):

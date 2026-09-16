@@ -98,6 +98,7 @@ def init_detector(env_id):
         range=ailia.NETWORK_IMAGE_RANGE_U_FP32,
         algorithm=ailia.DETECTOR_ALGORITHM_YOLOV3,
         env_id=env_id,
+        memory_mode=args.memory_mode,
     )
     return detector
 
@@ -111,7 +112,7 @@ def recognize_from_video():
 
     # net initialize
     detector = init_detector(args.env_id)
-    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=args.env_id)
+    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # tracker class instance
     metric = NearestNeighborDistanceMetric(
@@ -265,7 +266,7 @@ def compare_images():
 
     # net initialize
     detector = init_detector(args.env_id)
-    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=args.env_id)
+    extractor = ailia.Net(EX_MODEL_PATH, EX_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # prepare input data
     input_data = []

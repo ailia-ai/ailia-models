@@ -221,7 +221,7 @@ def main():
     check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
     # initialize
-    net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+    net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         recognize_from_video(args.video, net)

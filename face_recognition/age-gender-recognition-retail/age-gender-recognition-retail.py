@@ -299,11 +299,11 @@ def main():
 
     # net initialize
     net = ailia.Net(
-        MODEL_PATH, WEIGHT_PATH, env_id=env_id
+        MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode
     )
     detector = None
     if det_weight_path:
-        detector = ailia.Net(det_model_path, det_weight_path, env_id=env_id)
+        detector = ailia.Net(det_model_path, det_weight_path, env_id=env_id, memory_mode=args.memory_mode)
         detector = setup_detector(detector)
 
     # image mode

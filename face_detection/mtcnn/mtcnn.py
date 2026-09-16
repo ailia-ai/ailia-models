@@ -62,7 +62,7 @@ args = update_parser(parser)
 # ======================
 def recognize_from_image():
 
-    detector = MTCNN(steps_threshold=args.threshold)
+    detector = MTCNN(steps_threshold=args.threshold, memory_mode=args.memory_mode)
 
     # input image loop
     for image_path in args.input:
@@ -119,7 +119,7 @@ def recognize_from_video():
 
     capture = webcamera_utils.get_capture(args.video)
 
-    detector = MTCNN(steps_threshold=[0.6,0.7,0.7])
+    detector = MTCNN(steps_threshold=[0.6,0.7,0.7], memory_mode=args.memory_mode)
 
     # create video writer if savepath is specified as video format
     if args.savepath != SAVE_IMAGE_PATH:

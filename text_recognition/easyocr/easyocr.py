@@ -156,39 +156,39 @@ if __name__ == '__main__':
     check_and_download_models(RECOGNIZER_THAI_WEIGHT_PATH, RECOGNIZER_THAI_MODEL_PATH, REMOTE_PATH)
 
     # set model
-    detector = ailia.Net(DETECTOR_MODEL_PATH, DETECTOR_WEIGHT_PATH, env_id=args.env_id)
+    detector = ailia.Net(DETECTOR_MODEL_PATH, DETECTOR_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
     if args.language == 'chinese':
-        recognizer = ailia.Net(RECOGNIZER_CHINESE_MODEL_PATH, RECOGNIZER_CHINESE_WEIGHT_PATH, env_id=args.env_id)
+        recognizer = ailia.Net(RECOGNIZER_CHINESE_MODEL_PATH, RECOGNIZER_CHINESE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         lang_list = ['ch_sim','en']
         character = recognition_models['zh_sim_g2']['characters']
         symbol = recognition_models['zh_sim_g2']['symbols']
 
     elif args.language == 'japanese':
-        recognizer = ailia.Net(RECOGNIZER_JAPANESE_MODEL_PATH, RECOGNIZER_JAPANESE_WEIGHT_PATH, env_id=args.env_id)
+        recognizer = ailia.Net(RECOGNIZER_JAPANESE_MODEL_PATH, RECOGNIZER_JAPANESE_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         lang_list = ['ja','en']
         character = recognition_models['japanese_g2']['characters']
         symbol = recognition_models['japanese_g2']['symbols']
 
     elif args.language == 'english':
-        recognizer = ailia.Net(RECOGNIZER_ENGLISH_MODEL_PATH, RECOGNIZER_ENGLISH_WEIGHT_PATH, env_id=args.env_id)
+        recognizer = ailia.Net(RECOGNIZER_ENGLISH_MODEL_PATH, RECOGNIZER_ENGLISH_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         lang_list = ['en']
         character = recognition_models['english_g2']['characters']
         symbol = recognition_models['english_g2']['symbols']
 
     elif args.language == 'french':
-        recognizer = ailia.Net(RECOGNIZER_FRENCH_MODEL_PATH, RECOGNIZER_FRENCH_WEIGHT_PATH, env_id=args.env_id)
+        recognizer = ailia.Net(RECOGNIZER_FRENCH_MODEL_PATH, RECOGNIZER_FRENCH_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         lang_list = ['fr', 'en']
         character = recognition_models['latin_g2']['characters']
         symbol = recognition_models['latin_g2']['symbols']
 
     elif args.language == 'korean':
-        recognizer = ailia.Net(RECOGNIZER_KOREAN_MODEL_PATH, RECOGNIZER_KOREAN_WEIGHT_PATH, env_id=args.env_id)
+        recognizer = ailia.Net(RECOGNIZER_KOREAN_MODEL_PATH, RECOGNIZER_KOREAN_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         lang_list = ['ko', 'en']
         character = recognition_models['korean_g2']['characters']
         symbol = recognition_models['korean_g2']['symbols']
 
     elif args.language == 'thai':
-        recognizer = ailia.Net(RECOGNIZER_THAI_MODEL_PATH, RECOGNIZER_THAI_WEIGHT_PATH, env_id=args.env_id)
+        recognizer = ailia.Net(RECOGNIZER_THAI_MODEL_PATH, RECOGNIZER_THAI_WEIGHT_PATH, env_id=args.env_id, memory_mode=args.memory_mode)
         lang_list = ['th']
         character = recognition_models['thai_g1']['characters']
         symbol = recognition_models['thai_g1']['symbols']

@@ -156,7 +156,7 @@ def main():
 
         net = onnxruntime.InferenceSession(weight_path)
     else:
-        net = ailia.Net(model_path, weight_path, env_id=args.env_id)
+        net = ailia.Net(model_path, weight_path, env_id=args.env_id, memory_mode=args.memory_mode)
 
     # check input
     if args.video:

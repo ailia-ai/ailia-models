@@ -237,8 +237,7 @@ def main():
         
         hifi = onnxruntime.InferenceSession(WEIGHT_PATH_hifi)
     else:
-        memory_mode = ailia.get_memory_mode(reduce_constant=True, ignore_input_with_initializer=True, reduce_interstage=False, reuse_interstage=True)
-        hifi = ailia.Net(stream = MODEL_PATH_hifi, weight = WEIGHT_PATH_hifi, memory_mode = memory_mode, env_id = args.env_id)
+        hifi = ailia.Net(stream = MODEL_PATH_hifi, weight = WEIGHT_PATH_hifi, memory_mode = args.memory_mode, env_id = args.env_id)
         if args.profile:
             hifi.set_profile_mode(True)
 

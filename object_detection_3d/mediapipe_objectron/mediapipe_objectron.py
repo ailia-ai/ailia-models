@@ -407,8 +407,8 @@ def main():
     env_id = args.env_id
 
     # initialize
-    det_net = ailia.Net(MODEL_DETECTION_PATH, WEIGHT_DETECTION_PATH, env_id=env_id)
-    reg_net = ailia.Net(model_path, weight_path, env_id=env_id)
+    det_net = ailia.Net(MODEL_DETECTION_PATH, WEIGHT_DETECTION_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    reg_net = ailia.Net(model_path, weight_path, env_id=env_id, memory_mode=args.memory_mode)
 
     if args.video is not None:
         # video mode

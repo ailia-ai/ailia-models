@@ -263,8 +263,8 @@ def main():
     env_id = args.env_id
 
     # initialize
-    querynet = ailia.Net(None, QUERY_WEIGHT_PATH, env_id=env_id)
-    sepnet = ailia.Net(None, SEPNET_WEIGHT_PATH)
+    querynet = ailia.Net(None, QUERY_WEIGHT_PATH, env_id=env_id, memory_mode=args.memory_mode)
+    sepnet = ailia.Net(None, SEPNET_WEIGHT_PATH, memory_mode=args.memory_mode)
     if args.disable_ailia_tokenizer:
         from transformers import RobertaTokenizer
         tokenizer = RobertaTokenizer.from_pretrained('roberta-base')

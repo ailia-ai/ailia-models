@@ -123,9 +123,8 @@ def main():
     # model files check and download
     check_and_download_models(MODEL_PATH, WEIGHT_PATH, REMOTE_PATH)
 
-    memory_mode = ailia.get_memory_mode(reduce_constant=True, reduce_interstage=True)
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH,memory_mode=memory_mode, env_id=args.env_id)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH,memory_mode=args.memory_mode, env_id=args.env_id)
 
     recognize_from_image(net)
 
