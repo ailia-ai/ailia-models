@@ -6,13 +6,13 @@ import ailia
 import cv2
 import numpy as np
 from ailia_tokenizer import GPT2Tokenizer
-from PIL import Image
 
 # import original modules
 sys.path.append("../../util")
 from arg_utils import get_base_parser, update_parser  # noqa
 from detector_utils import load_image  # noqa
 from model_utils import check_and_download_file, check_and_download_models  # noqa
+from resize_utils import tv_resize  # noqa
 
 logger = getLogger(__name__)
 
@@ -110,10 +110,8 @@ def preprocess(img):
         min_pixels=MIN_PIXELS,
         max_pixels=MAX_PIXELS,
     )
-    img = np.array(
-        Image.fromarray(img).resize(
-            (resized_width, resized_height), Image.Resampling.BICUBIC
-        )
+    img = tv_resize(
+        img, (resized_height, resized_width), interpolation="bicubic", antialias=True
     )
 
     img = (img / 255 - IMAGE_MEAN) / IMAGE_STD
