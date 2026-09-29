@@ -1,3 +1,4 @@
+import gc
 import sys
 import time
 from logging import getLogger
@@ -26,8 +27,10 @@ PB_PATH = "colqwen2-v0.1_weights.pb"
 
 # The token embedding and the vision encoder have the same weights as Qwen2-VL-2B,
 # so its vision encoder model is used as is.
-WEIGHT_VIS_PATH = "Qwen2-VL-2B_vis.opt.onnx"
-MODEL_VIS_PATH = "Qwen2-VL-2B_vis.opt.onnx.prototxt"
+WEIGHT_VIS_PATH = "Qwen2-VL-2B_vis.onnx"
+MODEL_VIS_PATH = "Qwen2-VL-2B_vis.onnx.prototxt"
+WEIGHT_VIS_OPT_PATH = "Qwen2-VL-2B_vis.opt.onnx"
+MODEL_VIS_OPT_PATH = "Qwen2-VL-2B_vis.opt.onnx.prototxt"
 PB_VIS_PATH = "Qwen2-VL-2B_vis_weights.pb"
 
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/colqwen2/"
@@ -60,6 +63,11 @@ parser.add_argument(
 parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
 )
+parser.add_argument(
+    "--normal",
+    action="store_true",
+    help="use normal vision encoder model (default : opt model).",
+)
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
 
@@ -84,6 +92,32 @@ DOCUMENT_PROMPT = (
 )
 QUERY_PREFIX = "Query: "
 QUERY_AUGMENTATION = "<|endoftext|>" * 10
+
+
+class LazyModel:
+    """Defers model loading until the first predict/run call."""
+
+    def __init__(self, loader_fn, name=""):
+        self._loader_fn = loader_fn
+        self._name = name
+        self._net = None
+
+    def load(self):
+        if self._net is None:
+            logger.info(f"Loading model: {self._name}")
+            self._net = self._loader_fn()
+        return self._net
+
+    def unload(self):
+        if self._net is not None:
+            self._net = None
+            gc.collect()
+
+    def predict(self, *args, **kwargs):
+        return self.load().predict(*args, **kwargs)
+
+    def run(self, *args, **kwargs):
+        return self.load().run(*args, **kwargs)
 
 
 def smart_resize(height, width, factor, min_pixels, max_pixels):
@@ -238,9 +272,15 @@ def encode_document(models, image_path):
     position_ids = get_rope_index(input_ids, image_grid_thw)
     image_token_id = np.array([IMAGE_TOKEN_ID], dtype=np.int64)
 
-    return embed(
+    embeddings = embed(
         models, input_ids, pixel_values, image_grid_thw, image_token_id, position_ids
     )
+
+    # reload the vision encoder for each image to avoid an ailia issue
+    if not args.onnx:
+        models["visual"].unload()
+
+    return embeddings
 
 
 def encode_query(models, query):
@@ -301,37 +341,41 @@ def recognize(models):
 
 
 def main():
+    if args.normal:
+        weight_vis_path, model_vis_path = WEIGHT_VIS_PATH, MODEL_VIS_PATH
+    else:
+        weight_vis_path, model_vis_path = WEIGHT_VIS_OPT_PATH, MODEL_VIS_OPT_PATH
+
     # model files check and download
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
     check_and_download_file(PB_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_VIS_PATH, MODEL_VIS_PATH, REMOTE_PATH_VIS)
+    check_and_download_models(weight_vis_path, model_vis_path, REMOTE_PATH_VIS)
     check_and_download_file(PB_VIS_PATH, REMOTE_PATH_VIS)
 
     env_id = args.env_id
 
-    # initialize
-    if not args.onnx:
-        memory_mode = ailia.get_memory_mode(
-            reduce_constant=True,
-            ignore_input_with_initializer=True,
-            reduce_interstage=False,
-            reuse_interstage=True,
-        )
-        visual = ailia.Net(
-            MODEL_VIS_PATH, WEIGHT_VIS_PATH, env_id=env_id, memory_mode=memory_mode
-        )
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=env_id, memory_mode=memory_mode)
-    else:
-        import onnxruntime
+    memory_mode = ailia.get_memory_mode(
+        reduce_constant=True,
+        ignore_input_with_initializer=True,
+        reduce_interstage=False,
+        reuse_interstage=True,
+    )
+    cuda = 0 < ailia.get_gpu_environment_id()
+    providers = (
+        ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        if cuda
+        else ["CPUExecutionProvider"]
+    )
 
-        cuda = 0 < ailia.get_gpu_environment_id()
-        providers = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            if cuda
-            else ["CPUExecutionProvider"]
-        )
-        visual = onnxruntime.InferenceSession(WEIGHT_VIS_PATH, providers=providers)
-        net = onnxruntime.InferenceSession(WEIGHT_PATH, providers=providers)
+    def load_net(model_path, weight_path):
+        if not args.onnx:
+            return ailia.Net(
+                model_path, weight_path, env_id=env_id, memory_mode=memory_mode
+            )
+        else:
+            import onnxruntime
+
+            return onnxruntime.InferenceSession(weight_path, providers=providers)
 
     if args.disable_ailia_tokenizer:
         from transformers import AutoTokenizer
@@ -364,8 +408,10 @@ def main():
 
     models = {
         "tokenizer": tokenizer,
-        "visual": visual,
-        "net": net,
+        "visual": LazyModel(
+            lambda: load_net(model_vis_path, weight_vis_path), "vision encoder"
+        ),
+        "net": load_net(MODEL_PATH, WEIGHT_PATH),
     }
 
     recognize(models)
