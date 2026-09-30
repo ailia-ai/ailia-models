@@ -562,9 +562,9 @@ def flow_to_image(flow_uv, clip_flow=None, convert_to_bgr=False):
 # ======================
 def recognize_from_image():
     # net initialize
-    fnet = ailia.Net(MODEL_PATH_FNET, WEIGHT_PATH_FNET, env_id=0)
-    cnet = ailia.Net(MODEL_PATH_CNET, WEIGHT_PATH_CNET, env_id=0)
-    update_block = ailia.Net(MODEL_PATH_UB, WEIGHT_PATH_UB, env_id=0)
+    fnet = ailia.Net(MODEL_PATH_FNET, WEIGHT_PATH_FNET, env_id=args.env_id)
+    cnet = ailia.Net(MODEL_PATH_CNET, WEIGHT_PATH_CNET, env_id=args.env_id)
+    update_block = ailia.Net(MODEL_PATH_UB, WEIGHT_PATH_UB, env_id=args.env_id)
 
     # set filename of images
     imfile1 = args.inputs[0]
@@ -659,9 +659,9 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    fnet = ailia.Net(MODEL_PATH_FNET, WEIGHT_PATH_FNET, env_id=0)
-    cnet = ailia.Net(MODEL_PATH_CNET, WEIGHT_PATH_CNET, env_id=0)
-    update_block = ailia.Net(MODEL_PATH_UB, WEIGHT_PATH_UB, env_id=0)
+    fnet = ailia.Net(MODEL_PATH_FNET, WEIGHT_PATH_FNET, env_id=args.env_id)
+    cnet = ailia.Net(MODEL_PATH_CNET, WEIGHT_PATH_CNET, env_id=args.env_id)
+    update_block = ailia.Net(MODEL_PATH_UB, WEIGHT_PATH_UB, env_id=args.env_id)
 
     # capture video
     capture = webcamera_utils.get_capture(args.video)

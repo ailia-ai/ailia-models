@@ -67,7 +67,7 @@ def main():
         ailia_model = onnxruntime.InferenceSession(WEIGHT_PATH)
     else:
         logger.info("This model requires multiple input shape, so running on CPU")
-        ailia_model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=0)#args.env_id)
+        ailia_model = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
     if args.disable_ailia_tokenizer:
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained("gpt2-medium")
