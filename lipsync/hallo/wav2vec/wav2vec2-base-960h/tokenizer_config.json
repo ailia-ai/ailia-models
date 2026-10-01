@@ -1,0 +1,1 @@
+{"unk_token": "<unk>", "bos_token": "<s>", "eos_token": "</s>", "pad_token": "<pad>", "do_lower_case": false, "return_attention_mask": false, "do_normalize": true}

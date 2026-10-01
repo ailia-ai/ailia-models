@@ -1,0 +1,8 @@
+{
+  "do_normalize": true,
+  "feature_dim": 1,
+  "padding_side": "right",
+  "padding_value": 0.0,
+  "return_attention_mask": false,
+  "sampling_rate": 16000
+}
