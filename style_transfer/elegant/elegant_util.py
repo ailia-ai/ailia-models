@@ -89,7 +89,7 @@ class Inference:
 
         kernel = elegant1_output[17]
  
-        kernel_inv = np.linalg.inv(kernel)
+        kernel_inv = np.linalg.pinv(kernel)
 
         results = self.session2.run((*elegant1_output[0:6],
                                      *elegant1_output[8:15],
