@@ -122,7 +122,7 @@ if args.distill is not None:
     WEIGHT_PATH_T2S_ENCODER = "t2s_encoder_distill_"+MODEL_SIZE+".onnx"
     WEIGHT_PATH_T2S_FIRST_DECODER = "t2s_fsdec_distill_"+MODEL_SIZE+".onnx"
     WEIGHT_PATH_T2S_STAGE_DECODER = "t2s_sdec_distill_"+MODEL_SIZE+".opt.onnx"
-    WEIGHT_PATH_VITS = "vits_distill_small.onnx"
+    WEIGHT_PATH_VITS = "vits_distill_"+MODEL_SIZE+".onnx"
     MODEL_PATH_T2S_ENCODER = None
     MODEL_PATH_T2S_FIRST_DECODER = None
     MODEL_PATH_T2S_STAGE_DECODER = None
