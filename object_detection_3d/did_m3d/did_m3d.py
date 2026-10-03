@@ -87,7 +87,7 @@ def visualization(img,result_object):
 # ======================
 def recognize_from_image():
     # net initialize
-    net = ailia.Net(None,WEIGHT_PATH)
+    net = ailia.Net(None,WEIGHT_PATH,env_id=args.env_id)
     cfg = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     detect = Detect(net,cfg['dataset'],th=0.3)
 
@@ -117,7 +117,7 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    net = ailia.Net(None,WEIGHT_PATH)
+    net = ailia.Net(None,WEIGHT_PATH,env_id=args.env_id)
     cfg = yaml.load(open(args.config, 'r'), Loader=yaml.Loader)
     detect = Detect(net,cfg['dataset'],th=0.3)
 

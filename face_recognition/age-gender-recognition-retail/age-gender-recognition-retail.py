@@ -59,7 +59,7 @@ parser.add_argument(
 )
 args = update_parser(parser)
 
-detection = args.detector if args.detector else 'blazeface' if args.video else None
+detection = args.detector if args.detector else 'face-detection-adas' if args.video else None
 
 
 # ======================
@@ -79,7 +79,7 @@ def setup_detector(net):
                 min_score_thresh=FACE_MIN_SCORE_THRESH
             )
 
-            # adjust face rectangle
+            # adjust face rectangle for the BlazeFace crop
             detect_object = []
             for d in detections:
                 margin = 1.5
@@ -108,23 +108,8 @@ def setup_detector(net):
         }
 
         def _detector(img):
-            im_h, im_w, _ = img.shape
             detections = mod.predict(model_info, img)
-
-            enlarge = 1.2
-            detect_object = []
-            for d in detections:
-                r = ailia.DetectorObject(
-                    category=d.category,
-                    prob=d.prob,
-                    x=d.x - d.w * (enlarge - 1.0) / 2,
-                    y=d.y - d.h * (enlarge - 1.0) / 2,
-                    w=d.w * enlarge,
-                    h=d.h * enlarge,
-                )
-                detect_object.append(r)
-
-            return detect_object
+            return detections
 
         detector = _detector
 
@@ -142,7 +127,9 @@ def recognize_image(net, detector, image):
     # estimate age and gender
     for obj in detections:
         # get detected face
-        margin = 1.0
+        # make square and enlarge face bounding box for more robust operation
+        # of face analytics networks (bb_enlarge_coefficient of OpenVINO demo)
+        margin = 1.0 if detection == 'blazeface' else 1.2
         crop_img, top_left, bottom_right = crop_blazeface(
             obj, margin, image
         )
@@ -161,6 +148,8 @@ def recognize_image(net, detector, image):
         i = np.argmax(prob)
         gender = 'Female' if i == 0 else 'Male'
         age = round(age_conv3 * 100)
+        logger.info(" gender is: %s (%.2f)" % (gender, prob[i] * 100))
+        logger.info(" age is: %d" % age)
 
         # display label
         LABEL_WIDTH = bottom_right[1] - top_left[1]

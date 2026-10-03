@@ -3,6 +3,7 @@ import time
 
 import cv2
 import numpy as np
+import json
 
 import ailia
 
@@ -11,6 +12,7 @@ from arg_utils import get_base_parser, update_parser, get_savepath  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from image_utils import normalize_image  # noqa: E402C
 from detector_utils import load_image  # noqa: E402C
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 import webcamera_utils  # noqa: E402
 
 # logger
@@ -85,6 +87,11 @@ parser.add_argument(
     '-iou', '--iou',
     default=DETECTION_IOU, type=float,
     help='The detection iou'
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
 )
 args = update_parser(parser)
 
@@ -287,6 +294,20 @@ def vis_pose_result(img, result):
     return img
 
 
+def save_json(pose_results, json_path):
+    output = []
+    for r in pose_results:
+        o = {}
+        o['bbox'] = r['bbox']
+        o['keypoints'] = [
+            {'pos': [k[0], k[1]], 'prob': k[2]} for k in r['keypoints']
+        ]
+        output.append(o)
+
+    with open(json_path, 'w') as f:
+        json.dump(numpy_type_to_builtin_type(output), f, indent=2)
+
+
 # ======================
 # Main functions
 # ======================
@@ -329,6 +350,9 @@ def recognize_from_image(net, det_net):
         savepath = get_savepath(args.savepath, image_path)
         logger.info(f'saved at : {savepath}')
         cv2.imwrite(savepath, img)
+
+        if args.write_json:
+            save_json(pose_results, (savepath.rsplit('.', 1)[0]) + '.json')
 
     logger.info('Script finished successfully.')
 

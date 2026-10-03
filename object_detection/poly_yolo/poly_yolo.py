@@ -176,7 +176,7 @@ def main():
     # model files check and download
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
 
-    model = yolo.YOLO(model=ailia.Net(None,WEIGHT_PATH),iou=args.iou, score=args.threshold)
+    model = yolo.YOLO(model=ailia.Net(None,WEIGHT_PATH,env_id=args.env_id),iou=args.iou, score=args.threshold)
     if args.video is not None:
         # video mode
         recognize_from_video(model)

@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 
@@ -12,6 +13,7 @@ from arg_utils import get_base_parser, update_parser, get_savepath  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from detector_utils import load_image  # noqa: E402
 import webcamera_utils  # noqa: E402
+from pose_utils import pose_object_to_dict  # noqa: E402
 from pose_resnet_util import compute, keep_aspect  # noqa: E402
 
 # logger
@@ -59,6 +61,11 @@ POSE_THRESHOLD = 0.1
 # ======================
 parser = get_base_parser(
     'Simple Baseline for Pose Estimation', IMAGE_PATH, SAVE_IMAGE_PATH,
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
 )
 args = update_parser(parser)
 
@@ -206,6 +213,18 @@ def plot_results(detector, pose, img, category, pose_detections, logging=True):
     return img
 
 
+def save_json(pose_detections, json_path):
+    # pose_estimation() set None for non-person detections, so skip them.
+    output = [
+        pose_object_to_dict(detections)
+        for detections in pose_detections
+        if detections is not None
+    ]
+
+    with open(json_path, 'w') as f:
+        json.dump(output, f, indent=2)
+
+
 # ======================
 # Main functions
 # ======================
@@ -255,6 +274,9 @@ def recognize_from_image():
         savepath = get_savepath(args.savepath, image_path)
         logger.info(f'saved at : {savepath}')
         cv2.imwrite(savepath, res_img)
+
+        if args.write_json:
+            save_json(pose_detections, (savepath.rsplit('.', 1)[0]) + '.json')
     logger.info('Script finished successfully.')
 
 
