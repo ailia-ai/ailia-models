@@ -7,16 +7,20 @@ import threading
 
 import numpy as np
 
+# ailia 1.7: consecutive DNN layers are recorded once as a CUDA graph and replayed
+# (DnnSegment), which removes the per layer overhead of the ~600 small layers of a
+# talker step (40 -> 11 ms on RTX 3080). It is opt-in through this variable and
+# needs the default memory mode (the inter-stage memory optimizer disables it).
+# It has to be set before anything imports ailia (the ailia-models util modules
+# do): ailia reads it from the C runtime's copy of the environment, which an
+# ailia build with a static C runtime takes when the library is loaded.
+os.environ.setdefault("AILIA_ENABLE_DNN_SEGMENT", "1")
+
 # import original modules
 sys.path.append('../../util')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from arg_utils import get_base_parser, update_parser  # noqa: E402
 from model_utils import check_and_download_models, check_and_download_file  # noqa: E402
-# ailia 1.7: consecutive DNN layers are recorded once as a CUDA graph and replayed
-# (DnnSegment), which removes the per layer overhead of the ~600 small layers of a
-# talker step (40 -> 11 ms on RTX 3080). It is opt-in through this variable and
-# needs the default memory mode (the inter-stage memory optimizer disables it).
-os.environ.setdefault("AILIA_ENABLE_DNN_SEGMENT", "1")
 try:
     import ailia
     AILIA_EXIST = True
