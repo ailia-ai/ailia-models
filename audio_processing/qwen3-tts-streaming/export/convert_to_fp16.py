@@ -2,9 +2,9 @@
 every other tensor fp32.
 
 Usage:
-    python record_fp16_calibration.py -p 0.6B -m custom_voice --onnx_dir ../models
-    python convert_to_fp16.py -p 0.6B -m custom_voice --onnx_dir ../models
-    python convert_to_fp16.py -p 0.6B -m custom_voice --onnx_dir ../models --only talker_static
+    python record_fp16_calibration.py -p 0.6B -m custom_voice --onnx_dir ../models/qwen3-tts-streaming
+    python convert_to_fp16.py -p 0.6B -m custom_voice --onnx_dir ../models/qwen3-tts-streaming
+    python convert_to_fp16.py -p 0.6B -m custom_voice --onnx_dir ../models/qwen3-tts-streaming --only talker_static
 
 Writes qwen3_tts_<name>_<p>[_custom_voice][_static]_fp16.onnx next to each fp32
 model (the fused predictor's qwen3_tts_code_predictor_frame_<p>..._sim.onnx becomes
@@ -247,6 +247,19 @@ WEIGHT_OPS = ("MatMul", "Gemm", "Conv", "ConvTranspose", "Gather", "GatherND")
 FP16_LIMIT = 2 ** 15     # a weight op whose fp32 input or output passes this stays fp32 too
 CALIBRATED = {}          # model name -> blocked weight ops, shared with the static talker
 
+# What the calibration found on the shipped models, so the same files come out of
+# a conversion without recorded calls (record_fp16_calibration.py needs the fp32
+# models and a run of the sample). Of all the weight ops in the five models only
+# one sees activations beyond fp16: the 0.6B code predictor's down projection of
+# step 2 (the MLP product reaches 1.6e5), for the Base and the CustomVoice
+# checkpoint alike. The 1.7B models and everything else stay within range.
+KNOWN_BLOCKS = {
+    ("code_predictor_frame", "0.6B"): ["/mlp/down_proj_2/MatMul"],
+    ("code_predictor_frame", "1.7B"): [],
+    ("talker_static", "0.6B"): [], ("talker_static", "1.7B"): [],
+    ("decoder", "0.6B"): [], ("decoder", "1.7B"): [],
+}
+
 
 def calibrated_blocks(model, calls, tmp_dir):
     """Names of the weight ops whose activations do not fit fp16, measured on
@@ -336,7 +349,7 @@ def convert_weights_only(path, out_path):
     generate_prototxt(out_path)
 
 
-def convert(path, out_path, name=None, calibration=None, weights_only=()):
+def convert(path, out_path, name=None, calibration=None, weights_only=(), parameter_num=None):
     if name in ("prompt", "codec_embedding"):
         return convert_prompt(path, out_path)      # a lookup table plus a little fp32 math
     if name in weights_only:
@@ -365,6 +378,9 @@ def convert(path, out_path, name=None, calibration=None, weights_only=()):
         calibrated = calibrated_blocks(model, calls, os.path.dirname(out_path))
         CALIBRATED[name] = calibrated
         print(f"  {len(calibrated)} weight ops stay fp32 for their activation range ({len(calls)} recorded calls)")
+    elif (name, parameter_num) in KNOWN_BLOCKS:
+        calibrated = set(KNOWN_BLOCKS[(name, parameter_num)])
+        print(f"  no calibration data: {len(calibrated)} weight ops stay fp32 from the recorded list (KNOWN_BLOCKS)")
     else:
         print("  WARNING: no calibration data for this model, weight ops with large activations may overflow")
     blocked = sorted(set(rotary) | set(index) | set(sampling) | set(norm) | others | calibrated)
@@ -453,7 +469,8 @@ def main():
         out_stem = f"qwen3_tts_code_predictor_{args.parameter_num}{FAMILY_SUFFIX[args.model]}"             if name == "code_predictor_frame" else stem
         out_path = os.path.join(output_dir, out_stem + "_fp16.onnx")
         print(f"converting {stem}.onnx ...")
-        convert(path, out_path, name, calibration, tuple(x for x in args.weights_only.split(",") if x))
+        convert(path, out_path, name, calibration, tuple(x for x in args.weights_only.split(",") if x),
+                parameter_num=args.parameter_num)
         print(f"  {os.path.getsize(path) / 1e6:8.1f} MB -> "
               f"{os.path.getsize(out_path) / 1e6:8.1f} MB")
 

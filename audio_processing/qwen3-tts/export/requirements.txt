@@ -8,3 +8,4 @@ onnxruntime==1.28.0
 librosa==0.11.0
 einops==0.8.2
 huggingface_hub
+onnxsim==0.7.3
