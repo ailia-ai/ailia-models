@@ -141,8 +141,9 @@ CONFIG_PATH = f"config_{parameter_num}{MODEL_SUFFIX}.json"
 #   talker ..._static  auto regressive body with a fixed KV buffer (export --static):
 #                     onnxruntime updates the cache in place and replays it as a
 #                     CUDA graph, ailia copies present -> past inside the device
-#   code_predictor_frame   groups 1..15 of a frame in one call, top-k (50) sampling inside
-#                     (export --only code_predictor_frame, then simplify_frame.py)
+#   code_predictor    groups 1..15 of a frame in one call, top-k (50) sampling inside
+#                     (export --only code_predictor_frame, simplify_frame.py, then
+#                     convert_to_fp16.py, which names the result qwen3_tts_code_predictor_...)
 #   decoder           codec frames -> waveform
 def model_path(name, extra=""):
     # the models are the fp16 ones of export/convert_to_fp16.py (weights and
@@ -159,7 +160,7 @@ WEIGHT_PATH_PROMPT, MODEL_PATH_PROMPT = model_path("prompt")
 WEIGHT_PATH_CODEC_EMBEDDING, MODEL_PATH_CODEC_EMBEDDING = model_path("codec_embedding")
 WEIGHT_PATH_DECODER, MODEL_PATH_DECODER = model_path("decoder")
 WEIGHT_PATH_TALKER_STATIC, MODEL_PATH_TALKER_STATIC = model_path("talker", "_static")
-WEIGHT_PATH_CODE_PREDICTOR_FRAME, MODEL_PATH_CODE_PREDICTOR_FRAME = model_path("code_predictor_frame", "_sim")
+WEIGHT_PATH_CODE_PREDICTOR_FRAME, MODEL_PATH_CODE_PREDICTOR_FRAME = model_path("code_predictor")
 
 onnx_list = [
     (WEIGHT_PATH_PROMPT, MODEL_PATH_PROMPT),

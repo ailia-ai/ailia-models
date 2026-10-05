@@ -145,14 +145,15 @@ on Qwen3's activations). `<p>` is `0.6B` or `1.7B`; the Base files have no
 | `qwen3_tts_prompt_<p>_custom_voice_fp16.onnx` | text tokens -> talker hidden |
 | `qwen3_tts_codec_embedding_<p>_custom_voice_fp16.onnx` | the 16 codec tables (read out once) |
 | `qwen3_tts_talker_<p>_custom_voice_static_fp16.onnx` | talker with a fixed 512-position KV buffer (1.7B: weights in `.onnx.data`) |
-| `qwen3_tts_code_predictor_frame_<p>_custom_voice_sim_fp16.onnx` | groups 1..15 of a frame in one call, sampling inside |
+| `qwen3_tts_code_predictor_<p>_custom_voice_fp16.onnx` | groups 1..15 of a frame in one call, sampling inside |
 | `qwen3_tts_decoder_<p>_custom_voice_fp16.onnx` | codec frames -> waveform |
 | `qwen3_tts_encoder_<p>.onnx` | Base only: reference audio -> codec frames + speaker embedding (fp32) |
 
 `export/` holds the exporter (`export_onnx.py --model custom_voice`,
 `--static --only talker`, `--only code_predictor_frame`), `simplify_frame.py`
 (onnxsim for the fused predictor), `record_fp16_calibration.py` and
-`convert_to_fp16.py`.
+`convert_to_fp16.py` (which writes the fused predictor as
+`qwen3_tts_code_predictor_<p>..._fp16.onnx`).
 
 ## Reference
 
@@ -170,5 +171,5 @@ ONNX opset=17 (decoder: 18)
 ## Netron
 
 - [qwen3_tts_talker_0.6B_custom_voice_static_fp16.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3-tts-streaming/qwen3_tts_talker_0.6B_custom_voice_static_fp16.onnx.prototxt)
-- [qwen3_tts_code_predictor_frame_0.6B_custom_voice_sim_fp16.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3-tts-streaming/qwen3_tts_code_predictor_frame_0.6B_custom_voice_sim_fp16.onnx.prototxt)
+- [qwen3_tts_code_predictor_0.6B_custom_voice_fp16.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3-tts-streaming/qwen3_tts_code_predictor_0.6B_custom_voice_fp16.onnx.prototxt)
 - [qwen3_tts_decoder_0.6B_custom_voice_fp16.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/qwen3-tts-streaming/qwen3_tts_decoder_0.6B_custom_voice_fp16.onnx.prototxt)

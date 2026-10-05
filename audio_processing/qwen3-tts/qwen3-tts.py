@@ -150,8 +150,8 @@ MODEL_PATH_CODE_PREDICTOR     = WEIGHT_PATH_CODE_PREDICTOR + ".prototxt"
 # 統合版 code predictor: 15 ステップの予測と top-k サンプリングを 1 グラフにしたもの
 # (入力 past_hidden, group0, noise, temperature / 出力 groups, frame_embed)。
 # 分割版は 1 フレームに 15 回の呼び出しが要るが、統合版は 1 回で済む。
-# サイズごとに hidden が違うので 0.6B / 1.7B で別ファイル。
-WEIGHT_PATH_CODE_PREDICTOR_FRAME = f"qwen3_tts_code_predictor_frame_{parameter_num}{FP16_SUFFIX}.onnx"
+# サイズごとに hidden が違うので 0.6B / 1.7B で別ファイル。分割版と同じ名前に .opt を足したもの。
+WEIGHT_PATH_CODE_PREDICTOR_FRAME = f"qwen3_tts_code_predictor_{parameter_num}{FP16_SUFFIX}.opt.onnx"
 MODEL_PATH_CODE_PREDICTOR_FRAME  = WEIGHT_PATH_CODE_PREDICTOR_FRAME + ".prototxt"
 WEIGHT_PATH_DECODER           = f"qwen3_tts_decoder_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_DECODER            = WEIGHT_PATH_DECODER + ".prototxt"

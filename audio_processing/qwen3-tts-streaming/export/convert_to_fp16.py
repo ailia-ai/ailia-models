@@ -6,8 +6,9 @@ Usage:
     python convert_to_fp16.py -p 0.6B -m custom_voice --onnx_dir ../models
     python convert_to_fp16.py -p 0.6B -m custom_voice --onnx_dir ../models --only talker_static
 
-Writes qwen3_tts_<name>_<p>[_custom_voice][_static|_sim]_fp16.onnx next to each fp32
-model, with a prototxt, and needs neither torch nor qwen-tts (the calibration
+Writes qwen3_tts_<name>_<p>[_custom_voice][_static]_fp16.onnx next to each fp32
+model (the fused predictor's qwen3_tts_code_predictor_frame_<p>..._sim.onnx becomes
+qwen3_tts_code_predictor_<p>..._fp16.onnx: frame / _sim are build steps, not variants), with a prototxt, and needs neither torch nor qwen-tts (the calibration
 recording runs the sample on onnxruntime).
 
 Only the weight-carrying ops (MatMul, Conv, ConvTranspose and the embedding
@@ -449,7 +450,8 @@ def main():
         if not os.path.exists(path):
             print(f"skipping {stem}.onnx (not found)")
             continue
-        out_path = os.path.join(output_dir, stem + "_fp16.onnx")
+        out_stem = f"qwen3_tts_code_predictor_{args.parameter_num}{FAMILY_SUFFIX[args.model]}"             if name == "code_predictor_frame" else stem
+        out_path = os.path.join(output_dir, out_stem + "_fp16.onnx")
         print(f"converting {stem}.onnx ...")
         convert(path, out_path, name, calibration, tuple(x for x in args.weights_only.split(",") if x))
         print(f"  {os.path.getsize(path) / 1e6:8.1f} MB -> "

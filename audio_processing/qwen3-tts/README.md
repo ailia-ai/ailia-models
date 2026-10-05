@@ -33,7 +33,7 @@ pip3 install onnxruntime          # or onnxruntime-gpu, to run it on CUDA
 
 The code predictor (the 15 code groups of each frame) comes in two forms. On
 ailia SDK 1.7.0 or later and with `--onnx`, the sample uses the fused graph
-`qwen3_tts_code_predictor_frame_<p>.onnx`, which runs the 15 steps and their
+`qwen3_tts_code_predictor_<p>.opt.onnx`, which runs the 15 steps and their
 top-k sampling in one call (one call per frame instead of 15; on an RTX 3080
 with ailia 1.7.0 the code predictor goes from 205 ms to 66 ms per frame). On
 older ailia SDKs the split graph `qwen3_tts_code_predictor_<p>.onnx` is used
