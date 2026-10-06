@@ -136,7 +136,7 @@ CONFIG_PATH = f"config_{parameter_num}{MODEL_SUFFIX}.json"
 
 # The ONNX split is the one of audio_processing/qwen3-tts (ailia-models). The
 # Base (voice clone) files are the same ones that sample uses; the CustomVoice
-# files come from export/export_onnx.py --model custom_voice and carry a
+# files come from the exporter (export_onnx.py --model custom_voice) and carry a
 # _custom_voice suffix. CustomVoice's speaker is a row of the codec embedding
 # table, so it has no encoder.
 #   encoder           (base only) reference audio -> codec frames + speaker embedding
@@ -150,7 +150,7 @@ CONFIG_PATH = f"config_{parameter_num}{MODEL_SUFFIX}.json"
 #                     convert_to_fp16.py, which names the result qwen3_tts_code_predictor_...)
 #   decoder           codec frames -> waveform
 def model_path(name, extra=""):
-    # the models are the fp16 ones of export/convert_to_fp16.py (weights and
+    # the models are the fp16 ones of the exporter's convert_to_fp16.py (weights and
     # MatMul / Conv in fp16, every other tensor fp32); only the encoder stays
     # fp32, its outputs are codebook indices which fp16 flips
     if name != "encoder":

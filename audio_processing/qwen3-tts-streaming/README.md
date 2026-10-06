@@ -149,11 +149,9 @@ on Qwen3's activations). `<p>` is `0.6B` or `1.7B`; the Base files have no
 | `qwen3_tts_decoder_<p>_custom_voice_fp16.onnx` | codec frames -> waveform |
 | `qwen3_tts_encoder_<p>.onnx` | Base only: reference audio -> codec frames + speaker embedding (fp32) |
 
-`export/` holds the exporter (`export_onnx.py --model custom_voice`,
-`--static --only talker`, `--only code_predictor_frame`), `simplify_frame.py`
-(onnxsim for the fused predictor), `record_fp16_calibration.py` and
-`convert_to_fp16.py` (which writes the fused predictor as
-`qwen3_tts_code_predictor_<p>..._fp16.onnx`).
+The exporter (the ONNX split, the fused predictor, the fixed buffer talker with
+its shape arithmetic folded, and the fp16 conversion) is maintained outside this
+repository.
 
 ## Reference
 
