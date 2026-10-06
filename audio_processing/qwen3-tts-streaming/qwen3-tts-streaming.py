@@ -150,9 +150,11 @@ CONFIG_PATH = f"config_{parameter_num}{MODEL_SUFFIX}.json"
 #                     convert_to_fp16.py, which names the result qwen3_tts_code_predictor_...)
 #   decoder           codec frames -> waveform
 def model_path(name, extra=""):
-    # the models are the fp16 ones of the exporter's convert_to_fp16.py (weights and
-    # MatMul / Conv in fp16, every other tensor fp32); only the encoder stays
-    # fp32, its outputs are codebook indices which fp16 flips
+    # the talker, the code predictor and the decoder are pure fp16 graphs (opset
+    # 23, every tensor fp16; the IO fp32 but the talker's KV cache); the prompt
+    # and the codec embedding run once per utterance and keep only their weights
+    # and MatMuls in fp16. Only the encoder stays fp32: its outputs are codebook
+    # indices which fp16 flips
     if name != "encoder":
         extra += "_fp16"
     weight = f"qwen3_tts_{name}_{parameter_num}{MODEL_SUFFIX}{extra}.onnx"
@@ -302,7 +304,22 @@ class OnnxNet:
         import onnxruntime as ort
         opts = ort.SessionOptions()
         opts.log_severity_level = 3
-        self.session = ort.InferenceSession(weight, opts, providers=providers)
+        # GatherSliceToSplitFusion (onnxruntime 1.23) inserts a Squeeze of the model's
+        # opset, and the CUDA provider has no Squeeze-23 kernel
+        try:
+            self.session = ort.InferenceSession(weight, opts, providers=providers,
+                                                disabled_optimizers=["GatherSliceToSplitFusion"])
+        except Exception as e:  # noqa: BLE001
+            # the fp16 models are opset 23, and onnxruntime 1.23's CUDA provider has no
+            # opset 23 kernels for Reshape / Transpose / Cast etc.: those run on the CPU,
+            # which rules out the CUDA graph. Retry without it (the models are tuned for ailia)
+            if "graph capture" not in str(e):
+                raise
+            logger.warning("%s: no CUDA graph (not every node runs on the CUDA provider)", name)
+            providers = [(p[0], {k: v for k, v in p[1].items() if k != "enable_cuda_graph"}) if isinstance(p, tuple) else p
+                         for p in providers]
+            self.session = ort.InferenceSession(weight, opts, providers=providers,
+                                                disabled_optimizers=["GatherSliceToSplitFusion"])
         self.input_names = [i.name for i in self.session.get_inputs()]
         self.output_names = [o.name for o in self.session.get_outputs()]
         self.device = "cuda" if self.session.get_providers()[0] == "CUDAExecutionProvider" else "cpu"
@@ -368,12 +385,14 @@ class OnnxStaticTalker(OnnxNet):
         shape = self.session.get_inputs()[4].shape          # past_pkv_0 [1, kv, buf, dim]
         self.kv_heads, self.buf, self.head_dim = int(shape[1]), int(shape[2]), int(shape[3])
         self.num_cache = len(self.input_names) - 4
+        # the fp16 talker takes its KV cache in fp16 (an older mixed precision one in fp32)
+        cache_dtype = np.float16 if self.session.get_inputs()[4].type == "tensor(float16)" else np.float32
         mk = lambda arr: ort.OrtValue.ortvalue_from_numpy(np.ascontiguousarray(arr), self.device, 0)
         self.x = mk(np.zeros((1, 1, hidden), np.float32))
         self.mask = mk(np.zeros((1, 1, 1, self.buf), np.float32))
         self.pos = mk(np.zeros((1, 1), np.int64))
         self.cpos = mk(np.zeros(1, np.int64))
-        self.cache = [mk(np.zeros((1, self.kv_heads, self.buf, self.head_dim), np.float32))
+        self.cache = [mk(np.zeros((1, self.kv_heads, self.buf, self.head_dim), cache_dtype))
                       for _ in range(self.num_cache)]
         b = self.session.io_binding()
         for name, v in zip(self.input_names, [self.x, self.mask, self.pos, self.cpos] + self.cache):
@@ -437,6 +456,16 @@ class AiliaNet:
                     break
 
 
+def graph_input_elem_type(prototxt, name):
+    """The ONNX element type of a graph input, read from the prototxt (ailia has no
+    API for it): 1 = float, 10 = float16."""
+    import re
+    with open(prototxt, encoding="utf-8") as f:
+        text = f.read()
+    m = re.search(r'input\s*\{\s*name:\s*"' + re.escape(name) + r'".*?elem_type:\s*(\d+)', text, re.S)
+    return int(m.group(1)) if m else 1
+
+
 class AiliaStaticTalker(AiliaNet):
     """The same fixed KV buffer talker on ailia, one position per call like the
     onnxruntime one, so that every input keeps the same shape ([1, 1, H] etc.)
@@ -453,6 +482,8 @@ class AiliaStaticTalker(AiliaNet):
         self.num_cache = len(inputs) - 4
         self.kv_heads, self.head_dim = kv_heads, head_dim
         self.buf = int(self.net.get_blob_shape(inputs[4])[2])      # the buffer length is fixed in the graph
+        # the fp16 talker takes its KV cache in fp16 (an older mixed precision one in fp32)
+        self.cache_dtype = np.float16 if graph_input_elem_type(model, "past_pkv_0") == 10 else np.float32
 
     def prefill(self, inputs_embeds, start=0):
         """Feed positions start.. one by one; positions before start keep their cache."""
@@ -470,7 +501,7 @@ class AiliaStaticTalker(AiliaNet):
                  np.array([[position]], np.int64), np.array([position], np.int64)]
         if position == 0:
             # start of an utterance: the cache buffers come in as zeros
-            inputs = fixed + [np.zeros((1, self.kv_heads, self.buf, self.head_dim), np.float32)
+            inputs = fixed + [np.zeros((1, self.kv_heads, self.buf, self.head_dim), self.cache_dtype)
                               for _ in range(self.num_cache)]
             for index, value in enumerate(inputs):
                 net.set_input_blob_shape(value.shape, index)
@@ -590,6 +621,14 @@ class Qwen3TTSStreaming:
         self.bench.reset()
 
     def _load_onnx(self, env_id):
+        import onnxruntime as ort
+        # onnxruntime-gpu 1.21 and later find cuDNN 9 / CUDA 12 in the pip packages
+        # only after preload_dlls(); without it every session falls back to the CPU
+        if hasattr(ort, "preload_dlls") and "CUDAExecutionProvider" in ort.get_available_providers():
+            try:
+                ort.preload_dlls()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("onnxruntime.preload_dlls() failed: %s", e)
         prov = onnx_providers(env_id)
         self.providers = prov
         # the text embedding table is 1.3GB and a call is a gather: it stays on the CPU
