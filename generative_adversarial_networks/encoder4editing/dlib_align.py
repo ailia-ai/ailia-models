@@ -7,8 +7,6 @@ import scipy.ndimage
 import PIL
 from PIL import Image
 
-import dlib
-
 p = os.path.os.path.dirname(os.path.abspath(__file__))
 DLIB_FILE = os.path.join(p, 'shape_predictor_68_face_landmarks.dat')
 REMOTE_DLIB_PATH = 'http://dlib.net/files/'
@@ -20,6 +18,8 @@ def get_landmark(img):
     """get landmark with dlib
     :return: np.array shape=(68, 2)
     """
+    import dlib
+
     detector = cache['detector'] = cache.get('detector', dlib.get_frontal_face_detector())
     dets = detector(img, 1)
 
@@ -45,11 +45,7 @@ def get_landmark(img):
     return lm
 
 
-def align_face(img):
-    lm = get_landmark(img)
-    if lm is None:
-        return None
-
+def align_face(img, lm):
     lm_eye_left = lm[36: 42]  # left-clockwise
     lm_eye_right = lm[42: 48]  # left-clockwise
     lm_mouth_outer = lm[48: 60]  # left-clockwise
