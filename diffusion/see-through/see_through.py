@@ -110,6 +110,90 @@ def center_square_pad_resize(img, size):
     return img, pad_size, pad_pos
 
 
+def crop_head(img, xywh):
+    """Crops the head region, extended by up to 1/5 of its size when it is small."""
+    x, y, w, h = xywh
+    ih, iw = img.shape[:2]
+    x1, y1, x2, y2 = x, y, x + w, y + h
+    if w < iw // 2:
+        px = min(iw - x - w, x, w // 5)
+        x1 = min(max(x - px, 0), iw)
+        x2 = min(max(x + w + px, 0), iw)
+    if h < ih // 2:
+        py = min(ih - y - h, y, h // 5)
+        y2 = min(max(y + h + py, 0), ih)
+        y1 = min(max(y - py, 0), ih)
+    return img[y1:y2, x1:x2], (x1, y1, x2, y2)
+
+
+# ======================
+# Schedulers
+# ======================
+
+
+def scaled_linear_alphas_cumprod(
+    num_train_timesteps=1000, beta_start=0.00085, beta_end=0.012
+):
+    betas = (
+        np.linspace(
+            beta_start**0.5, beta_end**0.5, num_train_timesteps, dtype=np.float32
+        )
+        ** 2
+    )
+    return np.cumprod(1.0 - betas, axis=0)
+
+
+class DPMSolverSDEScheduler:
+    """SDE-DPM-Solver++(2M), epsilon prediction, "leading" timestep spacing, final sigma 0."""
+
+    def __init__(self, num_train_timesteps=1000, steps_offset=1):
+        self.num_train_timesteps = num_train_timesteps
+        self.steps_offset = steps_offset
+        self.alphas_cumprod = scaled_linear_alphas_cumprod(num_train_timesteps)
+        self.init_noise_sigma = 1.0
+
+    def set_timesteps(self, num_inference_steps):
+        step_ratio = self.num_train_timesteps // (num_inference_steps + 1)
+        timesteps = (np.arange(0, num_inference_steps + 1) * step_ratio).round()[::-1][
+            :-1
+        ]
+        self.timesteps = timesteps.astype(np.int64) + self.steps_offset
+        sigmas = ((1 - self.alphas_cumprod) / self.alphas_cumprod) ** 0.5
+        sigmas = np.interp(self.timesteps, np.arange(0, len(sigmas)), sigmas)
+        self.sigmas = np.concatenate([sigmas, [0.0]]).astype(np.float32)
+        self.prev_x0 = None
+        self.step_index = 0
+
+    def _lambda(self, sigma):
+        alpha_t = 1 / (sigma**2 + 1) ** 0.5
+        sigma_t = sigma * alpha_t
+        with np.errstate(divide="ignore"):
+            return alpha_t, sigma_t, np.log(alpha_t) - np.log(sigma_t)
+
+    def step(self, model_output, sample):
+        i = self.step_index
+        alpha_s0, sigma_s0, lambda_s0 = self._lambda(self.sigmas[i])
+        alpha_t, sigma_t, lambda_t = self._lambda(self.sigmas[i + 1])
+        x0 = (sample - sigma_s0 * model_output) / alpha_s0
+
+        h = lambda_t - lambda_s0
+        noise = np.random.randn(*model_output.shape).astype(np.float32)
+        x_t = (
+            (sigma_t / sigma_s0 * np.exp(-h)) * sample
+            + (alpha_t * (1 - np.exp(-2.0 * h))) * x0
+            + sigma_t * np.sqrt(1.0 - np.exp(-2.0 * h)) * noise
+        )
+        # Second order after the first step, except at the last step
+        if self.prev_x0 is not None and i < len(self.timesteps) - 1:
+            _, _, lambda_s1 = self._lambda(self.sigmas[i - 1])
+            r0 = (lambda_s0 - lambda_s1) / h
+            d1 = (1.0 / r0) * (x0 - self.prev_x0)
+            x_t = x_t + 0.5 * (alpha_t * (1 - np.exp(-2.0 * h))) * d1
+        self.prev_x0 = x0
+        self.step_index += 1
+        return x_t.astype(np.float32)
+
+
 # ======================
 # Main functions
 # ======================
@@ -158,8 +242,8 @@ def decompose_layers(models, fullpage, prompt_embeds, text_embeds, group_index):
 
     # every frame starts from the same noise
     noise = np.random.randn(1, 1, 4, lh, lw).astype(np.float32)
-    steps = 30
     scheduler = DPMSolverSDEScheduler()
+    steps = 30
     scheduler.set_timesteps(steps)
     latents = (
         np.broadcast_to(noise, (1, num_frames, 4, lh, lw)) * scheduler.init_noise_sigma
@@ -182,6 +266,16 @@ def decompose_layers(models, fullpage, prompt_embeds, text_embeds, group_index):
             },
         )
         noise_pred = output[0]
+        latents = scheduler.step(noise_pred, latents)
+
+    layers = []
+    for latent in latents[0]:
+        output = infer(models["ld_vae_decoder"], {"latent": latent[None]})
+        argb = output[0][0].transpose(1, 2, 0)
+        alpha = argb[..., :1] * page_alpha
+        png = np.concatenate([argb[..., 1:], alpha], axis=2)
+        layers.append((png * 255.0).clip(0, 255).astype(np.uint8))
+    return layers
 
 
 def run_layer_decomposition(models, input_img, body_embeds, head_embeds):
@@ -196,6 +290,37 @@ def run_layer_decomposition(models, input_img, body_embeds, head_embeds):
     logger.info("Decomposing the body...")
     body = decompose_layers(models, fullpage, *body_embeds, group_index=0)
     layers = dict(zip(BODY_TAGS, body))
+
+    head_img = layers["head"]
+    hx0, hy0, hw, hh = cv2.boundingRect(
+        cv2.findNonZero((head_img[..., -1] > 15).astype(np.uint8))
+    )
+    hx = int(hx0 * scale) - pad_pos[0]
+    hy = int(hy0 * scale) - pad_pos[1]
+    hw = int(hw * scale)
+    hh = int(hh * scale)
+    input_head, (hx1, hy1, _, _) = crop_head(input_img, [hx, hy, hw, hh])
+    hx1 = int(hx1 / scale + pad_pos[0] / scale)
+    hy1 = int(hy1 / scale + pad_pos[1] / scale)
+    ih, iw = input_head.shape[:2]
+    input_head, pad_size, pad_pos = center_square_pad_resize(input_head, resolution)
+
+    logger.info("Decomposing the head...")
+    head = decompose_layers(models, input_head, *head_embeds, group_index=1)
+
+    # paste the head layers back onto the whole image canvas
+    canvas = np.zeros((resolution, resolution, 4), dtype=np.uint8)
+    py1, py2, px1, px2 = (
+        np.array([pad_pos[1], pad_pos[1] + ih, pad_pos[0], pad_pos[0] + iw]) / scale
+    ).astype(np.int64)
+    scale_size = (int(pad_size[0] / scale), int(pad_size[1] / scale))
+    for tag, layer in zip(HEAD_TAGS, head):
+        layer = smart_resize(layer, scale_size)[py1:py2, px1:px2]
+        full = canvas.copy()
+        full[hy1 : hy1 + layer.shape[0], hx1 : hx1 + layer.shape[1]] = layer
+        layers[tag] = full
+
+    return fullpage, layers
 
 
 def recognize_from_image(models, tokenizers):
