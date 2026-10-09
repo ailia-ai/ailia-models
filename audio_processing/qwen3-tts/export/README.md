@@ -40,6 +40,21 @@ current directory). Each module is exported in a separate process, since the
 Everything is exported as float32, which comes to about 4.3GB of output for
 0.6B and about 8.4GB for 1.7B.
 
+One of the modules, `code_predictor_frame`, does not add a graph of its own but
+a second form of the code predictor: `qwen3_tts_code_predictor_<p>.opt.onnx`
+runs the 15 steps of a frame, the codec embedding lookups and the top-k sampling
+in one call (`CodePredictorFrame`), which `../qwen3-tts.py` uses on ailia SDK
+1.7.0 or later and on onnxruntime (the split `qwen3_tts_code_predictor_<p>.onnx`
+remains for older ailia SDKs). The traced graph is passed through `onnxsim`
+(in `requirements.txt`) to fold its shape arithmetic, so that onnxruntime can
+place all of it on the CUDA EP; without onnxsim the traced graph is kept under
+the same name. It is the same graph the streaming sample
+[qwen3-tts-streaming](../../qwen3-tts-streaming/export/) exports.
+
+```bash
+python3 export_onnx.py --parameter_num 0.6B --only code_predictor_frame
+```
+
 `onnx2prototxt.py` is downloaded from
 [ailia-ai/export-to-onnx](https://github.com/ailia-ai/export-to-onnx) on first
 use and generates the `.prototxt` next to every `.onnx`.
@@ -173,6 +188,15 @@ python3 convert_to_fp16.py --parameter_num 0.6B --onnx_dir .
 | 1.7B | 8.37 GB | 4.31 GB |
 
 The fp16 column includes the encoder, which stays fp32.
+
+`qwen3_tts_code_predictor_<p>.opt.onnx` (`--only code_predictor_opt`) is converted
+differently from the rest: its 15 sampling blocks overflow in a full fp16 graph,
+so only its weights and MatMul / Gather run in fp16, with a Cast on the way in
+and out, and everything else stays fp32. That is the scheme of the streaming
+sample, whose `convert_to_fp16.py` is imported for it from
+`../../qwen3-tts-streaming/export/`; the resulting
+`qwen3_tts_code_predictor_<p>_fp16.opt.onnx` is byte for byte the streaming
+sample's `qwen3_tts_code_predictor_<p>_fp16.onnx`.
 
 **On a CPU fp16 is slower on both runtimes**, so the download size is the whole of
 what it buys there. One decode call of the 1.7B models, same inputs, same machine:
@@ -315,6 +339,7 @@ buffer and which both runtimes agree on at every length.
 | `qwen3_tts_codec_embedding_<p>.onnx` | codec table rows `[n, 16]` | their sums `[1, n, H]` |
 | `qwen3_tts_talker_<p>.onnx` | hidden states `[1, seq, H]`, 4D mask, position ids, KV cache | codec logits `[1, 1, 3072]`, hidden state `[1, 1, H]`, KV cache |
 | `qwen3_tts_code_predictor_<p>.onnx` | hidden states `[1, seq, H]`, head rows `[2048]`, 4D mask, position ids, KV cache | code group logits `[1, 1, 2048]`, KV cache |
+| `qwen3_tts_code_predictor_<p>.opt.onnx` | past hidden `[1, 1, H]`, group 0 `[1]`, Gumbel noise `[15, 2048]`, temperature `[1]` | code groups 1..15 `[15]`, frame embedding `[1, 1, H]` (the 16 groups summed) |
 | `qwen3_tts_decoder_<p>.onnx` | audio codes `[B, 16, T]` | waveform `[1, 1, L]` |
 | `qwen3_tts_talker_<p>_static.onnx` | as above plus cache position `[seq]`, KV cache `[1, kv, max_seq_len, dim]` | as above, KV cache the same length |
 | `qwen3_tts_code_predictor_<p>_static.onnx` | as above plus cache position `[seq]`, KV cache `[1, kv, 16, dim]` | as above, KV cache the same length |
@@ -386,7 +411,8 @@ Notes:
 
 ## Upload
 
-The generated files go to the `qwen3-tts/` folder of the
+The generated files, the `.opt.onnx` fused code predictors included, go to the
+`qwen3-tts/` folder of the
 [ailia-models bucket](https://console.cloud.google.com/storage/browser/ailia-models),
 and the four gather bug models to `qwen3-tts/gather_bug/` in the same folder,
 which is where `ailia_gather_check.py --download` looks for them. The two
