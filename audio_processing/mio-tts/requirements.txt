@@ -1,0 +1,4 @@
+numpy
+soundfile
+transformers<5
+jinja2
