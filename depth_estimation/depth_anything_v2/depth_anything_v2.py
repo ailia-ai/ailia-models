@@ -134,8 +134,6 @@ def recognize_from_image(model):
         org_img = cv2.cvtColor(imread(image_path), cv2.COLOR_BGR2RGB) / 255.
 
         image = da_transform({'image': org_img})['image'][None]
-        if org_img.shape[0] > org_img.shape[1]:
-            image = image.transpose((0, 1, 3, 2))
         if args.benchmark and not (args.video is not None):
             logger.info('BENCHMARK mode')
             for i in range(5):
@@ -145,8 +143,6 @@ def recognize_from_image(model):
                 logger.info(f'\tailia processing time {end - start} ms')
         else:
             depth = model.predict(image)
-        if org_img.shape[0] > org_img.shape[1]:
-            depth = depth.transpose((0, 1, 3, 2))
         if args.metric is not None:
             logger.info(f'depth range: {depth.min():.3f} - {depth.max():.3f} m')
         depth = post_process(depth, org_img.shape[0], org_img.shape[1])
