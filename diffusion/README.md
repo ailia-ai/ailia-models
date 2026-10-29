@@ -31,5 +31,6 @@
 | [<img src="./latent-diffusion-superresolution/output.png" width=128px>](./latent-diffusion-superresolution/) | [latent-diffusion-superresolution](./latent-diffusion-superresolution/) | [Latent Diffusion - Super-resolution](https://github.com/CompVis/latent-diffusion) | Pytorch | 1.2.10 and later | Dec 2021 | |
 | [<img src="./daclip-sde/output.png" width=128px>](./daclip-sde/) | [DA-CLIP](./daclip-sde/) | [DA-CLIP](https://github.com/Algolzw/daclip-uir) | Pytorch | 1.2.16 and later | Oct 2023 | |
 | [<img src="./marigold/output_colorize.png" width=128px>](./marigold/) | [marigold](./marigold/) | [Marigold: Repurposing Diffusion-Based Image Generators for Monocular Depth Estimation](https://github.com/prs-eth/Marigold) | Pytorch | 1.2.16 and later | Dec 2023 | |
+| [<img src="./see-through/output.png" width=128px>](./see-through/) | [see-through](./see-through/) | [See-through](https://github.com/shitagaki-lab/see-through) | Pytorch | 1.3.0 and later | Mar 2026 | |
 
 [Back to the model list](../README.md)

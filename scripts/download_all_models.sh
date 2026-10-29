@@ -84,6 +84,7 @@ cd ../../diffusion/sd-turbo; python3 sd-turbo.py ${OPTION}
 cd ../../diffusion/anything_v3; python3 anything_v3.py ${OPTION}
 cd ../../diffusion/depth_anything_controlnet; python3 depth_anything_controlnet.py ${OPTION}
 cd ../../diffusion/latentsync; python3 latentsync.py ${OPTION}
+cd ../../diffusion/see-through; python3 see_through.py ${OPTION}
 cd ../../deep_fashion/clothing-detection; python3 clothing-detection.py ${OPTION}
 cd ../../deep_fashion/fashionai-key-points-detection; python3 fashionai-key-points-detection.py ${OPTION}
 cd ../../deep_fashion/mmfashion; python3 mmfashion.py ${OPTION}
