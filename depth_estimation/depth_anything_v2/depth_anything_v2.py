@@ -1,22 +1,20 @@
 import sys
 import time
 
-import ailia
-import cv2
-
-import numpy as np
-
-# import original modules
-sys.path.append('../../util')
-
-from depth_anything_v2_util.transform import Resize, NormalizeImage, PrepareForNet
 # logger
 from logging import getLogger  # noqa: E402
 
+import ailia
+import cv2
+import numpy as np
+
+# import original modules
+sys.path.append("../../util")
 import webcamera_utils  # noqa: E402
+from arg_utils import get_base_parser, update_parser  # noqa: E402
+from depth_anything_v2_util.transform import NormalizeImage, PrepareForNet, Resize
 from image_utils import imread  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
-from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -34,28 +32,50 @@ MODEL_PATH_B = "depth_anything_v2_depth_anything_v2_vitb.onnx.prototxt"
 WEIGHT_PATH_L = "depth_anything_v2_depth_anything_v2_vitl.onnx"
 MODEL_PATH_L = "depth_anything_v2_depth_anything_v2_vitl.onnx.prototxt"
 
+WEIGHT_PATH_HYPERSIM_S = "depth_anything_v2_metric_hypersim_vits.onnx"
+MODEL_PATH_HYPERSIM_S = "depth_anything_v2_metric_hypersim_vits.onnx.prototxt"
+
+WEIGHT_PATH_HYPERSIM_B = "depth_anything_v2_metric_hypersim_vitb.onnx"
+MODEL_PATH_HYPERSIM_B = "depth_anything_v2_metric_hypersim_vitb.onnx.prototxt"
+
+WEIGHT_PATH_HYPERSIM_L = "depth_anything_v2_metric_hypersim_vitl.onnx"
+MODEL_PATH_HYPERSIM_L = "depth_anything_v2_metric_hypersim_vitl.onnx.prototxt"
+
+WEIGHT_PATH_VKITTI_S = "depth_anything_v2_metric_vkitti_vits.onnx"
+MODEL_PATH_VKITTI_S = "depth_anything_v2_metric_vkitti_vits.onnx.prototxt"
+
+WEIGHT_PATH_VKITTI_B = "depth_anything_v2_metric_vkitti_vitb.onnx"
+MODEL_PATH_VKITTI_B = "depth_anything_v2_metric_vkitti_vitb.onnx.prototxt"
+
+WEIGHT_PATH_VKITTI_L = "depth_anything_v2_metric_vkitti_vitl.onnx"
+MODEL_PATH_VKITTI_L = "depth_anything_v2_metric_vkitti_vitl.onnx.prototxt"
+
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/depth_anything_v2/"
 
-DEFAULT_INPUT_PATH = 'demo1.png'
-DEFAULT_SAVE_PATH = 'output.png'
+METRIC_DATASETS = ["hypersim", "vkitti"]
+
+DEFAULT_INPUT_PATH = "demo1.png"
+DEFAULT_SAVE_PATH = "output.png"
 
 # ======================
 # Arguemnt Parser Config
 # ======================
-parser = get_base_parser(
-    'Depth Anything V2', DEFAULT_INPUT_PATH, DEFAULT_SAVE_PATH
-)
 
+parser = get_base_parser("Depth Anything V2", DEFAULT_INPUT_PATH, DEFAULT_SAVE_PATH)
 parser.add_argument(
-    '--encoder', '-ec', type=str, default='vits',
-    help='model type: vits, vitb, vitl'
+    "--encoder", "-ec", type=str, default="vits", help="model type: vits, vitb, vitl"
 )
-
 parser.add_argument(
-    '-g', '--grey', action='store_true',
-    help="Save image as single channel(greyscale)"
+    "--metric",
+    type=str,
+    default=None,
+    choices=METRIC_DATASETS,
+    help="use metric depth model (in meters): "
+    "hypersim (indoor, max 20m), vkitti (outdoor, max 80m)",
 )
-
+parser.add_argument(
+    "-g", "--grey", action="store_true", help="Save image as single channel(greyscale)"
+)
 args = update_parser(parser)
 
 # ======================
@@ -114,8 +134,6 @@ def recognize_from_image(model):
         org_img = cv2.cvtColor(imread(image_path), cv2.COLOR_BGR2RGB) / 255.
 
         image = da_transform({'image': org_img})['image'][None]
-        if org_img.shape[0] > org_img.shape[1]:
-            image = image.transpose((0, 1, 3, 2))
         if args.benchmark and not (args.video is not None):
             logger.info('BENCHMARK mode')
             for i in range(5):
@@ -125,8 +143,8 @@ def recognize_from_image(model):
                 logger.info(f'\tailia processing time {end - start} ms')
         else:
             depth = model.predict(image)
-        if org_img.shape[0] > org_img.shape[1]:
-            depth = depth.transpose((0, 1, 3, 2))
+        if args.metric is not None:
+            logger.info(f'depth range: {depth.min():.3f} - {depth.max():.3f} m')
         depth = post_process(depth, org_img.shape[0], org_img.shape[1])
 
         # visualize
@@ -166,7 +184,27 @@ def main():
     # model files check and download
     assert args.encoder in ['vits', 'vitb', 'vitl'], \
         'encoder should be vits, vitb, or vitl'
-    if args.encoder == 'vits':
+    if args.metric == 'hypersim':
+        if args.encoder == 'vits':
+            WEIGHT_PATH = WEIGHT_PATH_HYPERSIM_S
+            MODEL_PATH = MODEL_PATH_HYPERSIM_S
+        elif args.encoder == 'vitb':
+            WEIGHT_PATH = WEIGHT_PATH_HYPERSIM_B
+            MODEL_PATH = MODEL_PATH_HYPERSIM_B
+        else:
+            WEIGHT_PATH = WEIGHT_PATH_HYPERSIM_L
+            MODEL_PATH = MODEL_PATH_HYPERSIM_L
+    elif args.metric == 'vkitti':
+        if args.encoder == 'vits':
+            WEIGHT_PATH = WEIGHT_PATH_VKITTI_S
+            MODEL_PATH = MODEL_PATH_VKITTI_S
+        elif args.encoder == 'vitb':
+            WEIGHT_PATH = WEIGHT_PATH_VKITTI_B
+            MODEL_PATH = MODEL_PATH_VKITTI_B
+        else:
+            WEIGHT_PATH = WEIGHT_PATH_VKITTI_L
+            MODEL_PATH = MODEL_PATH_VKITTI_L
+    elif args.encoder == 'vits':
         WEIGHT_PATH = WEIGHT_PATH_S
         MODEL_PATH = MODEL_PATH_S
     elif args.encoder == 'vitb':
