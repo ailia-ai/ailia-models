@@ -125,8 +125,6 @@ def compute(net,face_helper,img):
 def recognize_from_image(net):
     # input image loop
 
-    net = ailia.Net(None,"codeformer.onnx")
-
     face_helper = FaceRestoreHelper(
         #args.upscale,
         1,
@@ -168,8 +166,6 @@ def recognize_from_image(net):
 
 def recognize_from_video(net):
     capture = webcamera_utils.get_capture(args.video)
-
-    net = ailia.Net(None,WEIGHT_PATH)
 
     face_helper = FaceRestoreHelper(
         #args.upscale,
