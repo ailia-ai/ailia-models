@@ -85,6 +85,7 @@
 | [gpt-sovits-v3](./gpt-sovits-v3/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Feb 2025 |  |
 | [gpt-sovits-v2-pro](./gpt-sovits-v2-pro/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Jun 2025 | [JP](https://tech.ailia.ai/gpt-sovits-v2-pro-%E9%AB%98%E9%80%9F%E3%81%8B%E3%81%A4%E9%AB%98%E7%B2%BE%E5%BA%A6%E3%81%AA%E9%9F%B3%E5%A3%B0%E5%90%88%E6%88%90%E3%83%A2%E3%83%87%E3%83%AB-81f2156366cd) |
 | [qwen3-tts](./qwen3-tts/) | [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) | Pytorch | 1.6.0 and later | Jan 2026 |  |
+| [qwen3-tts-streaming](./qwen3-tts-streaming/) | [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) | Pytorch | 1.7.0 and later | Oct 2026 |  |
 
 ### Voice activity detection
 
