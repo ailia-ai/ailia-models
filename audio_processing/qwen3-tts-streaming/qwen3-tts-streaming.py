@@ -157,7 +157,9 @@ CONFIG_PATH = f"config_{parameter_num}{MODEL_SUFFIX}.json"
 #   code_predictor    groups 1..15 of a frame in one call, top-k (50) sampling inside
 #                     (export --only code_predictor_frame, simplify_frame.py, then
 #                     convert_to_fp16.py, which names the result qwen3_tts_code_predictor_...)
-#   decoder           codec frames -> waveform
+#   decoder_window    codec frames -> waveform: the whole window through the
+#                     transformer, only the selected frames (select input) through the
+#                     upsampling. One file for Base and CustomVoice (same speech tokenizer)
 def model_path(name, extra="", suffix=None):
     # the talker, the code predictor and the decoder are pure fp16 graphs (opset
     # 23, every tensor fp16; the IO fp32 but the talker's KV cache); the prompt
@@ -172,8 +174,8 @@ def model_path(name, extra="", suffix=None):
 
 
 def coreml_path(name, extra=""):
-    """The Core ML counterpart of a model (export/coreml/export_coreml.py): same split, same
-    inputs and outputs, a compiled .mlmodelc directory (downloaded zipped)."""
+    """The Core ML counterpart of a model: same split, same inputs and outputs, a compiled
+    .mlmodelc directory (downloaded zipped). The exporter is maintained outside this repository."""
     return f"qwen3_tts_{name}_{parameter_num}{MODEL_SUFFIX}{extra}.mlmodelc"
 
 
@@ -858,7 +860,7 @@ class Qwen3TTSStreaming:
         self.decoder = mk(MODEL_PATH_DECODER, WEIGHT_PATH_DECODER, "decoder")
 
     def _load_coreml(self, memory_mode, env_id):
-        """The Core ML models of export/coreml/export_coreml.py: the talker, the
+        """The Core ML models (coreml_path): the talker, the
         code predictor and the decoder on the Neural Engine (fp16), the two
         gathers on the CPU. The Base model's reference encoder runs once at
         start up and stays ONNX, on ailia or (--onnx) onnxruntime."""
