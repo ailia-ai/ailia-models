@@ -33,9 +33,13 @@ If you want to specify the input image, put the image path after the `--input` o
 $ python3 age-gender-recognition-retail.py --input IMAGE_PATH
 ```
 
-If you want to perform face detection in preprocessing, use the `--detection` option.
+If you want to perform face detection in preprocessing, use the `--detector` option
+to select the face detector (`blazeface` or `face-detection-adas`).
+`face-detection-adas` is recommended because it is the detector used by the
+official OpenVINO demo pipeline and gives a face crop closest to it.
+In video mode, `face-detection-adas` is used by default.
 ```bash
-$ python3 age-gender-recognition-retail.py --input IMAGE_PATH --detection
+$ python3 age-gender-recognition-retail.py --input IMAGE_PATH --detector face-detection-adas
 ```
 
 By adding the `--video` option, you can input the video.   
@@ -44,6 +48,20 @@ You can use --savepath option to specify the output file to save.
 ```bash
 $ python3 age-gender-recognition-retail.py --video VIDEO_PATH --savepath SAVE_VIDEO_PATH
 ```
+
+## Verification with OpenVINO
+
+`example_openvino.py` runs the official OpenVINO IR models with the OpenVINO
+runtime (`pip3 install openvino`) using the same interface, so that the
+results can be compared with the ailia sample.
+```bash
+$ python3 example_openvino.py --input IMAGE_PATH
+$ python3 example_openvino.py --input IMAGE_PATH --detection
+```
+Note that the face detector preprocessing differs between the two
+implementations (the ailia sample uses letterbox resize while the OpenVINO
+demo stretches the input), so the detected boxes and therefore the estimated
+ages can differ slightly in `--detection` mode.
 
 ## Reference
 

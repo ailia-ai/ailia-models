@@ -16,6 +16,7 @@ from model_utils import check_and_download_models  # noqa
 from image_utils import normalize_image  # noqa
 from detector_utils import load_image  # noqa
 from webcamera_utils import get_capture, get_writer  # noqa
+from encoder4editing_utils import get_landmark  # noqa
 # logger
 from logging import getLogger  # noqa
 
@@ -43,6 +44,13 @@ WEIGHT_CHURCH_DEC_PATH = "church_decoder.onnx"
 MODEL_CHURCH_DEC_PATH = "church_decoder.onnx.prototxt"
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/encoder4editing/'
 
+FACE_DETECTOR_WEIGHT_PATH = "../../face_detection/blazeface/blazeface.onnx"
+FACE_DETECTOR_MODEL_PATH = "../../face_detection/blazeface/blazeface.onnx.prototxt"
+FACE_DETECTOR_REMOTE_PATH = "https://storage.googleapis.com/ailia-models/blazeface/"
+FACE_ALIGNMENT_WEIGHT_PATH = "../../face_recognition/face_alignment/2DFAN-4.onnx"
+FACE_ALIGNMENT_MODEL_PATH = "../../face_recognition/face_alignment/2DFAN-4.onnx.prototxt"
+FACE_ALIGNMENT_REMOTE_PATH = "https://storage.googleapis.com/ailia-models/face_alignment/"
+
 IMAGE_PATH = 'demo.jpg'
 SAVE_IMAGE_PATH = 'output.png'
 
@@ -60,6 +68,10 @@ parser = get_base_parser(
 parser.add_argument(
     '--aligned', action='store_true',
     help='Input is aligned faces.'
+)
+parser.add_argument(
+    '--use_dlib', action='store_true',
+    help='Use dlib models for face alignment.'
 )
 parser.add_argument(
     '-m', '--model_type', default='ffhq', choices=('ffhq', 'car', 'horse', 'church'),
@@ -405,18 +417,26 @@ def factorize_weight(net, layers='all'):
 # Main functions
 # ======================
 
-def run_alignment(img):
-    from dlib_align import align_face
-    img = align_face(img)
+def run_alignment(img, models):
+    import dlib_align
+
+    if args.use_dlib:
+        lm = dlib_align.get_landmark(img)
+    else:
+        lm = get_landmark(img, models["det"], models["align"], onnx=args.onnx)
+    if lm is None:
+        return None
+
+    img = dlib_align.align_face(img, lm)
 
     return img
 
 
-def preprocess(img):
+def preprocess(img, models):
     img = img[:, :, ::-1]  # BGR -> RGB
 
     if model_type == 'ffhq' and not args.aligned:
-        aligned = run_alignment(img)
+        aligned = run_alignment(img, models)
         if aligned is None:
             logger.warning("face not detected.")
         else:
@@ -453,7 +473,7 @@ def predict(models, img):
     net_enc = models["enc"]
     net_dec = models["dec"]
 
-    img = preprocess(img)
+    img = preprocess(img, models)
 
     # feedforward
     if not args.onnx:
@@ -564,7 +584,16 @@ def main():
     check_and_download_models(WEIGHT_ENC_PATH, MODEL_ENC_PATH, REMOTE_PATH)
     check_and_download_models(WEIGHT_DEC_PATH, MODEL_DEC_PATH, REMOTE_PATH)
 
-    if model_type == 'ffhq' and not args.aligned:
+    use_face_model = model_type == 'ffhq' and not args.aligned and not args.use_dlib
+    if use_face_model:
+        check_and_download_models(
+            FACE_DETECTOR_WEIGHT_PATH, FACE_DETECTOR_MODEL_PATH, FACE_DETECTOR_REMOTE_PATH
+        )
+        check_and_download_models(
+            FACE_ALIGNMENT_WEIGHT_PATH, FACE_ALIGNMENT_MODEL_PATH, FACE_ALIGNMENT_REMOTE_PATH
+        )
+
+    if model_type == 'ffhq' and not args.aligned and args.use_dlib:
         from dlib_align import DLIB_FILE, REMOTE_DLIB_PATH
         from model_utils import urlretrieve, progress_print
         import shutil, bz2
@@ -604,6 +633,14 @@ def main():
         "enc": net_enc,
         "dec": net_dec,
     }
+    if use_face_model:
+        if not args.onnx:
+            models["det"] = ailia.Net(FACE_DETECTOR_MODEL_PATH, FACE_DETECTOR_WEIGHT_PATH, env_id=env_id)
+            models["align"] = ailia.Net(FACE_ALIGNMENT_MODEL_PATH, FACE_ALIGNMENT_WEIGHT_PATH, env_id=env_id)
+        else:
+            import onnxruntime
+            models["det"] = onnxruntime.InferenceSession(FACE_DETECTOR_WEIGHT_PATH)
+            models["align"] = onnxruntime.InferenceSession(FACE_ALIGNMENT_WEIGHT_PATH)
 
     recognize_from_image(models)
 

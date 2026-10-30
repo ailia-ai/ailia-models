@@ -10,6 +10,15 @@ Usage:
 Writes qwen3_tts_<name>_<p>_fp16.onnx next to each fp32 model, with a prototxt, and
 needs neither torch nor qwen-tts.
 
+The fused code predictor (qwen3_tts_code_predictor_<p>.opt.onnx ->
+qwen3_tts_code_predictor_<p>_fp16.opt.onnx) is the exception to the whole-graph
+conversion below: its graph ends in 15 sampling blocks (lm_head, top-k, Gumbel
+noise), and a full fp16 version of it overflows. It is converted the way the
+streaming sample converts every model -- weights and MatMul / Gather in fp16 with
+a Cast on the way in and out, everything else fp32 -- by importing
+../../qwen3-tts-streaming/export/convert_to_fp16.py, so both samples ship the
+same file for it.
+
 The encoder is left in fp32 for a reason given at MODELS below. Two things stay in
 fp32 in every model that is converted:
 
@@ -48,7 +57,26 @@ from onnx_utils import generate_prototxt, save_model
 # and 5..15 where the residual being quantised is small enough for fp16 to flip a
 # near tie. Those 16 codebooks are the voice prompt, so the reference audio would
 # no longer be encoded the same way -- for 114MB of the 4.3GB set.
-MODELS = ["decoder", "prompt", "codec_embedding", "talker", "code_predictor"]
+MODELS = ["decoder", "prompt", "codec_embedding", "talker", "code_predictor", "code_predictor_opt"]
+
+STREAMING_EXPORT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "qwen3-tts-streaming", "export")
+
+
+def convert_fused(path, out_path, parameter_num):
+    """The fused code predictor, with the streaming sample's converter (see the module doc)."""
+    import importlib.util
+    import sys
+    script = os.path.join(STREAMING_EXPORT, "convert_to_fp16.py")
+    if not os.path.exists(script):
+        raise FileNotFoundError(f"{script} is needed to convert the fused code predictor")
+    sys.path.insert(0, STREAMING_EXPORT)
+    spec = importlib.util.spec_from_file_location("streaming_convert_to_fp16", script)
+    streaming = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(streaming)
+    # no recorded calls here: the converter falls back to the activation ranges
+    # it recorded on the shipped models (KNOWN_BLOCKS), which keep one MatMul of
+    # the 0.6B predictor in fp32 compute
+    streaming.convert(path, out_path, name="code_predictor_frame", parameter_num=parameter_num)
 
 
 def rotary_nodes(graph):
@@ -107,11 +135,18 @@ def main():
     output_dir = args.output_dir or args.onnx_dir
     os.makedirs(output_dir, exist_ok=True)
     for name in [args.only] if args.only else MODELS:
-        stem = f"qwen3_tts_{name}_{args.parameter_num}"
-        path = os.path.join(args.onnx_dir, stem + ".onnx")
-        out_path = os.path.join(output_dir, stem + "_fp16.onnx")
-        print(f"converting {stem}.onnx ...")
-        convert(path, out_path)
+        if name == "code_predictor_opt":
+            stem = f"qwen3_tts_code_predictor_{args.parameter_num}"
+            path = os.path.join(args.onnx_dir, stem + ".opt.onnx")
+            out_path = os.path.join(output_dir, stem + "_fp16.opt.onnx")
+            print(f"converting {stem}.opt.onnx ...")
+            convert_fused(path, out_path, args.parameter_num)
+        else:
+            stem = f"qwen3_tts_{name}_{args.parameter_num}"
+            path = os.path.join(args.onnx_dir, stem + ".onnx")
+            out_path = os.path.join(output_dir, stem + "_fp16.onnx")
+            print(f"converting {stem}.onnx ...")
+            convert(path, out_path)
         print(f"  {os.path.getsize(path) / 1e6:8.1f} MB -> "
               f"{os.path.getsize(out_path) / 1e6:8.1f} MB")
 
