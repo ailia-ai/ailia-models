@@ -20,6 +20,7 @@
 |[qwen3-embedding](./qwen3-embedding) | [Hugging Face - Qwen3-Embedding-0.6B](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) | Pytorch | 1.2.16 and later | Jun 2025| |
 |[ruri-v3](./ruri-v3) | [ruri-v3-310m ](https://huggingface.co/cl-nagoya/ruri-v3-310m) | Pytorch | 1.2.13 and later | Apr 2025 | |
 |[embeddinggemma](./embeddinggemma) | [EmbeddingGemma](https://ai.google.dev/gemma/docs/embeddinggemma?hl=ja) | Pytorch | 1.2.14 and later | Sep 2025| [JP](https://kyakuno.medium.com/embedding-gemma-google%E3%81%AE%E9%96%8B%E7%99%BA%E3%81%97%E3%81%9F%E8%BB%BD%E9%87%8F%E3%81%A7%E9%AB%98%E7%B2%BE%E5%BA%A6%E3%81%AAembedding%E3%83%A2%E3%83%87%E3%83%AB-9ec139ddfde9) |
+|[embeddinggemma-2](./embeddinggemma-2) | [Hugging Face - google/embeddinggemma-2](https://huggingface.co/google/embeddinggemma-2) | Pytorch | 1.3.0 and later | Sep 2026 | |
 
 ### Error corrector
 

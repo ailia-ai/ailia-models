@@ -43,6 +43,7 @@ parser.add_argument(
 )
 parser.add_argument(
     '--temperature', default=1.0,
+    type=float,
     help='randomness control factor'
 )
 args = update_parser(parser, check_input_type=False)

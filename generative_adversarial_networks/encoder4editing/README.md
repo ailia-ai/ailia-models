@@ -34,7 +34,7 @@
   <img src="example/ffhq_sefa.png">
 
 ## Requirements
-This model requires additional module.
+This model requires additional module if you use dlib for face alignment (`--use_dlib` option).
 
 ```
 pip3 install dlib     # for align face
@@ -61,7 +61,7 @@ $ python3 encoder4editing.py --model_type ffhq
 ```
 
 If the input image is aligned, specify the `--aligned` option.  
-In this case the dlib module is not needed.
+In this case face alignment is skipped.
 ```bash
 $ python3 encoder4editing.py --aligned
 ```

@@ -285,6 +285,7 @@ cd ../../natural_language_processing/bert_ner_japanese; python3 bert_ner_japanes
 cd ../../natural_language_processing/multilingual-minilmv2; python3 multilingual-minilmv2.py ${OPTION}
 cd ../../natural_language_processing/ruri-v3; python3 ruri-v3.py ${OPTION}
 cd ../../natural_language_processing/embeddinggemma; python3 embeddinggemma.py ${OPTION}
+cd ../../natural_language_processing/embeddinggemma-2; python3 embeddinggemma-2.py ${OPTION}
 cd ../../natural_language_processing/qwen3-embedding; python3 qwen3-embedding.py ${OPTION}
 cd ../../natural_language_processing/ruri-v3-reranker; python3 ruri-v3-reranker.py ${OPTION}
 cd ../../network_intrusion_detection/bert-network-packet-flow-header-payload; python3 bert-network-packet-flow-header-payload.py ${OPTION}
