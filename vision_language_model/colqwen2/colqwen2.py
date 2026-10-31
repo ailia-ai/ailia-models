@@ -6,7 +6,7 @@ from logging import getLogger
 import ailia
 import cv2
 import numpy as np
-from ailia_tokenizer import GPT2Tokenizer
+import ailia_tokenizer
 
 # import original modules
 sys.path.append("../../util")
@@ -76,6 +76,15 @@ args = update_parser(parser)
 # ======================
 
 IMAGE_TOKEN_ID = 151655  # <|image_pad|>
+
+
+def ailia_tokenizer_version():
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return tuple(int(v) for v in version("ailia_tokenizer").split(".")[:2])
+    except (PackageNotFoundError, ValueError):
+        return (0, 0)
 
 PATCH_SIZE = 14
 MERGE_SIZE = 2
@@ -381,8 +390,12 @@ def main():
         from transformers import AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained("./tokenizer")
+    elif ailia_tokenizer_version() >= (1, 7):
+        # Qwen2Tokenizer (ailia_tokenizer 1.7+) loads added_tokens_decoder
+        # of tokenizer_config.json by itself.
+        tokenizer = ailia_tokenizer.Qwen2Tokenizer.from_pretrained("./tokenizer")
     else:
-        tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer")
+        tokenizer = ailia_tokenizer.GPT2Tokenizer.from_pretrained("./tokenizer")
         # Pass added_tokens_decoder of tokenizer_config.json sorted by id.
         # Omitting a token shifts all the ids that follow it.
         tokenizer.add_special_tokens(

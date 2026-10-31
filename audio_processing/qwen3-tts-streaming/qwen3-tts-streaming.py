@@ -296,15 +296,30 @@ def mel_spectrogram(y, sr):
     return spec[None].astype(np.float32)
 
 
+def ailia_tokenizer_version():
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return tuple(int(v) for v in version("ailia_tokenizer").split(".")[:2])
+    except (PackageNotFoundError, ValueError):
+        return (0, 0)
+
+
 def create_tokenizer():
     """(encode function, tokenizer): the tokenizer also gives LiveTextSource its token offsets."""
     if args.disable_ailia_tokenizer:
         from transformers import AutoTokenizer
         tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_DIR)
         return lambda text: tokenizer(text)["input_ids"], tokenizer
-    from ailia_tokenizer import GPT2Tokenizer
-    tokenizer = GPT2Tokenizer.from_pretrained(TOKENIZER_DIR)
-    tokenizer.add_special_tokens({"additional_special_tokens": TOKENIZER_SPECIAL_TOKENS})
+    if ailia_tokenizer_version() >= (1, 7):
+        # Qwen2Tokenizer (ailia_tokenizer 1.7+) loads added_tokens_decoder
+        # of tokenizer_config.json by itself.
+        from ailia_tokenizer import Qwen2Tokenizer
+        tokenizer = Qwen2Tokenizer.from_pretrained(TOKENIZER_DIR)
+    else:
+        from ailia_tokenizer import GPT2Tokenizer
+        tokenizer = GPT2Tokenizer.from_pretrained(TOKENIZER_DIR)
+        tokenizer.add_special_tokens({"additional_special_tokens": TOKENIZER_SPECIAL_TOKENS})
     return lambda text: list(tokenizer.encode(text)), tokenizer
 
 
