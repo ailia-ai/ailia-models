@@ -53,7 +53,7 @@
 |[cross_encoder_mmarco](./cross_encoder_mmarco) | [jeffwan/mmarco-mMiniLMv2-L12-H384-v](https://huggingface.co/jeffwan/mmarco-mMiniLMv2-L12-H384-v1) | Pytorch | 1.2.10 and later | Sep 2022 | [EN](https://tech.ailia.ai/en/crossencodermmarco-machine-learning-model-that-calculates-the-similarity-between-a-question-and-an-1906f716f8ef/) [JP](https://tech.ailia.ai/crossencodermmarco-%E8%B3%AA%E5%95%8F%E6%96%87%E3%81%A8%E5%9B%9E%E7%AD%94%E6%96%87%E3%81%AE%E9%A1%9E%E4%BC%BC%E5%BA%A6%E3%82%92%E8%A8%88%E7%AE%97%E3%81%99%E3%82%8B%E6%A9%9F%E6%A2%B0%E5%AD%A6%E7%BF%92%E3%83%A2%E3%83%87%E3%83%AB-c90b35e9fc09)|
 |[japanese-reranker-cross-encoder](./japanese-reranker-cross-encoder) | [hotchpotch/japanese-reranker-cross-encoder-large-v1](https://huggingface.co/hotchpotch/japanese-reranker-cross-encoder-large-v1) | Pytorch | 1.2.16 and later | Apr 2024 | |
 |[ruri-v3-reranker](./ruri-v3-reranker) | [ruri-v3-reranker-310m ](https://huggingface.co/cl-nagoya/ruri-v3-reranker-310m) | Pytorch | 1.2.16 and later | Apr 2025 | |
-|[qwen3-reranker](./qwen3-reranker) | [Hugging Face - Qwen3-Reranker-0.6B](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B) | Pytorch | 1.7.0 and later | Jun 2025 | |
+|[qwen3-reranker](./qwen3-reranker) | [Hugging Face - Qwen3-Reranker-0.6B](https://huggingface.co/Qwen/Qwen3-Reranker-0.6B) | Pytorch | 1.2.16 and later | Jun 2025 | |
 
 ### Sentence generation
 
