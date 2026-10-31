@@ -48,6 +48,7 @@ TOKENIZER_REMOTE_PATH = "https://storage.googleapis.com/ailia-models/qwen3-tts/"
 
 SAMPLE_RATE = 24000
 FRAME_SAMPLES = 1920        # decoder upsample rate: 24000 Hz / 12.5 frames per second
+MIN_NEW_TOKENS = 2          # frames before EOS may end an utterance, as in the reference generate()
 
 
 # ======================
@@ -109,6 +110,8 @@ parser.add_argument('--results', default=None, help='append one JSON line of tim
 # generation
 parser.add_argument('--temperature', type=float, default=0.9, help='talker sampling temperature, 0 = greedy')
 parser.add_argument('--top_k', type=int, default=50, help='talker top-k')
+parser.add_argument('--repetition_penalty', type=float, default=1.05,
+                    help='talker repetition penalty on the generated group-0 tokens, 1.0 = off')
 parser.add_argument('--subtalker_temperature', type=float, default=0.9, help='code predictor temperature, 0 = greedy')
 parser.add_argument('--emit_every', type=int, default=8, help='emit a PCM chunk every N frames (N * 80 ms)')
 parser.add_argument('--decode_window', type=int, default=80, help='frames decoded for each chunk (context + chunk)')
@@ -265,6 +268,17 @@ def top_k_top_p(logits, top_k=0, top_p=1.0):
         sorted_logits[remove] = -np.inf
         logits = np.empty_like(sorted_logits)
         logits[order] = sorted_logits
+    return logits
+
+
+def repetition_penalty(logits, tokens, penalty):
+    """HuggingFace RepetitionPenaltyLogitsProcessor: every token already generated
+    has its logit divided by the penalty (multiplied when negative)."""
+    logits = logits.astype(np.float64, copy=True)
+    if penalty != 1.0 and tokens:
+        ids = np.unique(np.asarray(tokens, dtype=np.int64))
+        score = logits[ids]
+        logits[ids] = np.where(score < 0, score * penalty, score / penalty)
     return logits
 
 
@@ -789,11 +803,12 @@ class Qwen3TTSStreaming:
         self.tts_bos, self.tts_eos, self.tts_pad = proj[:, 0:1], proj[:, 1:2], proj[:, 2:3]
         self.role_embed = proj[:, 3:]
 
-        eos_ids = {tc["codec_eos_token_id"], 2150, 2157, 151670, self.cfg["tts_eos_token_id"],
-                   self.cfg["im_end_token_id"], 151643}
+        # as in the reference generate(): every special codec token but codec_eos
+        # is suppressed, so codec_eos is the only token that ends an utterance
+        eos_ids = {tc["codec_eos_token_id"]}
         self.eos_ids = eos_ids
         self.suppress = [i for i in range(self.talker_vocab - 1024, self.talker_vocab) if i not in eos_ids]
-        self.codec_eos = [i for i in eos_ids if i < self.talker_vocab]
+        self.codec_eos = list(eos_ids)
         self.voices = {}
         self.clone_voice = self.voice_clone_prompt(args.ref_audio, args.ref_text) if args.model == "base" else None
         self.bench.reset()
@@ -1003,7 +1018,7 @@ class Qwen3TTSStreaming:
 
     # ---------------- the live text loop ----------------
     def stream(self, source, speaker, language,
-               temperature=0.9, top_k=50, sub_temperature=0.9,
+               temperature=0.9, top_k=50, sub_temperature=0.9, rep_penalty=1.05,
                emit_every_frames=8, decode_window_frames=80, first_chunk_emit_every=0,
                first_chunk_decode_window=48, first_chunk_frames=48,
                wind_down_frames=200, wind_down_multiplier=6.0, max_frames=10000, on_event=None):
@@ -1068,6 +1083,10 @@ class Qwen3TTSStreaming:
         utterance = utterance.astype(np.float32)
 
         def pick(logits, allow_eos):
+            # the reference generate() uses repetition_penalty 1.05 over the
+            # generated group-0 tokens and min_new_tokens 2
+            logits = repetition_penalty(logits, [frame[0] for frame in codes[n_ctx:]], rep_penalty)
+            allow_eos = allow_eos and len(codes) - n_ctx >= MIN_NEW_TOKENS
             sup = self.suppress if allow_eos else self.suppress + self.codec_eos
             if allow_eos:
                 # an fp16 talker leaves EOS a little less probable, and an
@@ -1093,10 +1112,10 @@ class Qwen3TTSStreaming:
         past_hidden = last_hidden.astype(np.float32)
         position = prefill_len
         generation_step = 0
-        token = pick(logits[0, -1], closed and generation_step >= trailing.shape[1])
-
         codes = list(ref_frames)
         n_ctx = len(codes)
+        token = pick(logits[0, -1], closed and generation_step >= trailing.shape[1])
+
         frames_since_emit, total_emitted = 0, n_ctx
         frames_since_closed = real_frames = 0
         ended = False
@@ -1256,6 +1275,7 @@ def run_one(tts, source, tl, label="", player=None):
         for chunk in tts.stream(source, args.speaker, args.language,
                                 temperature=args.temperature, top_k=args.top_k,
                                 sub_temperature=args.subtalker_temperature,
+                                rep_penalty=args.repetition_penalty,
                                 emit_every_frames=args.emit_every, decode_window_frames=args.decode_window,
                                 first_chunk_emit_every=args.first_chunk_emit, on_event=on_event):
             tl.mark("first_pcm")

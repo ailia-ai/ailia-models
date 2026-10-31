@@ -118,9 +118,10 @@ python3 qwen3-tts-streaming.py --replay texts.json --rate 30 --results results.j
 - `--emit_every` frames per audio chunk (default 8 = 0.64 s); `--decode_window`
   frames the decoder sees per chunk (default 80); `--decode_select` frames it
   renders per chunk (default 16, a shape of the decoder model)
-- `--temperature`, `--top_k`, `--subtalker_temperature` sampling (defaults
-  0.9 / 50 / 0.9, as in the reference implementation; the code predictor's
-  top-k of 50 is a constant of its graph)
+- `--temperature`, `--top_k`, `--subtalker_temperature`, `--repetition_penalty`
+  sampling (defaults 0.9 / 50 / 0.9 / 1.05, as in the reference implementation;
+  the code predictor's top-k of 50 is a constant of its graph, and the penalty
+  applies to the talker's generated group-0 tokens)
 - `--results` append one JSON line of timings per utterance
 - `--coreml` run on Core ML (the Apple Neural Engine) instead of ailia
 - `--onnx` run on onnxruntime instead of ailia; `--cuda_graph` which
@@ -146,7 +147,9 @@ fifth of the work.
 
 An utterance ends when the talker draws EOS, or when EOS is its most likely
 token: an fp16 talker leaves EOS slightly less probable, and an utterance that
-misses it would run on in silence.
+misses it would run on in silence. As in the reference implementation, only
+`codec_eos` ends an utterance (the other special codec tokens, `think_eos`
+included, are suppressed) and EOS is not allowed in the first two frames.
 
 The prompt prefix of a voice (role, codec tags, speaker, and for the
 in-context clone the reference text on its codec frames) is prefilled once;
