@@ -147,6 +147,12 @@ WEIGHT_PATH_TALKER            = f"qwen3_tts_talker_{parameter_num}{FP16_SUFFIX}.
 MODEL_PATH_TALKER             = WEIGHT_PATH_TALKER + ".prototxt"
 WEIGHT_PATH_CODE_PREDICTOR    = f"qwen3_tts_code_predictor_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_CODE_PREDICTOR     = WEIGHT_PATH_CODE_PREDICTOR + ".prototxt"
+# 統合版 code predictor: 15 ステップの予測と top-k サンプリングを 1 グラフにしたもの
+# (入力 past_hidden, group0, noise, temperature / 出力 groups, frame_embed)。
+# 分割版は 1 フレームに 15 回の呼び出しが要るが、統合版は 1 回で済む。
+# サイズごとに hidden が違うので 0.6B / 1.7B で別ファイル。分割版と同じ名前に .opt を足したもの。
+WEIGHT_PATH_CODE_PREDICTOR_FRAME = f"qwen3_tts_code_predictor_{parameter_num}{FP16_SUFFIX}.opt.onnx"
+MODEL_PATH_CODE_PREDICTOR_FRAME  = WEIGHT_PATH_CODE_PREDICTOR_FRAME + ".prototxt"
 WEIGHT_PATH_DECODER           = f"qwen3_tts_decoder_{parameter_num}{FP16_SUFFIX}.onnx"
 MODEL_PATH_DECODER            = WEIGHT_PATH_DECODER + ".prototxt"
 
@@ -178,6 +184,12 @@ COPY_BLOB_DATA = not (
     and AILIA_VERSION_MINOR <= 2
     and AILIA_VERSION_REVISION < 15
 )
+# 統合版 code predictor は TopK など ailia 1.7 以降で対応したレイヤーを使うので、
+# onnxruntime か ailia 1.7.0 以降のときに使う。それ以前の ailia は分割版。
+USE_FUSED_CODE_PREDICTOR = args.onnx or (AILIA_VERSION_MAJOR > 1 or AILIA_VERSION_MINOR >= 7)
+if USE_FUSED_CODE_PREDICTOR:
+    onnx_list = [(w, m) for (w, m) in onnx_list if w != WEIGHT_PATH_CODE_PREDICTOR]
+    onnx_list.append((WEIGHT_PATH_CODE_PREDICTOR_FRAME, MODEL_PATH_CODE_PREDICTOR_FRAME))
 
 # --onnx のとき、-e で選ばれた env_id が GPU なら CUDA を先に置く。CPU の env_id で
 # CUDA を並べても onnxruntime が警告を出して CPU に落とすだけなので、ailia と同じ
@@ -396,7 +408,10 @@ class Qwen3TTS:
         self.prompt            = create_net(MODEL_PATH_PROMPT, WEIGHT_PATH_PROMPT, memory_mode, env_id)
         self.codec_embedding   = create_net(MODEL_PATH_CODEC_EMBEDDING, WEIGHT_PATH_CODEC_EMBEDDING, memory_mode, env_id)
         self.talker            = create_net(MODEL_PATH_TALKER, WEIGHT_PATH_TALKER, memory_mode, env_id)
-        self.code_predictor    = create_net(MODEL_PATH_CODE_PREDICTOR, WEIGHT_PATH_CODE_PREDICTOR, memory_mode, env_id)
+        if USE_FUSED_CODE_PREDICTOR:
+            self.code_predictor = create_net(MODEL_PATH_CODE_PREDICTOR_FRAME, WEIGHT_PATH_CODE_PREDICTOR_FRAME, memory_mode, env_id)
+        else:
+            self.code_predictor = create_net(MODEL_PATH_CODE_PREDICTOR, WEIGHT_PATH_CODE_PREDICTOR, memory_mode, env_id)
         self.decoder           = create_net(MODEL_PATH_DECODER, WEIGHT_PATH_DECODER, memory_mode, env_id)
         self.text_tokenizer    = create_tokenizer()
         # KV cache を持つ層数は ONNX の入力数から求める。KV cache 以外の入力は
@@ -551,6 +566,8 @@ class Qwen3TTS:
     # ------------------------------------------------------------------
     def _predict_subgroups(self, group0_token: int, past_hidden: np.ndarray,
                            temperature: float = 0.9, top_k: int = 50) -> list:
+        if USE_FUSED_CODE_PREDICTOR:
+            return self._predict_subgroups_fused(group0_token, past_hidden, temperature)
         NSL  = self.NUM_SUB_LAYERS
         NKV  = self.cfg["sub_num_kv_heads"]
         HDIM = self.cfg["sub_head_dim"]
@@ -581,6 +598,30 @@ class Qwen3TTS:
             group_tokens.append(_sample_token(logits[0, -1, :], temperature, top_k))
 
         return group_tokens
+
+    # ------------------------------------------------------------------
+    # _predict_subgroups_fused: 統合版 code predictor。15 ステップとサンプリングを
+    #   1 回の推論で行なう。サンプリングは Gumbel-max: argmax(top_k(logits / T) + g)、
+    #   g = -log(-log(u)) をホストで作って渡す (top-k の softmax から引くのと同じ分布。
+    #   top-k=50 はグラフの定数)。temperature=0 は noise=0, T=1 で greedy になる。
+    #   出力の frame_embed (16 グループの埋め込みの和) は次の talker 入力にそのまま使える。
+    # ------------------------------------------------------------------
+    def _predict_subgroups_fused(self, group0_token: int, past_hidden: np.ndarray,
+                                 temperature: float = 0.9) -> list:
+        n_groups, vocab = self.num_code_groups - 1, self.group_vocab_size
+        if temperature > 0:
+            u = np.random.uniform(1e-10, 1.0, (n_groups, vocab)).astype(np.float32)
+            noise = -np.log(-np.log(np.clip(u, 1e-10, 1.0 - 1e-7)))
+            temp = np.array([temperature], dtype=np.float32)
+        else:
+            noise, temp = np.zeros((n_groups, vocab), dtype=np.float32), np.ones(1, dtype=np.float32)
+        inputs = [past_hidden.astype(np.float32), np.array([group0_token], dtype=np.int64), noise, temp]
+        with self.benchmark.measure("code_predictor"):
+            for index, value in enumerate(inputs):
+                self.code_predictor.set_input_blob_shape(value.shape, index)
+            groups, frame_embed = self.code_predictor.run(inputs)
+        self._fused_frame_embed = frame_embed.astype(np.float32)
+        return [int(g) for g in groups]
 
     # ------------------------------------------------------------------
     # create_voice_clone_prompt
@@ -788,8 +829,11 @@ class Qwen3TTS:
 
             # ── main talker decode ─────────────────────────────────
             #   16 グループの codec 埋め込みを合算し、テキストを足したものが入力
-            frame_emb = self._run_codec_embedding(
-                np.array([self.frame_rows(all_group_tokens)], dtype=np.int64))
+            if USE_FUSED_CODE_PREDICTOR:
+                frame_emb = self._fused_frame_embed       # 統合版が 16 グループの和も返す
+            else:
+                frame_emb = self._run_codec_embedding(
+                    np.array([self.frame_rows(all_group_tokens)], dtype=np.int64))
             current_input = (frame_emb + text_feedback).astype(np.float32)
 
             decode_pos  = prefill_len + step
