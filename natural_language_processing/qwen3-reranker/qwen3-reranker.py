@@ -211,6 +211,15 @@ def recognize_from_sentence(models):
     logger.info("Script finished successfully.")
 
 
+def ailia_tokenizer_version():
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return tuple(int(v) for v in version("ailia_tokenizer").split(".")[:2])
+    except (PackageNotFoundError, ValueError):
+        return (0, 0)
+
+
 def main():
     # model files check and download
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
@@ -236,6 +245,12 @@ def main():
         from transformers import AutoTokenizer
 
         tokenizer = AutoTokenizer.from_pretrained("tokenizer", padding_side="left")
+    elif ailia_tokenizer_version() >= (1, 7):
+        # Qwen2Tokenizer (ailia_tokenizer 1.7+) loads the added-token
+        # metadata of tokenizer.json by itself.
+        from ailia_tokenizer import Qwen2Tokenizer
+
+        tokenizer = Qwen2Tokenizer.from_pretrained("./tokenizer")
     else:
         from ailia_tokenizer import GPT2Tokenizer
 
