@@ -334,10 +334,24 @@ TOKENIZER_SPECIAL_TOKENS = [
 ]
 
 
+def ailia_tokenizer_version():
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return tuple(int(v) for v in version("ailia_tokenizer").split(".")[:2])
+    except (PackageNotFoundError, ValueError):
+        return (0, 0)
+
+
 def create_tokenizer():
     if args.disable_ailia_tokenizer:
         from transformers import AutoTokenizer
         return AutoTokenizer.from_pretrained(TOKENIZER_DIR)
+    elif ailia_tokenizer_version() >= (1, 7):
+        # Qwen2Tokenizer (ailia_tokenizer 1.7+) loads added_tokens_decoder
+        # of tokenizer_config.json by itself.
+        from ailia_tokenizer import Qwen2Tokenizer
+        return Qwen2Tokenizer.from_pretrained(TOKENIZER_DIR)
     else:
         from ailia_tokenizer import GPT2Tokenizer
         tokenizer = GPT2Tokenizer.from_pretrained(TOKENIZER_DIR)
