@@ -258,8 +258,8 @@ def main():
         tokenizer = MarianTokenizer.from_pretrained("./tokenizer/")
 
     if not args.onnx:
-        encoder = ailia.Net(stream=ENCODER_PROTOTXT_PATH, weight=ENCODER_ONNX_PATH)
-        decoder = ailia.Net(stream=DECODER_PROTOTXT_PATH, weight=DECODER_ONNX_PATH)
+        encoder = ailia.Net(stream=ENCODER_PROTOTXT_PATH, weight=ENCODER_ONNX_PATH, env_id=args.env_id)
+        decoder = ailia.Net(stream=DECODER_PROTOTXT_PATH, weight=DECODER_ONNX_PATH, env_id=args.env_id)
     else:
         import onnxruntime
         providers = ['CPUExecutionProvider']

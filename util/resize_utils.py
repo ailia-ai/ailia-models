@@ -209,9 +209,17 @@ def resize_bilinear_aa(arr, size, max_size=None):
 
     arrf = arr.astype(np.float32, copy=False)
     # 縮小軸は antialias (triangle kernel)、拡大軸は通常 bilinear（PyTorch と同じ挙動）
-    tmp = _bilinear_aa_axis0(arrf, out_h) if out_h < in_h else _bilinear_axis0(arrf, out_h)
+    tmp = (
+        _bilinear_aa_axis0(arrf, out_h)
+        if out_h < in_h
+        else _bilinear_axis0(arrf, out_h)
+    )
     tmpt = tmp.transpose(1, 0, 2)
-    tmp = (_bilinear_aa_axis0(tmpt, out_w) if out_w < in_w else _bilinear_axis0(tmpt, out_w)).transpose(1, 0, 2)
+    tmp = (
+        _bilinear_aa_axis0(tmpt, out_w)
+        if out_w < in_w
+        else _bilinear_axis0(tmpt, out_w)
+    ).transpose(1, 0, 2)
 
     tmp = _cast_output(tmp, arr.dtype)
     if is_2d:
@@ -269,6 +277,95 @@ def resize_bicubic(arr, size, max_size=None):
     if is_2d:
         out = out[..., 0]
     return out
+
+
+# ---------------------------------------------------------------------------
+# BICUBIC (antialias=True, uint8)
+# ---------------------------------------------------------------------------
+
+
+def _bicubic_aa_kernel(x, a=-0.5):
+    """antialias 時の cubic kernel（PIL と同じ a=-0.5）。"""
+    x = np.abs(x)
+    return np.where(
+        x < 1,
+        ((a + 2) * x - (a + 3)) * x * x + 1,
+        np.where(x < 2, (((x - 5) * x + 8) * x - 4) * a, 0.0),
+    )
+
+
+def _bicubic_aa_int16_weights(in_size, out_size):
+    """
+    各出力画素の参照開始位置と int16 固定小数点の重み、その小数部ビット数を返す。
+    縮小時は kernel を縮小率だけ広げ、重みは出力画素ごとに正規化する。
+    """
+    scale = in_size / out_size
+    support = 2.0 * scale if scale >= 1.0 else 2.0
+    invscale = 1.0 / scale if scale >= 1.0 else 1.0
+
+    starts, weights = [], []
+    for i in range(out_size):
+        center = scale * (i + 0.5)
+        i0 = max(int(center - support + 0.5), 0)
+        i1 = min(int(center + support + 0.5), in_size)
+        w = _bicubic_aa_kernel((np.arange(i0, i1) - center + 0.5) * invscale)
+        starts.append(i0)
+        weights.append(w / w.sum())
+
+    # 最大の重みが int16 に収まる範囲で小数部のビット数を最大にする
+    w_max = max(w.max() for w in weights)
+    precision = 0
+    while precision < 22:
+        if int(0.5 + w_max * (1 << (precision + 1))) >= (1 << 15):
+            break
+        precision += 1
+
+    weights = [
+        np.where(w < 0, w * (1 << precision) - 0.5, w * (1 << precision) + 0.5)
+        .astype(np.int16)
+        .astype(np.int64)
+        for w in weights
+    ]
+    return starts, weights, precision
+
+
+def _bicubic_aa_uint8_axis0(arr, out_size):
+    """axis=0 方向を固定小数点演算でリサイズし、uint8 に丸めて返す。"""
+    starts, weights, precision = _bicubic_aa_int16_weights(arr.shape[0], out_size)
+    arr64 = arr.astype(np.int64)
+    out = np.empty((out_size,) + arr.shape[1:], dtype=np.uint8)
+    for oi, (i0, w) in enumerate(zip(starts, weights)):
+        acc = np.tensordot(w, arr64[i0 : i0 + len(w)], axes=(0, 0))
+        acc += 1 << (precision - 1)
+        out[oi] = np.clip(acc >> precision, 0, 255)
+    return out
+
+
+def resize_bicubic_aa(arr, size, max_size=None):
+    """
+    torchvision Resize(interpolation=BICUBIC, antialias=True) の uint8 入力と bit 単位で一致する。
+    重みを int16 固定小数点にした分離フィルタで、横→縦の順に処理し、各パスで uint8 に丸める。
+    arr: HWC or HW, uint8
+    """
+    if arr.dtype != np.uint8:
+        raise ValueError(f"resize_bicubic_aa supports uint8 only, got: {arr.dtype}")
+
+    is_2d = arr.ndim == 2
+    if is_2d:
+        arr = arr[..., None]
+
+    in_h, in_w, _ = arr.shape
+    out_h, out_w = _compute_output_size(in_h, in_w, size, max_size)
+
+    tmp = arr
+    if out_w != in_w:
+        tmp = _bicubic_aa_uint8_axis0(tmp.transpose(1, 0, 2), out_w).transpose(1, 0, 2)
+    if out_h != in_h:
+        tmp = _bicubic_aa_uint8_axis0(tmp, out_h)
+
+    if is_2d:
+        tmp = tmp[..., 0]
+    return tmp
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +450,7 @@ def tv_resize(
     size          : int or (out_h, out_w)
     interpolation : "bilinear" | "nearest" | "bicubic" | "area"
                     または cv2 定数 (0=NEAREST, 1=LINEAR, 2=CUBIC, 3=AREA)
-    antialias     : bool  (nearest / area / bicubic では無視)
+    antialias     : bool  (nearest / area では無視。bicubic は uint8 入力のみ有効)
     max_size      : int or None
     exact         : bool  (nearest のみ: nearest-exact モード)
     """
@@ -372,7 +469,10 @@ def tv_resize(
         else:
             return resize_bilinear(arr, size, max_size=max_size)
     elif interpolation == "bicubic":
-        return resize_bicubic(arr, size, max_size=max_size)
+        if antialias and arr.dtype == np.uint8:
+            return resize_bicubic_aa(arr, size, max_size=max_size)
+        else:
+            return resize_bicubic(arr, size, max_size=max_size)
     elif interpolation == "area":
         return resize_area(arr, size, max_size=max_size)
     else:
