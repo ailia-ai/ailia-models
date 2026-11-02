@@ -1,7 +1,8 @@
-import sys
-import time
-import threading
 import multiprocessing as mp
+import queue
+import sys
+import threading
+import time
 from logging import getLogger
 
 import numpy as np
@@ -15,11 +16,25 @@ def capture_microphone(que, ready, pause, fin, sample_rate, sc=False, speaker=Fa
     if sc:
         import soundcard as sc
     else:
-        import pyaudio
         import librosa
+        import pyaudio
 
-    # M1 macだとpyaudioが48000Hzしか取得できない
-    SAMPLE_RATE = M1_SAMPLE_RATE if sc is False else sample_rate
+    if sc:
+        SAMPLE_RATE = sample_rate
+    else:
+        p = pyaudio.PyAudio()
+        # M1 macだとpyaudioが48000Hzしか取得できないので、指定のサンプルレートで開けない場合は48000Hzで取得して変換する
+        try:
+            device = p.get_default_input_device_info()
+            p.is_format_supported(
+                sample_rate,
+                input_device=device["index"],
+                input_channels=1,
+                input_format=pyaudio.paInt16,
+            )
+            SAMPLE_RATE = sample_rate
+        except (ValueError, OSError):
+            SAMPLE_RATE = M1_SAMPLE_RATE
     THRES_SPEECH_POW = 0.001
     THRES_SILENCE_POW = 0.0001
     INTERVAL = SAMPLE_RATE * 3
@@ -28,9 +43,18 @@ def capture_microphone(que, ready, pause, fin, sample_rate, sc=False, speaker=Fa
 
     def send(audio, n):
         if INTERVAL_MIN < n:
+            audio = audio[:n]
             if sc is False and SAMPLE_RATE != sample_rate:
-                audio = librosa.resample(audio, orig_sr=SAMPLE_RATE, target_sr=sample_rate)
-            que.put_nowait(audio[:n])
+                audio = librosa.resample(
+                    audio, orig_sr=SAMPLE_RATE, target_sr=sample_rate
+                )
+            try:
+                que.put_nowait(audio)
+            except queue.Full:
+                # 受信側の処理が追いつかない場合は、キャプチャを止めずにこの区間を捨てる
+                logger.warning(
+                    "microphone input queue is full, the captured audio is dropped."
+                )
 
     def read(src):
         ready.set()
@@ -46,21 +70,31 @@ def capture_microphone(que, ready, pause, fin, sample_rate, sc=False, speaker=Fa
             if sc:
                 audio = src.record(INTERVAL)
             else:
-                audio = np.frombuffer(src.read(INTERVAL, exception_on_overflow=False), dtype=np.int16) / 32768.0
+                audio = (
+                    np.frombuffer(
+                        src.read(INTERVAL, exception_on_overflow=False), dtype=np.int16
+                    )
+                    / 32768.0
+                )
 
             audio = audio.reshape(-1)
-            square = audio ** 2
+            square = audio**2
             if np.max(square) >= THRES_SPEECH_POW:
                 sys.stdout.write(".")
                 sys.stdout.flush()
 
                 # 平準化
-                conv = np.convolve(square, v, 'valid')
-                conv = np.pad(conv, (0, len(v) - 1), mode='edge')
+                conv = np.convolve(square, v, "valid")
+                conv = np.pad(conv, (0, len(v) - 1), mode="edge")
                 # 0.1s刻みで0.5s区間をチェック
                 s = SAMPLE_RATE // 10
-                x = [(min(i + s * 5, INTERVAL), np.any(conv[i:i + s * 5] >= THRES_SILENCE_POW))
-                     for i in range(0, INTERVAL - 5 * s + 1, s)]
+                x = [
+                    (
+                        min(i + s * 5, INTERVAL),
+                        np.any(conv[i : i + s * 5] >= THRES_SILENCE_POW),
+                    )
+                    for i in range(0, INTERVAL - 5 * s + 1, s)
+                ]
 
                 # Speech section
                 speech = [a[0] for a in x if a[1]]
@@ -93,12 +127,16 @@ def capture_microphone(que, ready, pause, fin, sample_rate, sc=False, speaker=Fa
     try:
         # start recording
         if sc:
-            mic_id = str(sc.default_speaker().name) if speaker else str(sc.default_microphone().name)
+            mic_id = (
+                str(sc.default_speaker().name)
+                if speaker
+                else str(sc.default_microphone().name)
+            )
             with sc.get_microphone(id=mic_id, include_loopback=speaker).recorder(
-                    samplerate=SAMPLE_RATE, channels=1) as mic:
+                samplerate=SAMPLE_RATE, channels=1
+            ) as mic:
                 read(mic)
         else:
-            p = pyaudio.PyAudio()
             stream = p.open(
                 format=pyaudio.paInt16,
                 channels=1,
@@ -106,20 +144,24 @@ def capture_microphone(que, ready, pause, fin, sample_rate, sc=False, speaker=Fa
                 input=True,
                 frames_per_buffer=1024,
             )
-            stream.start_stream()
-            read(stream)
-
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
-        pass
+            try:
+                stream.start_stream()
+                read(stream)
+            finally:
+                stream.stop_stream()
+                stream.close()
     except KeyboardInterrupt:
         pass
     except Exception as e:
         logger.exception(e)
+    finally:
+        if not sc:
+            p.terminate()
 
 
-def start_microphone_input(sample_rate, sc=False, speaker=False, thread=False, queue_size=2):
+def start_microphone_input(
+    sample_rate, sc=False, speaker=False, thread=False, queue_size=2
+):
     que = mp.Queue(maxsize=queue_size)
     ready = mp.Event()
     pause = mp.Event()
@@ -129,12 +171,14 @@ def start_microphone_input(sample_rate, sc=False, speaker=False, thread=False, q
         p = threading.Thread(
             target=capture_microphone,
             args=(que, ready, pause, fin, sample_rate, sc, speaker),
-            daemon=True)
+            daemon=True,
+        )
     else:
         p = mp.Process(
             target=capture_microphone,
             args=(que, ready, pause, fin, sample_rate, sc, speaker),
-            daemon=True)
+            daemon=True,
+        )
     p.start()
 
     # キャプチャスレッド起動待ち
@@ -143,7 +187,7 @@ def start_microphone_input(sample_rate, sc=False, speaker=False, thread=False, q
             break
 
     if not p.is_alive():
-        raise Exception('Fail to start microphone capture.')
+        raise Exception("Fail to start microphone capture.")
 
     params = dict(
         p=p,
