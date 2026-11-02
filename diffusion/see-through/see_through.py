@@ -22,27 +22,29 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
-WEIGHT_LD_TEXT_ENCODER_PATH = "layerdiff_text_encoder.onnx"
-MODEL_LD_TEXT_ENCODER_PATH = "layerdiff_text_encoder.onnx.prototxt"
-WEIGHT_LD_TEXT_ENCODER_2_PATH = "layerdiff_text_encoder_2.onnx"
-WEIGHT_LD_TEXT_ENCODER_2_PB_PATH = "layerdiff_text_encoder_2_weights.pb"
-MODEL_LD_TEXT_ENCODER_2_PATH = "layerdiff_text_encoder_2.onnx.prototxt"
-WEIGHT_LD_VAE_ENCODER_PATH = "layerdiff_vae_encoder.onnx"
-MODEL_LD_VAE_ENCODER_PATH = "layerdiff_vae_encoder.onnx.prototxt"
-WEIGHT_LD_UNET_PATH = "layerdiff_unet.onnx"
-WEIGHT_LD_UNET_PB_PATH = "layerdiff_unet_weights.pb"
-MODEL_LD_UNET_PATH = "layerdiff_unet.onnx.prototxt"
-WEIGHT_LD_VAE_DECODER_PATH = "layerdiff_vae_decoder.onnx"
-MODEL_LD_VAE_DECODER_PATH = "layerdiff_vae_decoder.onnx.prototxt"
-WEIGHT_MG_TEXT_ENCODER_PATH = "marigold_text_encoder.onnx"
-MODEL_MG_TEXT_ENCODER_PATH = "marigold_text_encoder.onnx.prototxt"
-WEIGHT_MG_VAE_ENCODER_PATH = "marigold_vae_encoder.onnx"
-MODEL_MG_VAE_ENCODER_PATH = "marigold_vae_encoder.onnx.prototxt"
-WEIGHT_MG_UNET_PATH = "marigold_unet.onnx"
-WEIGHT_MG_UNET_PB_PATH = "marigold_unet_weights.pb"
-MODEL_MG_UNET_PATH = "marigold_unet.onnx.prototxt"
-WEIGHT_MG_VAE_DECODER_PATH = "marigold_vae_decoder.onnx"
-MODEL_MG_VAE_DECODER_PATH = "marigold_vae_decoder.onnx.prototxt"
+# key in the models dict -> file name stem
+MODEL_NAMES = {
+    "ld_text_encoder": "layerdiff_text_encoder",
+    "ld_text_encoder_2": "layerdiff_text_encoder_2",
+    "ld_vae_encoder": "layerdiff_vae_encoder",
+    "ld_unet": "layerdiff_unet",
+    "ld_vae_decoder": "layerdiff_vae_decoder",
+    "mg_text_encoder": "marigold_text_encoder",
+    "mg_vae_encoder": "marigold_vae_encoder",
+    "mg_unet": "marigold_unet",
+    "mg_vae_decoder": "marigold_vae_decoder",
+}
+# models quantized to int8. The VAEs are mostly Conv and are not quantized,
+# so the fp16 VAEs are used with --precision int8.
+INT8_MODELS = [
+    "ld_text_encoder", "ld_text_encoder_2", "ld_unet", "mg_text_encoder", "mg_unet",
+]
+# models whose weights are stored in a separate *_weights.pb, by precision
+EXTERNAL_WEIGHT_MODELS = {
+    "fp32": ["ld_text_encoder_2", "ld_unet", "mg_unet"],
+    "fp16": ["ld_text_encoder_2", "ld_unet", "mg_unet"],
+    "int8": ["ld_unet"],
+}
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/see-through/"
 
 IMAGE_PATH = "input.png"
@@ -102,6 +104,13 @@ parser.add_argument(
 )
 parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
+)
+parser.add_argument(
+    "--precision",
+    default="int8",
+    choices=["int8", "fp16", "fp32"],
+    help="precision of the model weights. int8 quantizes the MatMul weights of "
+    "the UNets and text encoders, and fp16 halves all weights.",
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
@@ -817,33 +826,22 @@ def load_tokenizers():
     return tokenizer, tokenizer_2, tokenizer_mg
 
 
+def download_model(key):
+    """Downloads the model of the selected precision. Returns its file paths."""
+    precision = args.precision
+    if precision == "int8" and key not in INT8_MODELS:
+        precision = "fp16"
+    stem = MODEL_NAMES[key] + ("" if precision == "fp32" else "_" + precision)
+    weight_path = stem + ".onnx"
+    model_path = stem + ".onnx.prototxt"
+    check_and_download_models(weight_path, model_path, REMOTE_PATH)
+    if key in EXTERNAL_WEIGHT_MODELS[precision]:
+        check_and_download_file(stem + "_weights.pb", REMOTE_PATH)
+    return model_path, weight_path
+
+
 def main():
-    check_and_download_models(
-        WEIGHT_LD_TEXT_ENCODER_PATH, MODEL_LD_TEXT_ENCODER_PATH, REMOTE_PATH
-    )
-    check_and_download_models(
-        WEIGHT_LD_TEXT_ENCODER_2_PATH, MODEL_LD_TEXT_ENCODER_2_PATH, REMOTE_PATH
-    )
-    check_and_download_models(
-        WEIGHT_LD_VAE_ENCODER_PATH, MODEL_LD_VAE_ENCODER_PATH, REMOTE_PATH
-    )
-    check_and_download_models(WEIGHT_LD_UNET_PATH, MODEL_LD_UNET_PATH, REMOTE_PATH)
-    check_and_download_models(
-        WEIGHT_LD_VAE_DECODER_PATH, MODEL_LD_VAE_DECODER_PATH, REMOTE_PATH
-    )
-    check_and_download_models(
-        WEIGHT_MG_TEXT_ENCODER_PATH, MODEL_MG_TEXT_ENCODER_PATH, REMOTE_PATH
-    )
-    check_and_download_models(
-        WEIGHT_MG_VAE_ENCODER_PATH, MODEL_MG_VAE_ENCODER_PATH, REMOTE_PATH
-    )
-    check_and_download_models(WEIGHT_MG_UNET_PATH, MODEL_MG_UNET_PATH, REMOTE_PATH)
-    check_and_download_models(
-        WEIGHT_MG_VAE_DECODER_PATH, MODEL_MG_VAE_DECODER_PATH, REMOTE_PATH
-    )
-    check_and_download_file(WEIGHT_LD_TEXT_ENCODER_2_PB_PATH, REMOTE_PATH)
-    check_and_download_file(WEIGHT_LD_UNET_PB_PATH, REMOTE_PATH)
-    check_and_download_file(WEIGHT_MG_UNET_PB_PATH, REMOTE_PATH)
+    paths = {key: download_model(key) for key in MODEL_NAMES}
 
     env_id = args.env_id
 
@@ -879,43 +877,9 @@ def main():
         "ld_tokenizer": tokenizer,
         "ld_tokenizer_2": tokenizer_2,
         "mg_tokenizer": tokenizer_mg,
-        "ld_text_encoder": LazyModel(
-            lambda: load_net(MODEL_LD_TEXT_ENCODER_PATH, WEIGHT_LD_TEXT_ENCODER_PATH),
-            "ld_text_encoder",
-        ),
-        "ld_text_encoder_2": LazyModel(
-            lambda: load_net(
-                MODEL_LD_TEXT_ENCODER_2_PATH, WEIGHT_LD_TEXT_ENCODER_2_PATH
-            ),
-            "ld_text_encoder_2",
-        ),
-        "ld_vae_encoder": LazyModel(
-            lambda: load_net(MODEL_LD_VAE_ENCODER_PATH, WEIGHT_LD_VAE_ENCODER_PATH),
-            "ld_vae_encoder",
-        ),
-        "ld_unet": LazyModel(
-            lambda: load_net(MODEL_LD_UNET_PATH, WEIGHT_LD_UNET_PATH), "ld_unet"
-        ),
-        "ld_vae_decoder": LazyModel(
-            lambda: load_net(MODEL_LD_VAE_DECODER_PATH, WEIGHT_LD_VAE_DECODER_PATH),
-            "ld_vae_decoder",
-        ),
-        "mg_text_encoder": LazyModel(
-            lambda: load_net(MODEL_MG_TEXT_ENCODER_PATH, WEIGHT_MG_TEXT_ENCODER_PATH),
-            "mg_text_encoder",
-        ),
-        "mg_vae_encoder": LazyModel(
-            lambda: load_net(MODEL_MG_VAE_ENCODER_PATH, WEIGHT_MG_VAE_ENCODER_PATH),
-            "mg_vae_encoder",
-        ),
-        "mg_unet": LazyModel(
-            lambda: load_net(MODEL_MG_UNET_PATH, WEIGHT_MG_UNET_PATH), "mg_unet"
-        ),
-        "mg_vae_decoder": LazyModel(
-            lambda: load_net(MODEL_MG_VAE_DECODER_PATH, WEIGHT_MG_VAE_DECODER_PATH),
-            "mg_vae_decoder",
-        ),
     }
+    for key in MODEL_NAMES:
+        models[key] = LazyModel(lambda key=key: load_net(*paths[key]), key)
 
     recognize_from_image(models)
 
