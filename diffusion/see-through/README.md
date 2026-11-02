@@ -67,9 +67,15 @@ $ python3 see_through.py --input IMAGE_PATH --savepath SAVE_IMAGE_PATH
 
 The int8 and fp16 models run on the fp32 environment of ailia SDK 1.7.0 and later with mixed precision.
 
-On a GPU with 10 GB of memory (RTX 3080), the sample takes about 4 minutes in int8.
+On a GPU with 10 GB of memory (RTX 3080), the sample takes the following time in int8 at the default settings.
+
+| Environment | Time | Peak GPU memory |
+|---|---|---|
+| cuDNN (`-e 2`) | 3 min 49 s | 9.9 GB |
+| Vulkan (`-e 4`) | 8 min 58 s | 7.3 GB |
+
 In fp16, the UNet does not fit in the GPU memory together with the 13 layers decomposed at once,
-and the sample takes more than an hour.
+and the sample takes more than an hour with cuDNN.
 ```bash
 $ python3 see_through.py --precision fp16
 ```
