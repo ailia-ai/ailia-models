@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 
@@ -61,6 +62,9 @@ IOU = 0.45
 MAX_COSINE_DISTANCE = 0.2  # threshold of matching object
 NN_BUDGET = 100
 
+# saved tracking results for json output
+trackings = []
+
 
 # ======================
 # Arguemnt Parser Config
@@ -77,6 +81,15 @@ parser.add_argument(
     '--cui',
     action='store_true',
     help="Don't display preview in GUI."
+)
+parser.add_argument(
+    '-w', '--write_prediction',
+    nargs='?',
+    const='txt',
+    default='txt',
+    choices=['txt', 'json'],
+    type=str,
+    help='Output results to txt or json file. (default: txt)'
 )
 args = update_parser(parser)
 
@@ -100,6 +113,35 @@ def init_detector(env_id):
         env_id=env_id,
     )
     return detector
+
+
+def store_trackings(outputs):
+    """Append the drawn tracks in one frame to trackings """
+    objects = []
+    for *bbox_xyxy, track_id in outputs:
+        x, y, w, h = xyxy_to_tlwh(bbox_xyxy)
+        objects.append({
+            'track_id': int(track_id),
+            'x': int(x),
+            'y': int(y),
+            'w': int(w),
+            'h': int(h),
+        })
+
+    trackings.append({
+        'frame': len(trackings),
+        'objects': objects,
+    })
+
+
+def output_json(json_path):
+    """Write the trackings stored by store_trackings to a json file"""
+    results = {
+        'trackings': trackings,
+    }
+    with open(json_path, 'w') as f:
+        json.dump(results, f, indent=2)
+    logger.info(f'json saved at : {json_path}')
 
 
 # ======================
@@ -240,7 +282,9 @@ def recognize_from_video():
         if writer is not None:
             writer.write(frame)
 
-        if args.savepath is not None:
+        if args.write_prediction == 'json':
+            store_trackings(outputs)
+        elif args.savepath is not None:
             write_results(args.savepath.split('.')[0] + '.txt', results, 'mot')
         else:
             write_results('result.txt', results, 'mot')
@@ -249,6 +293,10 @@ def recognize_from_video():
     cv2.destroyAllWindows()
     if writer is not None:
         writer.release()
+
+    if args.write_prediction == 'json':
+        json_path = args.savepath.rsplit('.', 1)[0] + '.json' if args.savepath else 'result.json'
+        output_json(json_path)
 
     logger.info(f'Save results to {args.savepath}')
     logger.info('Script finished successfully.')
