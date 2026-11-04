@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 
@@ -57,6 +58,8 @@ IMAGE_YOLOX_S_WIDTH = 640
 IMAGE_YOLOX_TINY_HEIGHT = 416
 IMAGE_YOLOX_TINY_WIDTH = 416
 
+trackings = []
+
 # ======================
 # Arguemnt Parser Config
 # ======================
@@ -81,6 +84,11 @@ parser.add_argument(
     '--cui',
     action='store_true',
     help="Don't display preview in GUI."
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='Output results to json file.'
 )
 # tracking args
 parser.add_argument("--track_thresh", type=float, default=0.5, help="tracking confidence threshold")
@@ -132,6 +140,37 @@ def frame_vis_generator(frame, bboxes, ids):
                     cv2.FONT_HERSHEY_SIMPLEX, 1.5, color, thickness=3)
 
     return frame
+
+
+def store_trackings(tlwhs, ids, scores):
+    """Append the tracked objects in one frame to trackings """
+    objects = []
+    for tlwh, entity_id, score in zip(tlwhs, ids, scores):
+        x, y, w, h = (float(v) for v in tlwh)
+        objects.append({
+            'track_id': int(entity_id),
+            'prob': round(float(score), 3),
+            'x': round(x, 2),
+            'y': round(y, 2),
+            'w': round(w, 2),
+            'h': round(h, 2),
+        })
+
+    trackings.append({
+        'frame': len(trackings),
+        'objects': objects,
+    })
+
+
+def output_json(json_path, model_type):
+    """Write the trackings stored by store_trackings to a json file"""
+    results = {
+        'model_type': model_type,
+        'trackings': trackings,
+    }
+    with open(json_path, 'w') as f:
+        json.dump(results, f, indent=2)
+    logger.info(f'json saved at : {json_path}')
 
 
 # ======================
@@ -307,6 +346,9 @@ def recognize_from_video(net):
                 online_ids.append(tid)
                 online_scores.append(t.score)
 
+        if args.write_json:
+            store_trackings(online_tlwhs, online_ids, online_scores)
+
         res_img = frame_vis_generator(frame, online_tlwhs, online_ids)
 
         # show
@@ -324,6 +366,10 @@ def recognize_from_video(net):
     cv2.destroyAllWindows()
     if writer is not None:
         writer.release()
+
+    if args.write_json:
+        json_path = args.savepath.rsplit('.', 1)[0] + '.json' if args.savepath else 'output.json'
+        output_json(json_path, args.model_type)
 
     logger.info('Script finished successfully.')
 
