@@ -285,7 +285,7 @@ def recognize_from_video():
         if args.write_prediction == 'json':
             store_trackings(outputs)
         elif args.savepath is not None:
-            write_results(args.savepath.split('.')[0] + '.txt', results, 'mot')
+            write_results(args.savepath.rsplit('.', 1)[0] + '.txt', results, 'mot')
         else:
             write_results('result.txt', results, 'mot')
 
