@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import time
 from logging import getLogger
 
@@ -61,6 +62,9 @@ REMOTE_YOLOX_PATH = \
 VIDEO_PATH = 'demo.mp4'
 SAVE_TEXT_PATH = 'output.txt'
 
+# saved tracking results for json output
+trackings = []
+
 # ======================
 # Arguemnt Parser Config
 # ======================
@@ -93,6 +97,15 @@ parser.add_argument(
     '--cui',
     action='store_true',
     help="Don't display preview in GUI."
+)
+parser.add_argument(
+    '-w', '--write_prediction',
+    nargs='?',
+    const='txt',
+    default='txt',
+    choices=['txt', 'json'],
+    type=str,
+    help='Output results to txt or json file. (default: txt)'
 )
 # tracking args
 parser.add_argument('--min-box-area', type=float, default=10, help='filter out tiny boxes')
@@ -163,6 +176,36 @@ def frame_vis_generator(frame, bboxes, ids):
                     cv2.FONT_HERSHEY_SIMPLEX, 1.5, color, thickness=3)
 
     return frame
+
+
+def store_trackings(drawn_tracks):
+    """Append the drawn tracks in one frame to trackings"""
+    objects = []
+    for tlwh, track_id, state in drawn_tracks:
+        x, y, w, h = (float(v) for v in tlwh)
+        objects.append({
+            'track_id': int(track_id),
+            'state': state,
+            'x': round(x, 2),
+            'y': round(y, 2),
+            'w': round(w, 2),
+            'h': round(h, 2),
+        })
+
+    trackings.append({
+        'frame': len(trackings),
+        'objects': objects,
+    })
+
+
+def output_json(json_path, model_type):
+    """Write the trackings stored by store_trackings to a json file"""
+    results = {
+        'model_type': model_type,
+        'trackings': trackings,
+    }
+    with open(json_path, 'w') as f:
+        json.dump(results, f, indent=2)
 
 
 # ======================
@@ -308,11 +351,15 @@ def recognize_from_video(mod):
         tracker.update(detections)
         online_tlwhs = []
         online_ids = []
+        # all the boxes drawn in this frame, as (tlwh, track_id, state)
+        drawn_tracks = []
         for t in tracker.tracks:
             tlwh = t.to_tlwh()
             tid = t.track_id
             if not t.is_confirmed() or t.time_since_update > 1:
                 rectangle(frame, tlwh[0], tlwh[1], tlwh[2], tlwh[3])
+                drawn_tracks.append(
+                    (tlwh, tid, 'tentative' if t.is_tentative() else 'lost'))
                 continue
             track.append([frame_idx, tid, tlwh[0], tlwh[1], tlwh[2], tlwh[3], 1, -1, -1, -1])
 
@@ -322,6 +369,10 @@ def recognize_from_video(mod):
             if tlwh[2] * tlwh[3] > min_box_area and not vertical:
                 online_tlwhs.append(tlwh)
                 online_ids.append(tid)
+                drawn_tracks.append((tlwh, tid, 'confirmed'))
+
+        if args.write_prediction == 'json':
+            store_trackings(drawn_tracks)
 
         frame_idx += 1
 
@@ -343,27 +394,32 @@ def recognize_from_video(mod):
     if writer is not None:
         writer.release()
 
-    if 0 < len(track):
-        track = np.array(track)
-    else:
-        track = np.zeros((0, 10))
-
-    if args.AFLink and 0 < len(track):
-        track = linker.link(track)
-
-    if args.GSI and 0 < len(track):
-        track = GSInterpolation(
-            track,
-            interval=20,
-            tau=10
-        )
-
     # save result
     savepath = get_savepath(
         args.savepath if args.savepath else SAVE_TEXT_PATH,
-        "video-%s" % args.video if args.video else args.input[0], ext='.txt')
+        "video-%s" % args.video if args.video else args.input[0],
+        ext='.' + args.write_prediction)
     logger.info(f'saved at : {savepath}')
-    np.savetxt(savepath, track, fmt='%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%d')
+
+    if args.write_prediction == 'json':
+        output_json(savepath, args.model_type)
+    else:
+        if 0 < len(track):
+            track = np.array(track)
+        else:
+            track = np.zeros((0, 10))
+
+        if args.AFLink and 0 < len(track):
+            track = linker.link(track)
+
+        if args.GSI and 0 < len(track):
+            track = GSInterpolation(
+                track,
+                interval=20,
+                tau=10
+            )
+
+        np.savetxt(savepath, track, fmt='%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%d,%d')
 
     logger.info('Script finished successfully.')
 
