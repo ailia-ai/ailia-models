@@ -299,7 +299,6 @@ def benchmarking(net):
 
 def recognize_from_video(net):
     min_box_area = args.min_box_area
-    mot20 = args.model_type == 'mot20'
 
     video_file = args.video if args.video else args.input[0]
     capture = get_capture(video_file)
@@ -316,6 +315,7 @@ def recognize_from_video(net):
     else:
         writer = None
 
+    mot20 = args.model_type.startswith('mot20')
     tracker = BYTETracker(
         track_thresh=args.track_thresh, track_buffer=args.track_buffer,
         match_thresh=args.match_thresh, frame_rate=30,
