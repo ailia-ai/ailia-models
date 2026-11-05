@@ -1,12 +1,16 @@
+import gc
+import math
 import sys
 from logging import getLogger
 
 import ailia
 import numpy as np
+from PIL import Image
+from tqdm import tqdm
 
 # import original modules
 sys.path.append("../../util")
-from arg_utils import get_base_parser, update_parser  # noqa
+from arg_utils import get_base_parser, get_savepath, update_parser  # noqa
 from model_utils import check_and_download_file, check_and_download_models  # noqa
 
 logger = getLogger(__name__)
@@ -121,6 +125,52 @@ args = update_parser(parser)
 # ======================
 
 
+class LazyModel:
+    """Defers model loading until the first predict/run call."""
+
+    def __init__(self, loader_fn, name=""):
+        self._loader_fn = loader_fn
+        self._name = name
+        self._net = None
+
+    def load(self):
+        if self._net is None:
+            logger.info(f"Loading model: {self._name}")
+            self._net = self._loader_fn()
+        return self._net
+
+    def unload(self):
+        if self._net is not None:
+            self._net = None
+            gc.collect()
+
+    def predict(self, *args, **kwargs):
+        return self.load().predict(*args, **kwargs)
+
+    def run(self, *args, **kwargs):
+        return self.load().run(*args, **kwargs)
+
+
+def calculate_shift(image_seq_len):
+    m = (MAX_SHIFT - BASE_SHIFT) / (MAX_IMAGE_SEQ_LEN - BASE_IMAGE_SEQ_LEN)
+    b = BASE_SHIFT - m * BASE_IMAGE_SEQ_LEN
+    return image_seq_len * m + b
+
+
+def get_sigmas(num_inference_steps, image_seq_len):
+    """Flow matching sigmas with the terminal 0 appended."""
+    sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps)
+    sigmas = sigmas.astype(np.float32)
+    # resolution-dependent exponential time shift
+    mu = calculate_shift(image_seq_len)
+    sigmas = math.exp(mu) / (math.exp(mu) + (1 / sigmas - 1))
+    # stretch the schedule so that it ends at SHIFT_TERMINAL
+    one_minus_z = 1 - sigmas
+    scale_factor = one_minus_z[-1] / (1 - SHIFT_TERMINAL)
+    sigmas = 1 - (one_minus_z / scale_factor)
+    return np.concatenate([sigmas, np.zeros(1, dtype=np.float32)]).astype(np.float32)
+
+
 def get_rope_index(input_ids, image_grid_thw):
     """M-RoPE (temporal, height, width) positions of the text encoder [3, 1, L]."""
     is_image = input_ids == IMAGE_TOKEN_ID
@@ -148,9 +198,65 @@ def get_rope_index(input_ids, image_grid_thw):
     return np.concatenate(pos_parts, axis=1)[:, None, :]
 
 
+def build_transformer_inputs(image_pad_mask, img_shapes, num_target_tokens):
+    """
+    Lay out the joint text / image sequence the transformer attends over.
+    image_pad_mask marks the image slots of the text encoder sequence, one slot per 2x2 latents.
+    """
+    vlm_len = len(image_pad_mask)
+    img_mask = np.concatenate([image_pad_mask, np.ones(num_target_tokens // 4, bool)])
+    is_image = np.repeat(img_mask, np.where(img_mask, 4, 1))
+    seq_len = len(is_image)
+
+    # RoPE positions: text advances all three axes, an image block freezes the frame axis
+    # and lays out its tokens on a height / width grid centred on zero
+    frame_index, image_height_index, image_width_index = [], [], []
+    cursor, position = 0, 0
+    for _, height, width in img_shapes:
+        block_start = cursor + int(np.argmax(is_image[cursor:]))
+        text_len = block_start - cursor
+        frame_index.extend(range(position, position + text_len))
+        position += text_len
+        cursor = block_start + height * width
+        frame_index.extend([position] * (height * width))
+        position += max(height, width)
+        h_range = np.arange(-(height - height // 2), height // 2)
+        w_range = np.arange(-(width - width // 2), width // 2)
+        image_height_index.append(np.repeat(h_range, width))
+        image_width_index.append(np.tile(w_range, height))
+    if cursor < seq_len:
+        frame_index.extend(range(position, position + seq_len - cursor))
+    frame_index = np.array(frame_index, dtype=np.int64)
+    height_index = frame_index.copy()
+    width_index = frame_index.copy()
+    height_index[is_image] = np.concatenate(image_height_index)
+    width_index[is_image] = np.concatenate(image_width_index)
+    position_ids = np.stack([frame_index, height_index, width_index])
+
+    # one block id per image (condition images, then the target), -1 for text
+    block_lengths = [t * h * w for t, h, w in img_shapes]
+    image_ids = np.full(seq_len, -1, dtype=np.int64)
+    image_ids[is_image] = np.repeat(np.arange(len(block_lengths)), block_lengths)
+    target_token_mask = np.zeros(seq_len, dtype=bool)
+    target_token_mask[np.nonzero(is_image)[0][-block_lengths[-1] :]] = True
+
+    # index into concat([text encoder states, image latents])
+    joint_index = np.zeros(seq_len, dtype=np.int64)
+    joint_index[~is_image] = np.nonzero(~img_mask)[0]
+    joint_index[is_image] = vlm_len + np.arange(int(is_image.sum()))
+
+    return joint_index, position_ids, target_token_mask, image_ids
+
+
 def pack_latents(latents):
     b, c, _, h, w = latents.shape
     return latents.reshape(b, c, h * w).transpose(0, 2, 1)
+
+
+def unpack_latents(latents, height, width):
+    b, _, c = latents.shape
+    h, w = height // VAE_SCALE_FACTOR, width // VAE_SCALE_FACTOR
+    return latents.transpose(0, 2, 1).reshape(b, c, 1, h, w)
 
 
 # ======================
@@ -195,11 +301,75 @@ def encode_prompt(models, prompt):
     return prompt_embeds, image_pad_mask
 
 
+def denoise(models, latents, prompt_embeds, transformer_inputs, sigmas):
+    joint_index, position_ids, target_token_mask, image_ids = transformer_inputs
+    num_target_tokens = latents.shape[1]
+    prefix_len = len(target_token_mask) - num_target_tokens
+    key_valid = np.ones((1, len(image_ids)), dtype=bool)
+    net = models["transformer"]
+
+    past_key_values = [np.zeros((1, 0, NUM_HEADS, HEAD_DIM), dtype=np.float32)] * (
+        2 * NUM_LAYERS
+    )
+    for i in tqdm(range(len(sigmas) - 1)):
+        t = sigmas[i] * NUM_TRAIN_TIMESTEPS
+        timestep = np.array([t / NUM_TRAIN_TIMESTEPS], dtype=np.float32)
+        feed = {
+            "hidden_states": latents,
+            "encoder_hidden_states": prompt_embeds,
+            "timestep": timestep,
+        }
+        if i == 0:
+            feed["joint_index"] = joint_index
+            feed["position_ids"] = position_ids
+            feed["target_token_mask"] = target_token_mask
+        else:
+            # the text and condition image tokens are step independent, so the first step
+            # caches their keys / values and later steps only compute the target tokens
+            feed["joint_index"] = joint_index[prefix_len:]
+            feed["position_ids"] = position_ids[:, prefix_len:]
+            feed["target_token_mask"] = target_token_mask[prefix_len:]
+        feed["image_ids"] = image_ids
+        feed["key_valid"] = key_valid
+        for j in range(NUM_LAYERS):
+            feed[f"past_key_values.{j}.key"] = past_key_values[2 * j]
+            feed[f"past_key_values.{j}.value"] = past_key_values[2 * j + 1]
+
+        if not args.onnx:
+            output = net.predict(feed)
+        else:
+            output = net.run(None, feed)
+        sample = output[0]
+        if i == 0:
+            past_key_values = output[1:]
+
+        noise_pred = sample[:, -num_target_tokens:]
+        latents = latents + (sigmas[i + 1] - sigmas[i]) * noise_pred
+
+    return latents
+
+
+def decode_latents(models, latents, height, width):
+    latents = unpack_latents(latents, height, width)
+    latents = latents * LATENTS_STD + LATENTS_MEAN
+    net = models["vae_decoder"]
+    if not args.onnx:
+        output = net.predict({"latents": latents})
+    else:
+        output = net.run(None, {"latents": latents})
+    image = output[0][0, :, 0]
+    image = np.clip(image * 0.5 + 0.5, 0, 1)
+    image = (image.transpose(1, 2, 0) * 255).round().astype(np.uint8)
+    return Image.fromarray(image)
+
+
 def generate(models, prompt):
     height = width = 1024
+    steps = 40
     logger.info(f"output size: {width}x{height}")
 
     prompt_embeds, image_pad_mask = encode_prompt(models, prompt)
+    models["text_encoder"].unload()
 
     latent_height, latent_width = height // VAE_SCALE_FACTOR, width // VAE_SCALE_FACTOR
     latents = np.random.standard_normal(
@@ -207,13 +377,30 @@ def generate(models, prompt):
     ).astype(np.float32)
     latents = pack_latents(latents)
 
+    img_shapes = [(1, latent_height, latent_width)]
+    transformer_inputs = build_transformer_inputs(
+        image_pad_mask, img_shapes, latents.shape[1]
+    )
+    sigmas = get_sigmas(steps, latents.shape[1])
+
+    latents = denoise(models, latents, prompt_embeds, transformer_inputs, sigmas)
+    models["transformer"].unload()
+
+    return decode_latents(models, latents, height, width)
+
 
 def recognize_from_text(models):
     prompt = args.prompt
 
     logger.info("prompt: %s" % prompt)
     logger.info("Start inference...")
-    generate(models, prompt)
+    image = generate(models, prompt)
+
+    savepath = get_savepath(args.savepath, "", ext=".png")
+    image.save(savepath)
+    logger.info(f"saved at : {savepath}")
+
+    logger.info("Script finished successfully.")
 
 
 def main():
@@ -222,6 +409,13 @@ def main():
     )
     check_and_download_file(WEIGHT_TEXT_ENCODER_PB_PATH, REMOTE_PATH)
     check_and_download_file(EMBED_TOKENS_PATH, REMOTE_PATH)
+    check_and_download_models(
+        WEIGHT_TRANSFORMER_PATH, MODEL_TRANSFORMER_PATH, REMOTE_PATH
+    )
+    check_and_download_file(WEIGHT_TRANSFORMER_PB_PATH, REMOTE_PATH)
+    check_and_download_models(
+        WEIGHT_VAE_DECODER_PATH, MODEL_VAE_DECODER_PATH, REMOTE_PATH
+    )
 
     seed = 42
     np.random.seed(seed)
@@ -270,8 +464,21 @@ def main():
     models = {
         "tokenizer": tokenizer,
         "embed_tokens": np.load(EMBED_TOKENS_PATH, mmap_mode="r"),
-        "text_encoder": load_net(
-            MODEL_TEXT_ENCODER_PATH, WEIGHT_TEXT_ENCODER_PATH, cpu_only=True
+        "text_encoder": LazyModel(
+            lambda: load_net(
+                MODEL_TEXT_ENCODER_PATH, WEIGHT_TEXT_ENCODER_PATH, cpu_only=True
+            ),
+            "text_encoder",
+        ),
+        "transformer": LazyModel(
+            lambda: load_net(
+                MODEL_TRANSFORMER_PATH, WEIGHT_TRANSFORMER_PATH, cpu_only=True
+            ),
+            "transformer",
+        ),
+        "vae_decoder": LazyModel(
+            lambda: load_net(MODEL_VAE_DECODER_PATH, WEIGHT_VAE_DECODER_PATH),
+            "vae_decoder",
         ),
     }
 
