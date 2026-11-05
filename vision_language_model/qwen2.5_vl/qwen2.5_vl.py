@@ -93,8 +93,16 @@ parser.add_argument(
     "--quantize", type=str, default=None, choices=["int4"],
     help="use int4 quantized model.",
 )
+parser.add_argument(
+    "--seed", default=None,
+    type=int,
+    help="random seed"
+)
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
+
+if args.seed is not None:
+    np.random.seed(args.seed)
 
 
 # ======================
