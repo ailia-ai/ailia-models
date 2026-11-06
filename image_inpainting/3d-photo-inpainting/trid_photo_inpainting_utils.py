@@ -3085,13 +3085,10 @@ def context_and_holes(
             far_nodes = mesh_nodes[edge_node].get('far')
             if far_nodes is None:
                 continue
+            far_nodes = [far_node for far_node in far_nodes if mesh.has_node(far_node)]
+            mesh_nodes[edge_node]['far'] = far_nodes
             for far_node in far_nodes:
                 if far_node in edge_cc:
-                    continue
-                if not mesh.has_node(far_node):
-                    # 'far' can still list nodes removed from the mesh by the first inpainting pass
-                    # (inpaint_iter=1); touching them raised KeyError here. Skip them like the other
-                    # has_node() guards in this file do.
                     continue
                 context_ccs[edge_id].add(far_node)
                 if mesh_nodes[far_node].get('edge_id') is not None:
