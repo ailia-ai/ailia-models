@@ -121,7 +121,15 @@ parser.add_argument(
     choices=["4b", "8b"],
     help="Qwen3-VL model type: 4b or 8b (default: 4b)",
 )
+parser.add_argument(
+    "--seed", default=None,
+    type=int,
+    help="random seed"
+)
 args = update_parser(parser)
+
+if args.seed is not None:
+    np.random.seed(args.seed)
 
 
 # fp16 is 8B-only: the 4B fp32 LM (~15GB) already fits in GPU memory, so no
