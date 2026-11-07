@@ -1,6 +1,7 @@
 import gc
 import math
 import sys
+import time
 from logging import getLogger
 
 import ailia
@@ -12,6 +13,7 @@ from tqdm import tqdm
 sys.path.append("../../util")
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa
 from model_utils import check_and_download_file, check_and_download_models  # noqa
+from resize_utils import tv_resize  # noqa
 
 logger = getLogger(__name__)
 
@@ -114,6 +116,34 @@ parser.add_argument(
     help="the prompt to render",
 )
 parser.add_argument(
+    "--width",
+    type=int,
+    default=None,
+    help="output image width. derived from the last input image (or output_resolution) if omitted.",
+)
+parser.add_argument(
+    "--height",
+    type=int,
+    default=None,
+    help="output image height. derived from the last input image (or output_resolution) if omitted.",
+)
+parser.add_argument(
+    "--output_resolution",
+    type=int,
+    default=1024,
+    help="input images are resized to about output_resolution^2 pixels.",
+)
+parser.add_argument(
+    "--steps",
+    type=int,
+    default=40,
+    help="number of sampling steps (ignored with --turbo).",
+)
+parser.add_argument("--seed", type=int, default=None, help="random seed")
+parser.add_argument(
+    "--turbo", action="store_true", help="use Qwen-Image-2.1-Turbo (8 steps)."
+)
+parser.add_argument(
     "--disable_ailia_tokenizer", action="store_true", help="disable ailia tokenizer."
 )
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
@@ -151,6 +181,14 @@ class LazyModel:
         return self.load().run(*args, **kwargs)
 
 
+def calculate_dimensions(target_area, ratio):
+    width = math.sqrt(target_area * ratio)
+    height = width / ratio
+    width = round(width / 32) * 32
+    height = round(height / 32) * 32
+    return width, height
+
+
 def calculate_shift(image_seq_len):
     m = (MAX_SHIFT - BASE_SHIFT) / (MAX_IMAGE_SEQ_LEN - BASE_IMAGE_SEQ_LEN)
     b = BASE_SHIFT - m * BASE_IMAGE_SEQ_LEN
@@ -159,16 +197,87 @@ def calculate_shift(image_seq_len):
 
 def get_sigmas(num_inference_steps, image_seq_len):
     """Flow matching sigmas with the terminal 0 appended."""
-    sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps)
-    sigmas = sigmas.astype(np.float32)
-    # resolution-dependent exponential time shift
-    mu = calculate_shift(image_seq_len)
-    sigmas = math.exp(mu) / (math.exp(mu) + (1 / sigmas - 1))
-    # stretch the schedule so that it ends at SHIFT_TERMINAL
-    one_minus_z = 1 - sigmas
-    scale_factor = one_minus_z[-1] / (1 - SHIFT_TERMINAL)
-    sigmas = 1 - (one_minus_z / scale_factor)
+    if args.turbo:
+        sigmas = np.array(TURBO_SIGMAS, dtype=np.float32)
+    else:
+        sigmas = np.linspace(1.0, 1 / num_inference_steps, num_inference_steps)
+        sigmas = sigmas.astype(np.float32)
+        # resolution-dependent exponential time shift
+        mu = calculate_shift(image_seq_len)
+        sigmas = math.exp(mu) / (math.exp(mu) + (1 / sigmas - 1))
+        # stretch the schedule so that it ends at SHIFT_TERMINAL
+        one_minus_z = 1 - sigmas
+        scale_factor = one_minus_z[-1] / (1 - SHIFT_TERMINAL)
+        sigmas = 1 - (one_minus_z / scale_factor)
     return np.concatenate([sigmas, np.zeros(1, dtype=np.float32)]).astype(np.float32)
+
+
+def smart_resize(height, width, factor=PATCH_SIZE * SPATIAL_MERGE_SIZE):
+    h_bar = round(height / factor) * factor
+    w_bar = round(width / factor) * factor
+    if h_bar * w_bar > IMAGE_MAX_PIXELS:
+        beta = math.sqrt((height * width) / IMAGE_MAX_PIXELS)
+        h_bar = max(factor, math.floor(height / beta / factor) * factor)
+        w_bar = max(factor, math.floor(width / beta / factor) * factor)
+    elif h_bar * w_bar < IMAGE_MIN_PIXELS:
+        beta = math.sqrt(IMAGE_MIN_PIXELS / (height * width))
+        h_bar = math.ceil(height * beta / factor) * factor
+        w_bar = math.ceil(width * beta / factor) * factor
+    return h_bar, w_bar
+
+
+def preprocess_vision_image(img):
+    """RGB PIL image -> pixel_values [N, 1536], grid_thw (1, h, w)."""
+    img = np.array(img)
+    height, width = smart_resize(*img.shape[:2])
+    img = tv_resize(img, (height, width), interpolation="bicubic", antialias=True)
+    img = (img.astype(np.float32) / 255 - IMAGE_MEAN) / IMAGE_STD
+    img = img.transpose(2, 0, 1)
+
+    grid_h, grid_w = height // PATCH_SIZE, width // PATCH_SIZE
+    m = SPATIAL_MERGE_SIZE
+    patches = img.reshape(3, grid_h // m, m, PATCH_SIZE, grid_w // m, m, PATCH_SIZE)
+    # [grid_h/m, grid_w/m, m, m, channel, patch, patch]
+    patches = patches.transpose(1, 4, 2, 5, 0, 3, 6)
+    patches = np.repeat(patches[:, :, :, :, :, None], TEMPORAL_PATCH_SIZE, axis=5)
+    pixel_values = patches.reshape(
+        grid_h * grid_w, 3 * TEMPORAL_PATCH_SIZE * PATCH_SIZE * PATCH_SIZE
+    )
+    return np.ascontiguousarray(pixel_values), (1, grid_h, grid_w)
+
+
+def merge_block_order(arr, h, w):
+    m = SPATIAL_MERGE_SIZE
+    return arr.reshape(h // m, m, w // m, m, *arr.shape[2:]).swapaxes(1, 2)
+
+
+def vision_interpolation(grid_thw):
+    """Bilinear (align_corners=True) taps resampling the 48x48 position embedding table."""
+    _, h, w = grid_thw
+    side = NUM_GRID_PER_SIDE
+
+    def axis_taps(size):
+        src = np.arange(size, dtype=np.float32) * (side - 1) / max(size - 1, 1)
+        floor = np.floor(src)
+        offsets = np.arange(2)
+        taps = np.clip(floor.astype(np.int64)[:, None] + offsets, 0, side - 1)
+        weights = np.clip(1 - np.abs(src[:, None] - floor[:, None] - offsets), 0, None)
+        return taps, weights.astype(np.float32)
+
+    h_taps, h_weights = axis_taps(h)
+    w_taps, w_weights = axis_taps(w)
+    indices = h_taps[:, None, :, None] * side + w_taps[None, :, None, :]
+    weights = h_weights[:, None, :, None] * w_weights[None, :, None, :]
+    indices = merge_block_order(indices, h, w).reshape(h * w, 4)
+    weights = merge_block_order(weights, h, w).reshape(h * w, 4)
+    return indices, weights
+
+
+def vision_position_ids(grid_thw):
+    _, h, w = grid_thw
+    hpos, wpos = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
+    pos = np.stack([hpos, wpos], axis=-1)
+    return merge_block_order(pos, h, w).reshape(h * w, 2).astype(np.int64)
 
 
 def get_rope_index(input_ids, image_grid_thw):
@@ -196,6 +305,27 @@ def get_rope_index(input_ids, image_grid_thw):
             current_pos += max(h, w)
         start = end
     return np.concatenate(pos_parts, axis=1)[:, None, :]
+
+
+def preprocess_condition_images(images, output_resolution):
+    """One resize feeds both the text encoder and the VAE."""
+    image_sizes, vlm_images, vae_images = [], [], []
+    for img in images:
+        img = img.convert("RGBA")
+        width, height = calculate_dimensions(
+            output_resolution * output_resolution, img.size[0] / img.size[1]
+        )
+        img = img.resize((width, height), resample=Image.LANCZOS)
+        image_sizes.append((width, height))
+
+        # the vision encoder reads the image composited over white
+        white = Image.new("RGB", img.size, (255, 255, 255))
+        white.paste(img, mask=img.getchannel("A"))
+        vlm_images.append(white)
+
+        vae_image = np.array(img).astype(np.float32) / 255 * 2 - 1
+        vae_images.append(vae_image.transpose(2, 0, 1)[None, :, None])
+    return image_sizes, vlm_images, vae_images
 
 
 def build_transformer_inputs(image_pad_mask, img_shapes, num_target_tokens):
@@ -264,24 +394,68 @@ def unpack_latents(latents, height, width):
 # ======================
 
 
-def encode_prompt(models, prompt):
+def encode_prompt(models, prompt, vlm_images):
     """-> prompt_embeds [1, L, 4096], image_pad_mask [L]"""
     tokenizer = models["tokenizer"]
 
     # an empty prompt leaves the encoder with nothing to read
     prompt = prompt or " "
 
-    text = PROMPT_TEMPLATE_T2I.format(prompt)
+    pixel_values, grid_thw = [], []
+    for img in vlm_images:
+        pv, thw = preprocess_vision_image(img)
+        pixel_values.append(pv)
+        grid_thw.append(thw)
+
+    if vlm_images:
+        image_prefix = " ".join(
+            f"<image{i + 1}><|vision_start|><|image_pad|><|vision_end|>"
+            for i in range(len(vlm_images))
+        )
+        text = PROMPT_TEMPLATE_TI2I.format(image_prefix, prompt)
+        for t, h, w in grid_thw:
+            num_tokens = t * h * w // SPATIAL_MERGE_SIZE**2
+            text = text.replace("<|image_pad|>", "<|placeholder|>" * num_tokens, 1)
+        text = text.replace("<|placeholder|>", "<|image_pad|>")
+    else:
+        text = PROMPT_TEMPLATE_T2I.format(prompt)
     input_ids = np.array(tokenizer.encode(text), dtype=np.int64)
     visual_pos_masks = input_ids == IMAGE_TOKEN_ID
 
+    image_embeds = []
+    deepstack = [[], [], []]
+    for pv, thw in zip(pixel_values, grid_thw):
+        interp_indices, interp_weights = vision_interpolation(thw)
+        feed = {
+            "pixel_values": pv,
+            "interp_indices": interp_indices,
+            "interp_weights": interp_weights,
+            "position_ids": vision_position_ids(thw),
+        }
+        net = models["vision_encoder"]
+        if not args.onnx:
+            output = net.predict(feed)
+        else:
+            output = net.run(None, feed)
+        embeds, deepstack_0, deepstack_1, deepstack_2 = output
+        image_embeds.append(embeds)
+        for i, d in enumerate([deepstack_0, deepstack_1, deepstack_2]):
+            deepstack[i].append(d)
+        # ailia reuses the shapes of the previous call when the input shapes do not change,
+        # so the next image (which may have the same shape but another grid) needs a new net
+        net.unload()
+
     embed_tokens = models["embed_tokens"]
     inputs_embeds = embed_tokens[input_ids].astype(np.float32)
-    deepstack = [np.zeros((0, HIDDEN_SIZE), dtype=np.float32)] * 3
+    if vlm_images:
+        inputs_embeds[visual_pos_masks] = np.concatenate(image_embeds)
+        deepstack = [np.concatenate(d) for d in deepstack]
+    else:
+        deepstack = [np.zeros((0, HIDDEN_SIZE), dtype=np.float32)] * 3
 
     feed = {
         "inputs_embeds": inputs_embeds[None],
-        "position_ids": get_rope_index(input_ids, []),
+        "position_ids": get_rope_index(input_ids, grid_thw),
         "visual_pos_masks": visual_pos_masks[None],
         "deepstack_0": deepstack[0],
         "deepstack_1": deepstack[1],
@@ -301,7 +475,21 @@ def encode_prompt(models, prompt):
     return prompt_embeds, image_pad_mask
 
 
-def denoise(models, latents, prompt_embeds, transformer_inputs, sigmas):
+def encode_vae_images(models, vae_images):
+    """-> normalized image latents packed into tokens [1, N, 64]"""
+    image_latents = []
+    for image in vae_images:
+        net = models["vae_encoder"]
+        if not args.onnx:
+            output = net.predict({"image": image})
+        else:
+            output = net.run(None, {"image": image})
+        latent = (output[0] - LATENTS_MEAN) / LATENTS_STD
+        image_latents.append(pack_latents(latent))
+    return np.concatenate(image_latents, axis=1)
+
+
+def denoise(models, latents, image_latents, prompt_embeds, transformer_inputs, sigmas):
     joint_index, position_ids, target_token_mask, image_ids = transformer_inputs
     num_target_tokens = latents.shape[1]
     prefix_len = len(target_token_mask) - num_target_tokens
@@ -314,8 +502,11 @@ def denoise(models, latents, prompt_embeds, transformer_inputs, sigmas):
     for i in tqdm(range(len(sigmas) - 1)):
         t = sigmas[i] * NUM_TRAIN_TIMESTEPS
         timestep = np.array([t / NUM_TRAIN_TIMESTEPS], dtype=np.float32)
+        hidden_states = latents
+        if image_latents is not None:
+            hidden_states = np.concatenate([image_latents, latents], axis=1)
         feed = {
-            "hidden_states": latents,
+            "hidden_states": hidden_states,
             "encoder_hidden_states": prompt_embeds,
             "timestep": timestep,
         }
@@ -363,13 +554,35 @@ def decode_latents(models, latents, height, width):
     return Image.fromarray(image)
 
 
-def generate(models, prompt):
-    height = width = 1024
-    steps = 40
+def generate(models, prompt, images):
+    output_resolution = args.output_resolution
+    height, width = args.height, args.width
+
+    image_sizes, vlm_images, vae_images = [], [], []
+    if images:
+        calculated_width, calculated_height = calculate_dimensions(
+            output_resolution * output_resolution,
+            images[-1].size[0] / images[-1].size[1],
+        )
+        height = height or calculated_height
+        width = width or calculated_width
+        image_sizes, vlm_images, vae_images = preprocess_condition_images(
+            images, output_resolution
+        )
+    height = height or output_resolution
+    width = width or output_resolution
+    multiple_of = VAE_SCALE_FACTOR * 2
+    height = height // multiple_of * multiple_of
+    width = width // multiple_of * multiple_of
     logger.info(f"output size: {width}x{height}")
 
-    prompt_embeds, image_pad_mask = encode_prompt(models, prompt)
+    prompt_embeds, image_pad_mask = encode_prompt(models, prompt, vlm_images)
     models["text_encoder"].unload()
+
+    image_latents = None
+    if images:
+        image_latents = encode_vae_images(models, vae_images)
+        models["vae_encoder"].unload()
 
     latent_height, latent_width = height // VAE_SCALE_FACTOR, width // VAE_SCALE_FACTOR
     latents = np.random.standard_normal(
@@ -377,13 +590,18 @@ def generate(models, prompt):
     ).astype(np.float32)
     latents = pack_latents(latents)
 
-    img_shapes = [(1, latent_height, latent_width)]
+    img_shapes = [
+        *[(1, h // VAE_SCALE_FACTOR, w // VAE_SCALE_FACTOR) for w, h in image_sizes],
+        (1, latent_height, latent_width),
+    ]
     transformer_inputs = build_transformer_inputs(
         image_pad_mask, img_shapes, latents.shape[1]
     )
-    sigmas = get_sigmas(steps, latents.shape[1])
+    sigmas = get_sigmas(args.steps, latents.shape[1])
 
-    latents = denoise(models, latents, prompt_embeds, transformer_inputs, sigmas)
+    latents = denoise(
+        models, latents, image_latents, prompt_embeds, transformer_inputs, sigmas
+    )
     models["transformer"].unload()
 
     return decode_latents(models, latents, height, width)
@@ -391,10 +609,28 @@ def generate(models, prompt):
 
 def recognize_from_text(models):
     prompt = args.prompt
+    images = [Image.open(p) for p in args.input] if args.input else []
 
     logger.info("prompt: %s" % prompt)
+    for p in args.input or []:
+        logger.info("input image: %s" % p)
     logger.info("Start inference...")
-    image = generate(models, prompt)
+    if args.benchmark:
+        logger.info("BENCHMARK mode")
+        total_time_estimation = 0
+        for i in range(args.benchmark_count):
+            start = int(round(time.time() * 1000))
+            image = generate(models, prompt, images)
+            end = int(round(time.time() * 1000))
+            estimation_time = end - start
+            logger.info(f"\tailia processing estimation time {estimation_time} ms")
+            if i != 0:
+                total_time_estimation += estimation_time
+        logger.info(
+            f"\taverage time estimation {total_time_estimation / (args.benchmark_count - 1)} ms"
+        )
+    else:
+        image = generate(models, prompt, images)
 
     savepath = get_savepath(args.savepath, "", ext=".png")
     image.save(savepath)
@@ -404,21 +640,38 @@ def recognize_from_text(models):
 
 
 def main():
+    if args.turbo:
+        weight_transformer_path = WEIGHT_TURBO_TRANSFORMER_PATH
+        weight_transformer_pb_path = WEIGHT_TURBO_TRANSFORMER_PB_PATH
+        model_transformer_path = MODEL_TURBO_TRANSFORMER_PATH
+    else:
+        weight_transformer_path = WEIGHT_TRANSFORMER_PATH
+        weight_transformer_pb_path = WEIGHT_TRANSFORMER_PB_PATH
+        model_transformer_path = MODEL_TRANSFORMER_PATH
+
     check_and_download_models(
         WEIGHT_TEXT_ENCODER_PATH, MODEL_TEXT_ENCODER_PATH, REMOTE_PATH
     )
     check_and_download_file(WEIGHT_TEXT_ENCODER_PB_PATH, REMOTE_PATH)
     check_and_download_file(EMBED_TOKENS_PATH, REMOTE_PATH)
     check_and_download_models(
-        WEIGHT_TRANSFORMER_PATH, MODEL_TRANSFORMER_PATH, REMOTE_PATH
+        weight_transformer_path, model_transformer_path, REMOTE_PATH
     )
-    check_and_download_file(WEIGHT_TRANSFORMER_PB_PATH, REMOTE_PATH)
+    check_and_download_file(weight_transformer_pb_path, REMOTE_PATH)
     check_and_download_models(
         WEIGHT_VAE_DECODER_PATH, MODEL_VAE_DECODER_PATH, REMOTE_PATH
     )
+    if args.input:
+        check_and_download_models(
+            WEIGHT_VISION_ENCODER_PATH, MODEL_VISION_ENCODER_PATH, REMOTE_PATH
+        )
+        check_and_download_file(WEIGHT_VISION_ENCODER_PB_PATH, REMOTE_PATH)
+        check_and_download_models(
+            WEIGHT_VAE_ENCODER_PATH, MODEL_VAE_ENCODER_PATH, REMOTE_PATH
+        )
 
-    seed = 42
-    np.random.seed(seed)
+    if args.seed is not None:
+        np.random.seed(args.seed)
 
     env_id = args.env_id
 
@@ -472,7 +725,7 @@ def main():
         ),
         "transformer": LazyModel(
             lambda: load_net(
-                MODEL_TRANSFORMER_PATH, WEIGHT_TRANSFORMER_PATH, cpu_only=True
+                model_transformer_path, weight_transformer_path, cpu_only=True
             ),
             "transformer",
         ),
@@ -481,6 +734,15 @@ def main():
             "vae_decoder",
         ),
     }
+    if args.input:
+        models["vision_encoder"] = LazyModel(
+            lambda: load_net(MODEL_VISION_ENCODER_PATH, WEIGHT_VISION_ENCODER_PATH),
+            "vision_encoder",
+        )
+        models["vae_encoder"] = LazyModel(
+            lambda: load_net(MODEL_VAE_ENCODER_PATH, WEIGHT_VAE_ENCODER_PATH),
+            "vae_encoder",
+        )
 
     recognize_from_text(models)
 
