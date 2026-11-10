@@ -11,6 +11,7 @@
 | [transformer-cnn-emotion-recognition](./transformer-cnn-emotion-recognition/) | [Combining Spatial and Temporal Feature Representions of Speech Emotion by Parallelizing CNNs and Transformer-Encoders](https://github.com/IliaZenkov/transformer-cnn-emotion-recognition)  | Pytorch | 1.2.5 and later | Oct 2020 | |
 | [microsoft clap](./msclap/) | [CLAP](https://github.com/microsoft/CLAP) | Pytorch | 1.2.11 and later | Jun 2022 | |
 | [clap](./clap/) | [CLAP](https://github.com/LAION-AI/CLAP) | Pytorch | 1.2.6 and later | Nov 2022 | [EN](https://tech.ailia.ai/en/clap-feature-extraction-model-for-searching-audio-from-text-dcfd4c93756e/) [JP](https://tech.ailia.ai/clap-%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%81%8B%E3%82%89%E9%9F%B3%E5%A3%B0%E3%82%92%E6%A4%9C%E7%B4%A2%E5%8F%AF%E8%83%BD%E3%81%AB%E3%81%99%E3%82%8B%E7%89%B9%E5%BE%B4%E6%8A%BD%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-f712f9c00dab) |
+| [emotion2vec](./emotion2vec/) | [emotion2vec: Self-Supervised Pre-Training for Speech Emotion Representation](https://github.com/ddlBoJack/emotion2vec) | Pytorch | 1.3.0 and later | Dec 2023 | |
 
 ### Music enhancement
 
