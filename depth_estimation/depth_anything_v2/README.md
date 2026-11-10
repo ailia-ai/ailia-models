@@ -17,6 +17,11 @@ The script will perform a monocular depth estimation on the input media.
 Estimated relative depth with inferno colormap(without option ```-g```),
 or single channel grey scale image(with option ```-g```).
 
+With the ```--metric``` option, the metric depth model estimates the absolute depth in meters.
+The depth range is printed to the log, and the depth image is normalized in the same way.
+Note that the relative model outputs disparity (brighter is nearer),
+while the metric model outputs depth (brighter is farther).
+
 Saves to ```./output.png``` by default but it can be specified with the ```-s``` option
 
 ## Usage
@@ -42,7 +47,18 @@ input path, save path, and encoder type separately.
 
 Available encoder types: ```vits```, ```vitb```, ```vitl```
 
-#### Example 3: Inference on Video.
+#### Example 3: Metric depth estimation.
+```bash
+$ python3 depth_anything_v2.py --metric hypersim -ec vitl
+```
+The ```--metric``` option selects the metric depth model fine-tuned on each dataset.
+
+| ```--metric``` | Scene | Max depth |
+|---|---|---|
+| ```hypersim``` | Indoor | 20 m |
+| ```vkitti``` | Outdoor | 80 m |
+
+#### Example 4: Inference on Video.
 ```bash
 $ python3 depth_anything_v2.py -v 0
 ```
@@ -56,6 +72,7 @@ This model requires ailia SDK 1.2.16 and later.
 ## Reference
 
 * [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2)
+* [Depth Anything V2 for Metric Depth Estimation](https://github.com/DepthAnything/Depth-Anything-V2/tree/main/metric_depth)
 * [Depth Anything ONNX](https://github.com/fabio-sim/Depth-Anything-ONNX)
 
 ## Framework
@@ -71,3 +88,9 @@ ONNX opset=17
 [depth_anything_v2_depth_anything_v2_vits.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_depth_anything_v2_vits.onnx.prototxt)
 [depth_anything_v2_depth_anything_v2_vitb.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_depth_anything_v2_vitb.onnx.prototxt)
 [depth_anything_v2_depth_anything_v2_vitl.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_depth_anything_v2_vitl.onnx.prototxt)
+[depth_anything_v2_metric_hypersim_vits.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_metric_hypersim_vits.onnx.prototxt)
+[depth_anything_v2_metric_hypersim_vitb.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_metric_hypersim_vitb.onnx.prototxt)
+[depth_anything_v2_metric_hypersim_vitl.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_metric_hypersim_vitl.onnx.prototxt)
+[depth_anything_v2_metric_vkitti_vits.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_metric_vkitti_vits.onnx.prototxt)
+[depth_anything_v2_metric_vkitti_vitb.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_metric_vkitti_vitb.onnx.prototxt)
+[depth_anything_v2_metric_vkitti_vitl.onnx.prototxt](https://netron.app/?url=https://storage.googleapis.com/ailia-models/depth_anything_v2/depth_anything_v2_metric_vkitti_vitl.onnx.prototxt)
