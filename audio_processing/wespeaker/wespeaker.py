@@ -36,6 +36,8 @@ WEIGHT_VOX_PATH = 'voxceleb_resnet34.onnx'
 MODEL_VOX_PATH = 'voxceleb_resnet34.onnx.prototxt'
 WEIGHT_CNC_PATH = 'cnceleb_resnet34.onnx'
 MODEL_CNC_PATH = 'cnceleb_resnet34.onnx.prototxt'
+WEIGHT_VBLINK_PATH = 'voxblink2_samresnet34.onnx'
+MODEL_VBLINK_PATH = 'voxblink2_samresnet34.onnx.prototxt'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/wespeaker/'
 
 THRESHOLD = 0.7
@@ -67,6 +69,10 @@ parser.add_argument(
 parser.add_argument(
     '-cn', '--chinese', action='store_true',
     help='Language is Chinese.'
+)
+parser.add_argument(
+    '-ml', '--multilingual', action='store_true',
+    help='Use the multilingual model (VoxBlink2 SimAMResNet34).'
 )
 parser.add_argument(
     '--onnx',
@@ -200,10 +206,13 @@ def speaker_verification(net):
 
 def main():
     # model files check and download
-    check_and_download_models(WEIGHT_VOX_PATH, MODEL_VOX_PATH, REMOTE_PATH)
-    check_and_download_models(WEIGHT_CNC_PATH, MODEL_CNC_PATH, REMOTE_PATH)
-    MODEL_PATH, WEIGHT_PATH = (MODEL_VOX_PATH, WEIGHT_VOX_PATH) \
-        if args.english or not args.chinese else (MODEL_CNC_PATH, WEIGHT_CNC_PATH)
+    if args.multilingual:
+        MODEL_PATH, WEIGHT_PATH = MODEL_VBLINK_PATH, WEIGHT_VBLINK_PATH
+    elif args.english or not args.chinese:
+        MODEL_PATH, WEIGHT_PATH = MODEL_VOX_PATH, WEIGHT_VOX_PATH
+    else:
+        MODEL_PATH, WEIGHT_PATH = MODEL_CNC_PATH, WEIGHT_CNC_PATH
+    check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
 
     env_id = args.env_id
 
