@@ -93,8 +93,16 @@ parser.add_argument(
     "--quantize", type=str, default=None, choices=["int4"],
     help="use int4 quantized model.",
 )
+parser.add_argument(
+    "--seed", default=None,
+    type=int,
+    help="random seed"
+)
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
+
+if args.seed is not None:
+    np.random.seed(args.seed)
 
 
 # ======================
@@ -1142,6 +1150,15 @@ def recognize(models):
     logger.info("Script finished successfully.")
 
 
+def ailia_tokenizer_version():
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return tuple(int(v) for v in version("ailia_tokenizer").split(".")[:2])
+    except (PackageNotFoundError, ValueError):
+        return (0, 0)
+
+
 def main():
     check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
     check_and_download_models(WEIGHT_VISION_PATH, MODEL_VISION_PATH, REMOTE_PATH)
@@ -1190,6 +1207,12 @@ def main():
         import transformers
 
         tokenizer = transformers.Qwen2TokenizerFast.from_pretrained("./tokenizer")
+    elif ailia_tokenizer_version() >= (1, 7):
+        # Qwen2Tokenizer (ailia_tokenizer 1.7+) loads added_tokens_decoder
+        # of tokenizer_config.json by itself.
+        from ailia_tokenizer import Qwen2Tokenizer
+
+        tokenizer = Qwen2Tokenizer.from_pretrained("./tokenizer")
     else:
         from ailia_tokenizer import GPT2Tokenizer
 
