@@ -50,14 +50,21 @@ parser.add_argument(
     help='The input model path.' +
          'you can set B_16 to select ViT-B_16'
 )
+parser.add_argument(
+    '--quantize', type=str, default=None, choices=['int4'],
+    help='use int4 MatMulNBits model.'
+)
 args = update_parser(parser)
 
 
 # ==========================
 # MODEL AND OTHER PARAMETERS
 # ==========================
-MODEL_PATH = 'ViT-' + args.model + '-224.onnx.prototxt'
-WEIGHT_PATH = 'ViT-' + args.model + '-224.onnx'
+MODEL_NAME = 'ViT-' + args.model + '-224'
+if args.quantize == 'int4':
+    MODEL_NAME += '-int4'
+MODEL_PATH = MODEL_NAME + '.onnx.prototxt'
+WEIGHT_PATH = MODEL_NAME + '.onnx'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/vit/'
 
 MAX_CLASS_COUNT = 5

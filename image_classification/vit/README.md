@@ -38,6 +38,27 @@ $ python3 vit.py -v VIDEO_PATH -s SAVE_VIDEO_PATH
 (ex) $ python3 vit.py --video input.mp4 --savepath output.mp4
 ```
 
+By adding the `--quantize int4` option, the weight-only int4 model is used.
+The transformer's constant-weight linear layers are converted to
+`MatMulNBits`; dynamic attention matrix multiplications and the classifier
+head remain in fp32.
+
+```bash
+$ python3 vit.py --quantize int4
+$ python3 vit.py --quantize int4 -b -bc 20
+```
+
+The int4 model can be generated from the fp32 model with ONNX Runtime's
+`MatMulNBitsQuantizer`:
+
+```bash
+$ pip install onnxruntime onnx numpy
+$ cd export
+$ python3 export_int4.py
+$ cd ..
+$ python3 vit.py --quantize int4
+```
+
 <br/>
 
 ## Reference
