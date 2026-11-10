@@ -60,7 +60,7 @@ def recognize_from_image():
         return
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=-1)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
     logger.info(IMAGE_PATH)
 
     for image_path in args.input:
@@ -101,7 +101,7 @@ def recognize_from_image():
 
 def recognize_from_video():
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=-1)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
 
     capture = webcamera_utils.get_capture(args.video)
 

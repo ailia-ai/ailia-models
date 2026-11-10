@@ -28,7 +28,7 @@ class MTCNN(object):
         b) Detection of keypoints (left eye, right eye, nose, mouth_left, mouth_right)
     """
 
-    def __init__(self, min_face_size: int = 20, steps_threshold: list = None,
+    def __init__(self, args, min_face_size: int = 20, steps_threshold: list = None,
                  scale_factor: float = 0.709):
         """
         Initializes the MTCNN.
@@ -45,9 +45,9 @@ class MTCNN(object):
         self._steps_threshold = steps_threshold
         self._scale_factor = scale_factor
 
-        self._pnet = ailia.Net(None,"pnet.onnx")
-        self._rnet = ailia.Net(None,"rnet.onnx")
-        self._onet = ailia.Net(None,"onet.onnx")
+        self._pnet = ailia.Net(None,"pnet.onnx",env_id=args.env_id)
+        self._rnet = ailia.Net(None,"rnet.onnx",env_id=args.env_id)
+        self._onet = ailia.Net(None,"onet.onnx",env_id=args.env_id)
 
 
     @property

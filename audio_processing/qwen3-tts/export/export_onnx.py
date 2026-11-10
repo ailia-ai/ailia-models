@@ -21,6 +21,9 @@ Usage:
     # the fixed KV cache variants of the talker and the code predictor
     python3 export_onnx.py --parameter_num 0.6B --static --max_seq_len 512
 
+    # the fused code predictor alone (needs onnxsim)
+    python3 export_onnx.py --parameter_num 0.6B --only code_predictor_frame
+
 The model is split so that the auto regressive loop can be driven from Python
 (see ../qwen3-tts.py). Every weight is in a graph and there are no npy files, so
 the runtime only reshapes arrays and samples tokens. ``<p>`` is the parameter_num
@@ -42,6 +45,12 @@ the runtime only reshapes arrays and samples tokens. ``<p>`` is the parameter_nu
         code predictor (5 layers) with a KV cache passed in/out and its 15 output
         heads included, so a step takes the rows of the head to use and returns
         logits
+    qwen3_tts_code_predictor_<p>.opt.onnx
+        the same code predictor with its 15 steps unrolled into one graph, the
+        codec embedding lookups and the top-k sampling inside (CodePredictorFrame):
+        one call per frame instead of 15. Used by ../qwen3-tts.py on ailia SDK
+        1.7.0 or later and on onnxruntime. Written through onnxsim, which folds
+        the shape arithmetic (every shape in it is static).
 
 --static rebuilds the two modules that carry a KV cache as
 qwen3_tts_talker_<p>_static.onnx and qwen3_tts_code_predictor_<p>_static.onnx,
@@ -107,6 +116,8 @@ TARGETS = [
     "decoder",
     "prompt",
     "code_predictor",
+    # the 15 steps of the code predictor in one graph (qwen3_tts_code_predictor_<p>.opt.onnx)
+    "code_predictor_frame",
     # exported last: it is by far the largest module
     "talker",
 ]
@@ -478,6 +489,113 @@ Every position arrives as inputs_embeds: position 0 is the talker hidden state
         return (self.head(hidden_states, head_rows), *present)
 
 
+class CodePredictorFrame(nn.Module):
+    """All 15 code groups of one frame in a single call, sampling included.
+
+    A call of either runtime costs a few ms whatever its size, and the split code
+    predictor needs 15 calls per 80 ms frame, which alone is most of the frame
+    budget on a GPU. Here the 15 steps are unrolled into one graph (a frame is
+    always 16 positions, so every shape is static), the codec embedding lookups
+    happen inside, and each step's token is drawn with the Gumbel-max trick:
+    argmax(top_k_mask(logits / temperature) + noise), where noise = -log(-log(u))
+    for uniform u is passed in from the host. That is an exact sample from the
+    top-k softmax, the same distribution generate_fast() draws from with
+    torch.multinomial (top_p is not applied; the reference's default is 1.0).
+    Greedy decoding is noise = 0 and temperature = 1.
+
+    The gathers from the embedding tables inside the loop are the pattern ailia
+    got wrong before 1.7 (The ailia gather bug in README.md), and TopK needs
+    1.7 as well, so ../qwen3-tts.py uses this graph on ailia SDK 1.7.0 or later
+    and on onnxruntime, the split one otherwise.
+
+    inputs:  past_hidden [1, 1, H], group0 [1] int64, noise [15, 2048] float,
+             temperature [1] float
+    outputs: groups [15] int64 (code groups 1..15),
+             frame_embed [1, 1, H] (all 16 group embeddings of the frame summed,
+             which is what the next talker step takes)
+    """
+
+    def __init__(self, talker, code_predictor, top_k=50):
+        super().__init__()
+        self.top_k = top_k
+        self.small_to_mtp_projection = code_predictor.small_to_mtp_projection
+        self.layers = code_predictor.model.layers
+        self.norm = code_predictor.model.norm
+        self.lm_head = code_predictor.lm_head
+        self.group_tables = code_predictor.model.codec_embedding
+        self.register_buffer("talker_codec", talker.model.codec_embedding.weight.detach(), persistent=False)
+        num_groups = len(self.group_tables) + 1
+        cos, sin = rope_cos_sin(
+            code_predictor.model.rotary_emb.inv_freq, torch.arange(num_groups)[None], torch.float32
+        )
+        self.register_buffer("cos", cos, persistent=False)
+        self.register_buffer("sin", sin, persistent=False)
+
+    def run_step(self, hidden_states, cos, sin, attention_mask, cache):
+        hidden_states = self.small_to_mtp_projection(hidden_states)
+        new_cache = []
+        for i, layer in enumerate(self.layers):
+            past_key, past_value = cache[i] if cache is not None else (None, None)
+            hidden_states, key, value = self.layer_forward(
+                layer, hidden_states, attention_mask, cos, sin, past_key, past_value
+            )
+            new_cache.append((key, value))
+        return self.norm(hidden_states)[:, -1, :], new_cache
+
+    @staticmethod
+    def layer_forward(layer, hidden_states, attention_mask, cos, sin, past_key, past_value):
+        """decoder_layer_forward without the empty-cache concat of the first step."""
+        attn = layer.self_attn
+        input_shape = hidden_states.shape[:-1]
+        hidden_shape = (*input_shape, -1, attn.head_dim)
+        residual = hidden_states
+        hidden_states = layer.input_layernorm(hidden_states)
+        query = attn.q_norm(attn.q_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
+        key = attn.k_norm(attn.k_proj(hidden_states).view(hidden_shape)).transpose(1, 2)
+        value = attn.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        query, key = apply_rotary_pos_emb(query, key, cos, sin)
+        if past_key is not None:
+            key = torch.cat([past_key, key], dim=2)
+            value = torch.cat([past_value, value], dim=2)
+        attn_output, _ = eager_attention_forward(
+            attn, query, key, value, attention_mask, scaling=attn.scaling, dropout=0.0
+        )
+        hidden_states = residual + attn.o_proj(attn_output.reshape(*input_shape, -1))
+        residual = hidden_states
+        hidden_states = layer.post_attention_layernorm(hidden_states)
+        return residual + layer.mlp(hidden_states), key, value
+
+    def sample(self, logits, noise, temperature):
+        scaled = logits / temperature
+        kth = torch.topk(scaled, self.top_k, dim=-1).values[..., -1:]
+        masked = torch.where(scaled < kth, torch.full_like(scaled, float("-inf")), scaled)
+        # topk(1) rather than argmax: onnxruntime's CUDA EP runs this ArgMax on the
+        # CPU (with a copy each way), which also rules out CUDA graph capture
+        return torch.topk(masked + noise, 1, dim=-1).indices.squeeze(-1)
+
+    def forward(self, past_hidden, group0, noise, temperature):
+        num_steps = len(self.lm_head)                       # 15
+        group0_embed = self.talker_codec[group0][None]      # [1, 1, H]
+        frame_embed = group0_embed
+        x = torch.cat([past_hidden, group0_embed], dim=1)   # [1, 2, H]
+        mask = torch.zeros(1, 1, 2, 2) + torch.tensor([[0.0, float("-inf")], [0.0, 0.0]])
+        hidden, cache = self.run_step(x, self.cos[:, :2], self.sin[:, :2], mask, None)
+        groups = []
+        for step in range(num_steps):
+            token = self.sample(self.lm_head[step](hidden), noise[step], temperature)   # [1]
+            groups.append(token)
+            embed = self.group_tables[step](token)[None]    # [1, 1, H]
+            frame_embed = frame_embed + embed
+            if step == num_steps - 1:
+                break
+            pos = step + 2                                   # position of this group in the frame
+            hidden, cache = self.run_step(
+                embed, self.cos[:, pos:pos + 1], self.sin[:, pos:pos + 1],
+                torch.zeros(1, 1, 1, pos + 1), cache,
+            )
+        return torch.cat(groups), frame_embed
+
+
 class StaticCodePredictor(CodePredictor):
     """Code predictor with a fixed length KV cache, see StaticTalker.
 
@@ -784,12 +902,65 @@ def export_code_predictor(model_dir, out, parameter_num, static=False, max_seq_l
     )
 
 
+def export_code_predictor_frame(model_dir, out, parameter_num, static=False, max_seq_len=None):
+    """qwen3_tts_code_predictor_<p>.opt.onnx: the traced graph goes through onnxsim.
+
+    The tracer emits Shape / ConstantOfShape / Expand / Where chains for expand()
+    and full_like(); every shape here is static, so onnxsim folds them away,
+    which is what lets onnxruntime place the whole graph on the CUDA EP (and
+    capture it as a CUDA graph) and keeps ailia's graph small. The traced file is
+    only kept when onnxsim is missing.
+    """
+    model = load_tts_model(model_dir)
+    talker_config = model.config.talker_config
+    wrapper = CodePredictorFrame(model.talker, model.talker.code_predictor)
+    num_groups = talker_config.num_code_groups
+    group_vocab = talker_config.code_predictor_config.vocab_size
+
+    del model
+    gc.collect()
+
+    past_hidden = torch.randn(1, 1, talker_config.hidden_size)
+    group0 = torch.tensor([7], dtype=torch.int64)
+    noise = torch.rand(num_groups - 1, group_vocab)
+    temperature = torch.tensor([0.9])
+
+    traced = out("code_predictor_frame", "onnx")
+    final = out("code_predictor", "opt.onnx")
+    export(
+        wrapper,
+        (past_hidden, group0, noise, temperature),
+        traced,
+        ["past_hidden", "group0", "noise", "temperature"],
+        ["groups", "frame_embed"],
+        {},   # every shape is static: a frame is always num_code_groups positions
+    )
+    try:
+        import onnx
+        import onnxsim
+    except ImportError:
+        print("onnxsim is not installed (pip install onnxsim); keeping the traced graph as", final)
+        os.replace(traced, final)
+        os.replace(traced + ".prototxt", final + ".prototxt")
+        return
+    print("simplifying with onnxsim ...")
+    simplified, ok = onnxsim.simplify(onnx.load(traced))
+    if not ok:
+        raise RuntimeError("onnxsim could not verify the simplified graph")
+    onnx.save(simplified, final)
+    generate_prototxt(final)
+    os.remove(traced)
+    os.remove(traced + ".prototxt")
+    print(f"{os.path.basename(final)}: {len(simplified.graph.node)} nodes")
+
+
 EXPORTERS = {
     "codec_embedding": export_codec_embedding,
     "encoder": export_encoder,
     "decoder": export_decoder,
     "prompt": export_prompt,
     "code_predictor": export_code_predictor,
+    "code_predictor_frame": export_code_predictor_frame,
     "talker": export_talker,
 }
 

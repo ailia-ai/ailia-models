@@ -571,6 +571,15 @@ def inference_zero_shot(models):
     logger.info("Script finished successfully.")
 
 
+def ailia_tokenizer_version():
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return tuple(int(v) for v in version("ailia_tokenizer").split(".")[:2])
+    except (PackageNotFoundError, ValueError):
+        return (0, 0)
+
+
 def main():
     check_and_download_models(WEIGHT_SPEECH_PATH, MODEL_SPEECH_PATH, REMOTE_PATH)
     check_and_download_models(WEIGHT_CAMP_PATH, MODEL_CAMP_PATH, REMOTE_PATH)
@@ -672,6 +681,20 @@ def main():
             # fmt: on
         }
         tokenizer.add_special_tokens(special_tokens)
+    elif ailia_tokenizer_version() >= (1, 7):
+        # Qwen2Tokenizer (ailia_tokenizer 1.7+) loads <|im_start|> etc. from
+        # added_tokens.json by itself; the CosyVoice2 specific tokens are not
+        # in the tokenizer files and get new ids in registration order,
+        # the same way as the transformers tokenizer above.
+        from ailia_tokenizer import Qwen2Tokenizer
+        tokenizer = Qwen2Tokenizer.from_pretrained("./tokenizer")
+        tokenizer.add_special_tokens({"additional_special_tokens":['<|im_start|>', '<|im_end|>', '<|endofprompt|>',
+                '[breath]', '<strong>', '</strong>', '[noise]',
+                '[laughter]', '[cough]', '[clucking]', '[accent]',
+                '[quick_breath]',
+                "<laughter>", "</laughter>",
+                "[hissing]", "[sigh]", "[vocalized-noise]",
+                "[lipsmack]", "[mn]"]})
     else:
         from ailia_tokenizer import GPT2Tokenizer
         tokenizer = GPT2Tokenizer.from_pretrained("./tokenizer")
