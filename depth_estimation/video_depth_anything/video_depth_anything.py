@@ -1,15 +1,18 @@
 import sys
+import time
 from logging import getLogger
 
 import ailia
 import cv2
+import matplotlib
 import numpy as np
 from tqdm import tqdm
 
 # import original modules
 sys.path.append("../../util")
-from arg_utils import get_base_parser, update_parser  # noqa
+from arg_utils import get_base_parser, get_savepath, update_parser  # noqa
 from model_utils import check_and_download_models  # noqa
+from webcamera_utils import get_writer  # noqa
 
 logger = getLogger(__name__)
 
@@ -19,6 +22,8 @@ logger = getLogger(__name__)
 
 WEIGHT_PATH = "video_depth_anything_vits.onnx"
 MODEL_PATH = "video_depth_anything_vits.onnx.prototxt"
+WEIGHT_METRIC_PATH = "metric_video_depth_anything_vits.onnx"
+MODEL_METRIC_PATH = "metric_video_depth_anything_vits.onnx.prototxt"
 REMOTE_PATH = "https://storage.googleapis.com/ailia-models/video_depth_anything/"
 
 VIDEO_PATH = "davis_rollercoaster.mp4"
@@ -37,6 +42,28 @@ STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 # ======================
 
 parser = get_base_parser("Video Depth Anything", VIDEO_PATH, SAVE_PATH)
+parser.add_argument("--input_size", type=int, default=518, help="model input size")
+parser.add_argument(
+    "--max_res", type=int, default=1280, help="maximum resolution of the input video"
+)
+parser.add_argument(
+    "--max_len",
+    type=int,
+    default=-1,
+    help="maximum length of the input video, -1 means no limit",
+)
+parser.add_argument(
+    "--target_fps",
+    type=int,
+    default=-1,
+    help="target fps of the input video, -1 means the original fps",
+)
+parser.add_argument(
+    "--metric", action="store_true", help="use metric depth model (in meters)"
+)
+parser.add_argument(
+    "--grayscale", action="store_true", help="do not apply colorful palette"
+)
 parser.add_argument("--onnx", action="store_true", help="execute onnxruntime version.")
 args = update_parser(parser)
 
@@ -150,6 +177,31 @@ def compute_scale_and_shift(prediction, target, mask):
     return x_0, x_1
 
 
+def get_interpolate_frames(frame_list_pre, frame_list_post):
+    step = 1.0 / (len(frame_list_pre) - 1)
+    post_w_list = [i * step for i in range(len(frame_list_pre))]
+    post_w_list[-1] = 1.0
+    interpolated_frames = []
+    for pre, post, w in zip(frame_list_pre, frame_list_post, post_w_list):
+        interpolated_frames.append(pre * (1 - w) + post * w)
+    return interpolated_frames
+
+
+def save_video(depths, savepath, fps, grayscale=False):
+    height, width = depths.shape[1:]
+    writer = get_writer(savepath, height, width, fps=fps, rgb=not grayscale)
+    colormap = np.array(matplotlib.colormaps["inferno"].colors)
+    d_min, d_max = depths.min(), depths.max()
+    for depth in depths:
+        depth_norm = ((depth - d_min) / (d_max - d_min) * 255).astype(np.uint8)
+        if grayscale:
+            writer.write(depth_norm)
+        else:
+            depth_vis = (colormap[depth_norm] * 255).astype(np.uint8)
+            writer.write(cv2.cvtColor(depth_vis, cv2.COLOR_RGB2BGR))
+    writer.release()
+
+
 # ======================
 # Main functions
 # ======================
@@ -164,9 +216,7 @@ def predict(net, x):
     return depth[0]
 
 
-def infer_video_depth(net, frames):
-    input_size = 518
-
+def infer_video_depth(net, frames, input_size):
     frame_height, frame_width = frames[0].shape[:2]
     ratio = max(frame_height, frame_width) / min(frame_height, frame_width)
     # reduce the input size of extremely wide videos to save memory
@@ -220,30 +270,78 @@ def infer_video_depth(net, frames):
             for i in range(len(kf_align_list)):
                 curr_align.append(depth_list[frame_id + i])
 
-            scale, shift = compute_scale_and_shift(
-                np.concatenate(curr_align),
-                np.concatenate(ref_align),
-                np.concatenate(np.ones_like(ref_align) == 1),
+            if args.metric:
+                scale, shift = 1.0, 0.0
+            else:
+                scale, shift = compute_scale_and_shift(
+                    np.concatenate(curr_align),
+                    np.concatenate(ref_align),
+                    np.concatenate(np.ones_like(ref_align) == 1),
+                )
+
+            pre_depth_list = depth_list_aligned[-INTERP_LEN:]
+            post_depth_list = depth_list[frame_id + align_len : frame_id + OVERLAP]
+            for i in range(len(post_depth_list)):
+                post_depth_list[i] = post_depth_list[i] * scale + shift
+                post_depth_list[i][post_depth_list[i] < 0] = 0
+            depth_list_aligned[-INTERP_LEN:] = get_interpolate_frames(
+                pre_depth_list, post_depth_list
             )
+
+            for i in range(OVERLAP, INFER_LEN):
+                new_depth = depth_list[frame_id + i] * scale + shift
+                new_depth[new_depth < 0] = 0
+                depth_list_aligned.append(new_depth)
+
+            ref_align = ref_align[:1]
+            for kf_id in kf_align_list[1:]:
+                new_depth = depth_list[frame_id + kf_id] * scale + shift
+                new_depth[new_depth < 0] = 0
+                ref_align.append(new_depth)
+
+    return np.stack(depth_list_aligned[:org_video_len], axis=0)
 
 
 def recognize_from_video(net):
     for video_path in args.input:
         logger.info(video_path)
-        frames, fps = read_video_frames(video_path, -1, -1, 1280)
+        frames, fps = read_video_frames(
+            video_path, args.max_len, args.target_fps, args.max_res
+        )
         logger.info(
             f"frames: {frames.shape[0]}, size: {frames.shape[1:3]}, fps: {fps:.2f}"
         )
 
         logger.info("Start inference...")
-        depths = infer_video_depth(net, frames)
+        if args.benchmark:
+            logger.info("BENCHMARK mode")
+            for i in range(args.benchmark_count):
+                start = int(round(time.time() * 1000))
+                depths = infer_video_depth(net, frames, args.input_size)
+                end = int(round(time.time() * 1000))
+                logger.info(f"\tailia processing time {end - start} ms")
+        else:
+            depths = infer_video_depth(net, frames, args.input_size)
+
+        if args.metric:
+            logger.info(f"depth range: {depths.min():.3f} - {depths.max():.3f} m")
+
+        savepath = get_savepath(args.savepath, video_path, ext=".mp4")
+        save_video(depths, savepath, fps, grayscale=args.grayscale)
+        logger.info(f"saved at : {savepath}")
+
+    logger.info("Script finished successfully.")
 
 
 def main():
-    check_and_download_models(WEIGHT_PATH, MODEL_PATH, REMOTE_PATH)
+    if args.metric:
+        weight_path, model_path = WEIGHT_METRIC_PATH, MODEL_METRIC_PATH
+    else:
+        weight_path, model_path = WEIGHT_PATH, MODEL_PATH
+    check_and_download_models(weight_path, model_path, REMOTE_PATH)
 
     if not args.onnx:
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
+        net = ailia.Net(model_path, weight_path, env_id=args.env_id)
     else:
         import onnxruntime
 
@@ -253,7 +351,7 @@ def main():
             if cuda
             else ["CPUExecutionProvider"]
         )
-        net = onnxruntime.InferenceSession(WEIGHT_PATH, providers=providers)
+        net = onnxruntime.InferenceSession(weight_path, providers=providers)
 
     recognize_from_video(net)
 
