@@ -7,7 +7,7 @@ import cv2
 import ailia
 from PIL import Image
 
-sys.path.append('../util')
+sys.path.append('../../util')
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from detector_utils import load_image  # noqa: E402C
@@ -29,7 +29,7 @@ WEIGHT_VITL14_PATH = 'ViT-L14-encode_image.onnx'
 MODEL_VITL14_PATH = 'ViT-L14-encode_image.onnx.prototxt'
 REMOTE_VITL14_PATH = 'https://storage.googleapis.com/ailia-models/clip/'
 
-IMAGE_PATH = 'test.jpg'
+IMAGE_PATH = 'demo.jpg'
 IMAGE_SIZE = 224
 
 
