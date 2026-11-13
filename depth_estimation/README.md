@@ -16,6 +16,7 @@
 | [<img src="./depth_anything/output.png" width=256px>](./depth_anything/) |[depth_anything](./depth_anything)| [DepthAnything](https://github.com/LiheYoung/Depth-Anything) | Pytorch | 1.2.9 and later | Jan 2024 | |
 | [<img src="./depth_anything_v2/output.png" width=256px>](./depth_anything_v2/) |[depth_anything_v2](./depth_anything_v2)| [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) | Pytorch | 1.2.16 and later | Jun 2024 | |
 | [<img src="./depth_pro/output.png" width=256px>](./depth_pro/) |[depth_pro](./depth_pro)| [Depth Pro: Sharp Monocular Metric Depth in Less Than a Second](https://github.com/apple/ml-depth-pro) | Pytorch | 1.2.12 and later | Oct 2024 | |
+| [<img src="./video_depth_anything/output.gif" width=256px>](./video_depth_anything/) |[video_depth_anything](./video_depth_anything)| [Video Depth Anything](https://github.com/DepthAnything/Video-Depth-Anything) | Pytorch | 1.2.16 and later | Jan 2025 | |
 | [<img src="./depth_anything_v3/output.png" width=256px>](./depth_anything_v3/) |[depth_anything_v3](./depth_anything_v3)| [Depth Anything V3](https://github.com/ByteDance-Seed/Depth-Anything-3) | Pytorch | 1.2.16 and later | Nov 2025 | |
 
 [Back to the model list](../README.md)
