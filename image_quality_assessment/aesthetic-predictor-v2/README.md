@@ -6,8 +6,8 @@ Visualize an aesthetic score predictor (how much people like on average an image
 
 ![Input](demo.jpg)
 
-Image from https://github.com/christophschuhmann/improved-aesthetic-predictor/blob/main/F5WsLD0XoAAviiV%20(1).jpeg
-Refer to https://github.com/christophschuhmann/improved-aesthetic-predictor/
+- Image from https://github.com/christophschuhmann/improved-aesthetic-predictor/blob/main/F5WsLD0XoAAviiV%20(1).jpeg
+- Refer to https://github.com/christophschuhmann/improved-aesthetic-predictor/
 
 ## Output
 
