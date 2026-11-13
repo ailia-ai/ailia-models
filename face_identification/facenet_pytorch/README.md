@@ -3,12 +3,12 @@
 ## Input
 3 face images.
 <figure>
-<img src="data\angelina_jolie.jpg" width="150">
-<img src="data\bradley_cooper.jpg" width="150">
-<img src="data\kate_siegel.jpg" width="150">
+<img src="data/angelina_jolie.jpg" width="150">
+<img src="data/bradley_cooper.jpg" width="150">
+<img src="data/kate_siegel.jpg" width="150">
 <legend>angelina_jolie.jpg 　　　bradley_cooper.jpg　　　kate_siegel.jpg</legend>
-<img src="data\paul_rudd.jpg" width="150">
-<img src="data\shea_whigham.jpg" width="150">
+<img src="data/paul_rudd.jpg" width="150">
+<img src="data/shea_whigham.jpg" width="150">
 <legend>paul_rudd.jpg 　　　 　　shea_whigham.jpg</legend>
 </figure>
 
