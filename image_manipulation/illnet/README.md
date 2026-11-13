@@ -4,7 +4,7 @@
 ### input
 <img src='input.png' width='240px'>
 
-- The output image of [ailia-models/dewarpnet](https://github.com/sngyo/ailia-models/tree/master/dewarpnet) is used as the sample input image.
+- The output image of [ailia-models/dewarpnet](https://github.com/ailia-ai/ailia-models/tree/master/image_manipulation/dewarpnet) is used as the sample input image.
 (original image from https://github.com/cvlab-stonybrook/DewarpNet/tree/master/eval/inp)
 
 Ailia input shape: (1, 3, 128, 128)  

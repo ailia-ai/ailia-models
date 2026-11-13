@@ -43,7 +43,7 @@ $ python3 centroids-reid.py --model market1501_resnet50
 
 ## Reference
 
-- [On the Unreasonable Effectiveness of Centroids in Image Retrieval](https://github.com/mikwieczorek/centroids-reidh)
+- [On the Unreasonable Effectiveness of Centroids in Image Retrieval](https://github.com/mikwieczorek/centroids-reid)
 
 ## Framework
 
