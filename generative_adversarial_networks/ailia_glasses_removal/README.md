@@ -4,7 +4,7 @@
 
 <img src="sample.jpg" width="320px">
 
-(Image from the [Council-GAN sample](../council-GAN/README.md), originally from the CelebA dataset.)
+(Image from the [Council-GAN sample](../council-gan/README.md), originally from the CelebA dataset.)
 
 ## Output
 
@@ -87,4 +87,4 @@ PyTorch
 ## Reference
 
 - [Face landmark detection guide](https://developers.google.com/mediapipe/solutions/vision/face_landmarker)
-- [Council-GAN sample image](../council-GAN/README.md)
+- [Council-GAN sample image](../council-gan/README.md)

@@ -1,7 +1,7 @@
 # Partial Convolution
 
 ### input
-![input_image](https://github.com/sngyo/ailia-models/blob/master/partialconv/test_5735.JPEG)
+![input_image](test_5735.JPEG)
 
 Ailia input shape: (1, 3, 224, 224)  
 
