@@ -148,7 +148,7 @@ def recognize_from_image():
             detector.set_profile_mode(True)
     else:
         print("path",WEIGHT_PATH)
-        net = ailia.Net(None,WEIGHT_PATH)
+        net = ailia.Net(None,WEIGHT_PATH,env_id=args.env_id)
     
     # input image loop
     for image_path in args.input:
@@ -231,7 +231,7 @@ def recognize_from_video():
         )
         detector.set_anchors(ANCHORS)
     else:
-        net = ailia.Net(None,WEIGHT_PATH)
+        net = ailia.Net(None,WEIGHT_PATH,env_id=args.env_id)
 
     capture = webcamera_utils.get_capture(args.video)
 

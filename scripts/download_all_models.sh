@@ -51,7 +51,11 @@ cd ../../audio_processing/sensevoice/; python3 sensevoice.py ${OPTION}
 cd ../../audio_processing/demucs/; python3 demucs.py ${OPTION}
 cd ../../audio_processing/lite-whisper/; python3 lite-whisper.py ${OPTION}
 cd ../../audio_processing/qwen3-tts/; python3 qwen3-tts.py ${OPTION}
+cd ../../audio_processing/qwen3-tts-streaming/; python3 qwen3-tts-streaming.py ${OPTION}
 cd ../../audio_processing/voicesplit/; python3 voicesplit.py ${OPTION}
+cd ../../audio_processing/ailia_voice_filter; python3 ailia_voice_filter.py ${OPTION}
+cd ../../audio_processing/ailia_voice_filter; python3 ailia_voice_filter.py -m deepfilternet --input babble_15dB.wav ${OPTION}
+cd ../../audio_processing/emotion2vec; python3 emotion2vec.py ${OPTION}
 cd ../../autonomous_driving/bevformer; python3 bevformer.py ${OPTION}
 cd ../../autonomous_driving/segformer; python3 segformer.py ${OPTION}
 #cd ../../autonomous_driving/uniad/; python3 uniad.py ${OPTION}
@@ -84,6 +88,7 @@ cd ../../diffusion/sd-turbo; python3 sd-turbo.py ${OPTION}
 cd ../../diffusion/anything_v3; python3 anything_v3.py ${OPTION}
 cd ../../diffusion/depth_anything_controlnet; python3 depth_anything_controlnet.py ${OPTION}
 cd ../../diffusion/latentsync; python3 latentsync.py ${OPTION}
+cd ../../diffusion/see-through; python3 see_through.py ${OPTION}
 cd ../../deep_fashion/clothing-detection; python3 clothing-detection.py ${OPTION}
 cd ../../deep_fashion/fashionai-key-points-detection; python3 fashionai-key-points-detection.py ${OPTION}
 cd ../../deep_fashion/mmfashion; python3 mmfashion.py ${OPTION}
@@ -102,6 +107,7 @@ cd ../../depth_estimation/depth_anything; python3 depth_anything.py ${OPTION}
 cd ../../depth_estimation/depth_anything_v2; python3 depth_anything_v2.py ${OPTION}
 cd ../../depth_estimation/depth_anything_v3; python3 depth_anything_v3.py ${OPTION}
 cd ../../depth_estimation/depth_pro; python3 depth_pro.py ${OPTION}
+cd ../../depth_estimation/video_depth_anything; python3 video_depth_anything.py ${OPTION}
 cd ../../face_detection/blazeface; python3 blazeface.py ${OPTION}
 cd ../../face_detection/zoe_depth; python3 zoe_depth ${OPTION}
 cd ../../face_detection/dbface; python3 dbface.py ${OPTION}
@@ -127,6 +133,7 @@ cd ../../face_recognition/mediapipe_iris; python3 mediapipe_iris.py ${OPTION}
 cd ../../face_recognition/hopenet; python3 hopenet.py ${OPTION}
 cd ../../face_recognition/ax_gaze_estimation; python3 ax_gaze_estimation.py ${OPTION}
 cd ../../face_recognition/age-gender-recognition-retail; python3 age-gender-recognition-retail.py ${OPTION}
+cd ../../face_recognition/ailia_age_gender; python3 ailia_age_gender.py ${OPTION}
 cd ../../face_recognition/ferplus; python3 ferplus.py ${OPTION}
 cd ../../face_recognition/face-anti-spoofing; python3 face-anti-spoofing.py ${OPTION}
 cd ../../face_recognition/ax_facial_features; python3 ax_facial_features.py ${OPTION}
@@ -157,6 +164,7 @@ cd ../../generative_adversarial_networks/encoder4editing; python3 encoder4editin
 cd ../../generative_adversarial_networks/lipgan; python3 lipgan.py ${OPTION}
 cd ../../generative_adversarial_networks/live_portrait; python3 live_portrait.py ${OPTION}
 cd ../../generative_adversarial_networks/sadtalker; python3 sadtalker.py ${OPTION}
+cd ../../generative_adversarial_networks/ailia_glasses_removal; python3 ailia_glasses_removal.py ${OPTION}
 cd ../../hand_detection/yolov3-hand; python3 yolov3-hand.py ${OPTION}
 cd ../../hand_detection/hand_detection_pytorch python3 hand_detection_pytorch.py ${OPTION}
 cd ../../hand_detection/blazepalm; python3 blazepalm.py ${OPTION}
@@ -283,6 +291,7 @@ cd ../../natural_language_processing/bert_ner_japanese; python3 bert_ner_japanes
 cd ../../natural_language_processing/multilingual-minilmv2; python3 multilingual-minilmv2.py ${OPTION}
 cd ../../natural_language_processing/ruri-v3; python3 ruri-v3.py ${OPTION}
 cd ../../natural_language_processing/embeddinggemma; python3 embeddinggemma.py ${OPTION}
+cd ../../natural_language_processing/embeddinggemma-2; python3 embeddinggemma-2.py ${OPTION}
 cd ../../natural_language_processing/qwen3-embedding; python3 qwen3-embedding.py ${OPTION}
 cd ../../natural_language_processing/ruri-v3-reranker; python3 ruri-v3-reranker.py ${OPTION}
 cd ../../network_intrusion_detection/bert-network-packet-flow-header-payload; python3 bert-network-packet-flow-header-payload.py ${OPTION}

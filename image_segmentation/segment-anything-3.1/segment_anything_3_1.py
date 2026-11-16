@@ -949,6 +949,10 @@ def main():
                 "tpos_proj",
             )
 
+    if args.profile:
+        models["encoder"].set_profile_mode(True)
+        models["grounder"].set_profile_mode(True)
+
     if args.tracking:
         recognize_from_tracking(models)
     elif args.video is not None:
@@ -956,6 +960,9 @@ def main():
     else:
         recognize_from_image(models)
 
+    if args.profile:
+        print(models["encoder"].get_summary())
+        print(models["grounder"].get_summary())
 
 if __name__ == "__main__":
     main()

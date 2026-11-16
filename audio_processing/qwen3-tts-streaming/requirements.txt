@@ -1,0 +1,4 @@
+librosa
+soundfile
+sounddevice
+ailia_tokenizer

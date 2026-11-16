@@ -1,3 +1,4 @@
+import json
 import sys
 import time
 
@@ -53,6 +54,11 @@ VIDEO_PATH = 'demo.mp4'
 IMAGE_HEIGHT = 800
 IMAGE_WIDTH = 1280
 
+CLASS_NAMES = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat']
+
+# saved tracking results for json output
+trackings = []
+
 # ======================
 # Arguemnt Parser Config
 # ======================
@@ -73,6 +79,11 @@ parser.add_argument(
     '--cui',
     action='store_true',
     help="Don't display preview in GUI."
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='Output results to json file.'
 )
 args = update_parser(parser)
 
@@ -114,11 +125,9 @@ def frame_vis_generator(frame, results: BBox):
     ids = results.ids.tolist()
     labels = results.labels.tolist()
 
-    class_names = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat']
-
     for i, entity_id in enumerate(ids):
         color = vis_colors[int(entity_id) % num_colors]
-        class_name = class_names[int(labels[i]) - 1]
+        class_name = CLASS_NAMES[int(labels[i]) - 1]
         text_width = len(class_name) * 20
         x1, y1, x2, y2 = (np.round(bbox[i, :])).astype(int)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color=color, thickness=3)
@@ -131,6 +140,48 @@ def frame_vis_generator(frame, results: BBox):
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), thickness=2)
 
     return frame
+
+
+def store_trackings(bboxes):
+    """Append the tracked objects in one frame to trackings
+
+    Only boxes with a track id (ids >= 0) are stored, the same ones as drawn by
+    frame_vis_generator. Must be called once per frame, since the frame index
+    is taken from the number of stored frames.
+    """
+    tracked = boxes_filter(bboxes, bboxes.ids >= 0)
+
+    objects = []
+    for bbox, score, entity_id, label in zip(
+            tracked.bbox.tolist(), tracked.scores.tolist(),
+            tracked.ids.tolist(), tracked.labels.tolist()):
+        x1, y1, x2, y2 = bbox
+        objects.append({
+            'track_id': int(entity_id),
+            'category': CLASS_NAMES[int(label) - 1],
+            'prob': round(score, 3),
+            'x': round(x1, 2),
+            'y': round(y1, 2),
+            # x2, y2 are inclusive (TO_REMOVE = 1 in box_decode)
+            'w': round(x2 - x1 + 1, 2),
+            'h': round(y2 - y1 + 1, 2),
+        })
+
+    trackings.append({
+        'frame': len(trackings),
+        'objects': objects,
+    })
+
+
+def output_json(json_path, track_class):
+    """Write the trackings stored by store_trackings to a json file"""
+    results = {
+        'track_class': track_class,
+        'trackings': trackings,
+    }
+    with open(json_path, 'w') as f:
+        json.dump(results, f, indent=2)
+    logger.info(f'json saved at : {json_path}')
 
 
 # ======================
@@ -359,6 +410,8 @@ def recognize_from_video(rpn, box, tracker, feat_ext):
         # inference
         img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         boxes = predict(rpn, box, tracker, feat_ext, img)
+        if args.write_json:
+            store_trackings(boxes)
 
         res_img = frame_vis_generator(frame, boxes)
 
@@ -377,6 +430,10 @@ def recognize_from_video(rpn, box, tracker, feat_ext):
     cv2.destroyAllWindows()
     if writer is not None:
         writer.release()
+
+    if args.write_json:
+        json_path = args.savepath.rsplit('.', 1)[0] + '.json' if args.savepath else 'output.json'
+        output_json(json_path, args.track_class)
 
     logger.info('Script finished successfully.')
 

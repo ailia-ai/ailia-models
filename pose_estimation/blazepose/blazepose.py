@@ -1,9 +1,11 @@
 import sys
 import time
+import json
 
 import ailia
 import cv2
 import numpy as np
+from scipy.special import expit
 
 import blazepose_utils as but
 
@@ -15,6 +17,7 @@ import webcamera_utils  # noqa: E402
 from image_utils import imread  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from arg_utils import get_base_parser, get_savepath, update_parser  # noqa: E402
+from dtype_utils import numpy_type_to_builtin_type  # noqa: E402
 
 logger = getLogger(__name__)
 
@@ -36,6 +39,11 @@ parser = get_base_parser(
     'BlazePose, an on-device real-time body pose tracking.',
     IMAGE_PATH,
     SAVE_IMAGE_PATH,
+)
+parser.add_argument(
+    '-w', '--write_json',
+    action='store_true',
+    help='save result to json'
 )
 args = update_parser(parser)
 
@@ -164,6 +172,30 @@ def display_result(input_img, count, landmarks, flags):
         #      but.BLAZEPOSE_KEYPOINT_FOOT_RIGHT_INDEX)
 
 
+def save_json(landmarks, flags, detections, det_scores, json_path):
+    output = []
+    if 0 < len(landmarks):
+        # detections[0] is already denormalized in estimator_preprocess(), so use it as is
+        xc, yc, scale, theta = but.detection2roi(detections[0])
+        for i in range(len(landmarks)):
+            o = {}
+            o['detection_score'] = det_scores[i]
+            o['roi'] = { 'center': [xc[i], yc[i]], 'scale': scale[i], 'theta': theta[i] }
+            o['flag'] = flags[i]
+            o['landmarks'] = [
+                {
+                    'pos': [lm[0], lm[1]],
+                    'z': lm[2],
+                    'visibility': expit(lm[3] * but.resolution), # divided together with the coordinates on the ONNX side
+                }
+                for lm in landmarks[i]
+            ]
+            output.append(o)
+
+    with open(json_path, 'w') as f:
+        json.dump(numpy_type_to_builtin_type(output), f, indent=2)
+
+
 # ======================
 # Main functions
 # ======================
@@ -199,6 +231,8 @@ def recognize_from_image():
                 count = len(detections) if detections[0].size > 0 else 0
                 end = int(round(time.time() * 1000))
                 detection_time = (end - start)
+                # keep a copy because denormalize_detections() overwrites column 12 as a coordinate
+                det_scores = detections[0][:, 12].copy()
 
                 # Pose estimation
                 start = int(round(time.time() * 1000))
@@ -230,6 +264,8 @@ def recognize_from_image():
             detector_out = detector.predict([input_data])
             detections = but.detector_postprocess(detector_out)
             count = len(detections) if detections[0].size != 0 else 0
+            # keep a copy because denormalize_detections() overwrites column 12 as a coordinate
+            det_scores = detections[0][:, 12].copy()
 
             # Pose estimation
             landmarks = []
@@ -249,6 +285,9 @@ def recognize_from_image():
         savepath = get_savepath(args.savepath, image_path)
         logger.info(f'saved at : {savepath}')
         cv2.imwrite(savepath, src_img)
+
+        if args.write_json:
+            save_json(landmarks, flags, detections, det_scores, (savepath.rsplit('.', 1)[0]) + '.json')
     logger.info('Script finished successfully.')
 
 

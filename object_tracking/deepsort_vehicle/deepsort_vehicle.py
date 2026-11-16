@@ -231,7 +231,7 @@ def recognize_from_video(detector, extractor):
             writer.write(frame)
 
         if args.savepath is not None:
-            write_results(args.savepath.split('.')[0] + '.txt', results, 'mot')
+            write_results(args.savepath.rsplit('.', 1)[0] + '.txt', results, 'mot')
         else:
             write_results('result.txt', results, 'mot')
 

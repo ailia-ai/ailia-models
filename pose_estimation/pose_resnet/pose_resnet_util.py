@@ -195,8 +195,8 @@ def compute(net, original_img, offset_x, offset_y, scale_x, scale_y):
                  preds[0, ailia_to_mpi[ailia.POSE_KEYPOINT_SHOULDER_RIGHT], 0])/2
             y = (preds[0, ailia_to_mpi[ailia.POSE_KEYPOINT_SHOULDER_LEFT], 1] +
                  preds[0, ailia_to_mpi[ailia.POSE_KEYPOINT_SHOULDER_RIGHT], 1])/2
-            score = min(maxvals[0, ailia_to_mpi[ailia.POSE_KEYPOINT_SHOULDER_LEFT]],
-                        maxvals[0, ailia_to_mpi[ailia.POSE_KEYPOINT_SHOULDER_RIGHT]])
+            score = min(maxvals[0, ailia_to_mpi[ailia.POSE_KEYPOINT_SHOULDER_LEFT], 0],
+                        maxvals[0, ailia_to_mpi[ailia.POSE_KEYPOINT_SHOULDER_RIGHT], 0])
             interpolated = 1
         else:
             x = preds[0, i, 0]

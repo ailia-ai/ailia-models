@@ -57,7 +57,7 @@ MODEL_PATH = 'docshadow_' + args.arch + '.onnx.prototxt'
 
 class DocShadowRunner:
     def __init__(self,onnx_path=None):
-        self.model = ailia.Net(None,onnx_path)
+        self.model = ailia.Net(None,onnx_path, env_id=args.env_id)
 
     def run(self, images: np.ndarray) -> np.ndarray:
         result = self.model.run({"image": images})[0]

@@ -397,6 +397,12 @@ def clean_far_edge_new(
                                        fpath_map.shape[1]]
                         if np.all([(fpath_map[nlne[0], nlne[1]] == -1) for nlne in new_loc_nes]) != True:
                             break
+                        if not (0 <= new_loc[0] < npath_map.shape[0] and 0 <= new_loc[1] < npath_map.shape[1]):
+                            # new_loc itself is not bounds-checked (only its neighbours above are) and can step
+                            # outside the padded image -> IndexError 'index 888 is out of bounds for axis 0 with
+                            # size 888. Treat it like an invalid pixel (valid_map == 0): stop the far path here.
+                            break_flag = True
+                            break
                         if npath_map[new_loc[0], new_loc[1]] != -1:
                             if npath_map[new_loc[0], new_loc[1]] != edge_id:
                                 break_flag = True
@@ -761,6 +767,11 @@ def create_placeholder(
                 if not mesh.has_node(xx_n):
                     if mesh.has_node((xx_n[0], xx_n[1], depth[xx_n[0], xx_n[1]])):
                         xx_n = (xx_n[0], xx_n[1], depth[xx_n[0], xx_n[1]])
+                    else:
+                        # neither the placeholder (x, y) nor (x, y, depth) is a node of the mesh.
+                        # appending the bare (x, y) to 'far' leaves a 2-tuple that later raises
+                        # KeyError / IndexError ("tuple index out of range") in context_and_holes().
+                        continue
                 if mesh.has_edge((hx, hy), xx_n):
                     mesh.remove_edge((hx, hy), xx_n)
                 if mesh.nodes[(hx, hy)].get('far') is None:
@@ -1523,6 +1534,9 @@ def extrapolate(
                            and xx[1] >= 0 and xx[1] < fpath_map.shape[1]
                     ]
                     if np.sum([fpath_map[nlne[0], nlne[1]] for nlne in new_loc_nes]) != -4:
+                        break
+                    if not (0 <= new_loc[0] < npath_map.shape[0] and 0 <= new_loc[1] < npath_map.shape[1]):
+                        # same out-of-bounds guard as in clean_far_edge_new()
                         break
                     if npath_map[new_loc[0], new_loc[1]] != -1:
                         if npath_map[new_loc[0], new_loc[1]] != edge_id:
@@ -3071,6 +3085,8 @@ def context_and_holes(
             far_nodes = mesh_nodes[edge_node].get('far')
             if far_nodes is None:
                 continue
+            far_nodes = [far_node for far_node in far_nodes if mesh.has_node(far_node)]
+            mesh_nodes[edge_node]['far'] = far_nodes
             for far_node in far_nodes:
                 if far_node in edge_cc:
                     continue

@@ -11,6 +11,7 @@
 | [transformer-cnn-emotion-recognition](./transformer-cnn-emotion-recognition/) | [Combining Spatial and Temporal Feature Representions of Speech Emotion by Parallelizing CNNs and Transformer-Encoders](https://github.com/IliaZenkov/transformer-cnn-emotion-recognition)  | Pytorch | 1.2.5 and later | Oct 2020 | |
 | [microsoft clap](./msclap/) | [CLAP](https://github.com/microsoft/CLAP) | Pytorch | 1.2.11 and later | Jun 2022 | |
 | [clap](./clap/) | [CLAP](https://github.com/LAION-AI/CLAP) | Pytorch | 1.2.6 and later | Nov 2022 | [EN](https://tech.ailia.ai/en/clap-feature-extraction-model-for-searching-audio-from-text-dcfd4c93756e/) [JP](https://tech.ailia.ai/clap-%E3%83%86%E3%82%AD%E3%82%B9%E3%83%88%E3%81%8B%E3%82%89%E9%9F%B3%E5%A3%B0%E3%82%92%E6%A4%9C%E7%B4%A2%E5%8F%AF%E8%83%BD%E3%81%AB%E3%81%99%E3%82%8B%E7%89%B9%E5%BE%B4%E6%8A%BD%E5%87%BA%E3%83%A2%E3%83%87%E3%83%AB-f712f9c00dab) |
+| [emotion2vec](./emotion2vec/) | [emotion2vec: Self-Supervised Pre-Training for Speech Emotion Representation](https://github.com/ddlBoJack/emotion2vec) | Pytorch | 1.3.0 and later | Dec 2023 | |
 
 ### Music enhancement
 
@@ -36,6 +37,7 @@
 | [dtln](./dtln/) | [Dual-signal Transformation LSTM Network](https://github.com/breizhn/DTLN) | Tensorflow | 1.3.0 and later | May 2020 |  |
 | [voicesplit](./voicesplit/) | [VoiceSplit](https://github.com/Edresson/VoiceSplit) | Pytorch | 1.2.14 and later | May 2020 |  |
 | [audiosep](./audiosep/) | [AudioSep](https://github.com/Audio-AGI/AudioSep) | Pytorch | 1.3.0 and later | Aug 2023 | |
+| [ailia_voice_filter](./ailia_voice_filter/) | [ailia Voice Filter](https://storage.googleapis.com/ailia-models/ailia_voice_filter/voicefilter_stream.onnx) | Pytorch | 1.7.0 and later | Sep 2026 | |
 
 ### Phoneme alignment
 
@@ -85,6 +87,7 @@
 | [gpt-sovits-v3](./gpt-sovits-v3/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Feb 2025 |  |
 | [gpt-sovits-v2-pro](./gpt-sovits-v2-pro/) | [GPT-SoVITS](https://github.com/RVC-Boss/GPT-SoVITS) | Pytorch | 1.4.0 and later | Jun 2025 | [JP](https://tech.ailia.ai/gpt-sovits-v2-pro-%E9%AB%98%E9%80%9F%E3%81%8B%E3%81%A4%E9%AB%98%E7%B2%BE%E5%BA%A6%E3%81%AA%E9%9F%B3%E5%A3%B0%E5%90%88%E6%88%90%E3%83%A2%E3%83%87%E3%83%AB-81f2156366cd) |
 | [qwen3-tts](./qwen3-tts/) | [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) | Pytorch | 1.6.0 and later | Jan 2026 |  |
+| [qwen3-tts-streaming](./qwen3-tts-streaming/) | [Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS) | Pytorch | 1.7.0 and later | Oct 2026 |  |
 
 ### Voice activity detection
 

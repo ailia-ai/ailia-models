@@ -171,7 +171,7 @@ def main():
         net = onnxruntime.InferenceSession(WEIGHT_PATH, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
     else:
         logger.info(f'env_id: {args.env_id}')
-        net = ailia.Net(MODEL_PATH, WEIGHT_PATH)
+        net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
 
     if args.video_rigth is not None or args.video_left is not None:
         if args.video_rigth is not None and args.video_left is not None:

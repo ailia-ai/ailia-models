@@ -331,7 +331,7 @@ def main():
     )
 
     # net initialize
-    net = ailia.Net(MODEL_PATH, WEIGHT_PATH)
+    net = ailia.Net(MODEL_PATH, WEIGHT_PATH, env_id=args.env_id)
 
     if args.video is not None:
         # video mode
