@@ -1,15 +1,17 @@
 # ailia Voice Filter
 
-Real-time noise reduction for calls, at 48 kHz.
+Real-time noise reduction for calls.
 
-Two graphs ship here. `voicefilter` is conditioned on a d-vector: it keeps the
-enrolled speaker and removes everything else, including other voices.
-`deepfilternet` is DeepFilterNet3, which denoises but cannot be told a speaker,
-so background speech survives it.
+Three graphs ship here. `voicefilter` (48 kHz) and `voicefilter_v3` (16 kHz)
+are conditioned on a speaker embedding: they keep the enrolled speaker and
+remove everything else, including other voices. `deepfilternet` is
+DeepFilterNet3, which denoises but cannot be told a speaker, so background
+speech survives it.
 
-Both are streaming exports. Every recurrent tensor is an explicit input and
-output, one hop of 480 samples goes in and one comes out, and nothing in the
-sample looks ahead beyond what the graph itself does.
+All are streaming exports. Every recurrent tensor is an explicit input and
+output, one hop of samples goes in and one comes out (480 at 48 kHz, 128 at
+16 kHz), and nothing in the sample looks ahead beyond what the graph itself
+does.
 
 ## Input
 
@@ -47,14 +49,20 @@ The mixed audio goes after `--input` and the reference audio after
 $ python3 ailia_voice_filter.py --input MIXED_WAV --reference_file REFERENCE_WAV --savepath SAVE_PATH
 ```
 
+`-m voicefilter_v3` selects the 16 kHz model. It takes the same inputs.
+```bash
+$ python3 ailia_voice_filter.py -m voicefilter_v3 --input MIXED_WAV --reference_file REFERENCE_WAV --savepath SAVE_PATH
+```
+
 `-m deepfilternet` selects DeepFilterNet3. It denoises only, so it takes no
 reference audio and refuses one.
 ```bash
 $ python3 ailia_voice_filter.py -m deepfilternet --input babble_15dB.wav --savepath output_deepfilternet.wav
 ```
 
-Any sample rate is accepted; the audio is resampled to 48 kHz on the way in and
-the result is written at 48 kHz.
+Any sample rate is accepted; the audio is resampled to the model's rate
+(48 kHz, or 16 kHz for `voicefilter_v3`) on the way in and the result is
+written at that rate.
 
 ## Model specification
 
@@ -70,6 +78,23 @@ The graph returns a spectrum, not a mask — the deep filter is complex and span
 5 frames. The caller does the framing and the overlap-add, and multiplies the
 spectrum by `1/960` going in and divides by it coming out.
 
+### ailia Voice Filter v3 (`voicefilter_v3_stream.onnx`)
+
+- 16 kHz, `n_fft` 512, hop 128, periodic Hann window
+- Input: one frame of complex spectrum (`real`, `imaginary`, 257 bins each),
+  a 192-d `dvector`, and seven state tensors
+- Output: the enhanced spectrum and the seven states
+- Latency: 128 samples (8 ms), plus the 384 the analysis framing costs
+
+The caller does the framing and the overlap-add, and multiplies the spectrum
+by `1/512` going in and divides by it coming out. The first 256 samples of
+the signal are mirrored in front of it (`startup: reflect`), and the first
+frame after a reset returns nothing (`lookahead_frames`).
+
+For the first frame after a reset, four of the states (`erb_cache`,
+`df_cache`, `enc_h`, `dec_h`) must be discarded and the initial values sent
+again.
+
 ### DeepFilterNet3 (`deepfilternet_stream.onnx`)
 
 - 48 kHz, one hop of 480 samples in and out — the transform is inside the graph
@@ -84,6 +109,15 @@ spectrum by `1/960` going in and divides by it coming out.
 Enrollment slices the reference audio into 1.6 s partials at 50% overlap,
 averages the embeddings and L2 normalises, after normalising the volume to
 -30 dBFS. It is not part of the real-time loop: run it once per speaker.
+
+### Speaker encoder for v3 (`speaker_encoder_ecapa.onnx`)
+
+- 16 kHz, the whole utterance `[1, T]` in (any length, 512 samples or more),
+  a 192-d embedding out
+- The feature extraction is inside the graph
+
+The audio is peak normalised before it goes in. The vector is used as it
+comes out: no partials, no averaging, no L2 normalisation.
 
 For the first two frames after a reset, six of the states (`erb_cache`,
 `df_cache`, `convp_cache`, `enc_h`, `erb_h`, `df_h`) must be discarded and the
