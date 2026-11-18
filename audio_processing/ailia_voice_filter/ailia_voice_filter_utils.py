@@ -44,26 +44,6 @@ _NETWORK_STATES = (
     'erb_cache', 'df_cache', 'convp_cache', 'enc_h', 'erb_h', 'df_h',
 )
 
-# The 16 kHz graph is a complex mask with a one-frame lookahead: it returns
-# the enhanced spectrum of the frame before the one it was given and keeps
-# that frame in `spec_queue`.  Its deep-filter bins are 154 of the 257.
-_STATE_SHAPES_16K = {
-    'erb_cache': (1, 1, 2, 32),
-    'df_cache': (1, 2, 2, 154),
-    'erb_mean': (1, 32),
-    'unit_mean': (1, 154),
-    'enc_h': (1, 1, 256),
-    'dec_h': (2, 1, 256),
-    'spec_queue': (1, 257, 2),
-}
-
-_INITIAL_16K = {
-    'erb_mean': np.linspace(-60.0, -90.0, 32, dtype=np.float32),
-    'unit_mean': np.linspace(1e-3, 1e-4, 154, dtype=np.float32),
-}
-
-_NETWORK_STATES_16K = ('erb_cache', 'df_cache', 'enc_h', 'dec_h')
-
 # Speaker encoders.  `kind` selects how compute_dvector prepares the audio.
 _SPEAKER_GE2E = {
     'graph': 'speaker_encoder.onnx',
@@ -101,7 +81,6 @@ MODELS = {
         'latency_samples': 960,
         'state_shapes': dict(_STATE_SHAPES),
         'initial': dict(_INITIAL),
-        'network_states': _NETWORK_STATES,
     },
     'voicefilter_v3': {
         'graph': 'voicefilter_v3_stream.onnx',
@@ -109,31 +88,21 @@ MODELS = {
         'rate': 16000,
         'conditioned': True,
         'speaker': _SPEAKER_ECAPA,
-        'n_fft': 512,
-        'hop': 128,
-        'win': 512,
-        'window': 'hann',
-        'spectrum_scale': 1.0 / 512.0,
+        'n_fft': 320,
+        'hop': 160,
+        'win': 320,
+        'window': 'vorbis',
+        'spectrum_scale': 1.0 / 320.0,
         'dvector': 192,
-        # The offline model skips the network on its first frame (the
-        # lookahead shift); the graph runs it and the driver drops the result.
-        'warmup_frames': 1,
-        # The offline model reflects the signal's first 256 samples in front of
-        # it instead of zero-padding; so does the stream, which makes the
-        # streamed output equal to the offline one from the first sample.
-        'startup_pad': 256,
-        'startup': 'reflect',
-        # One frame of lookahead.  Measured against the offline model on
-        # speech: the only skew that matches (3e-6 of peak); every other
-        # hop multiple is off by more than 50%.
-        'latency_samples': 128,
-        # The graph returns nothing for its first frame (the one it looks
-        # ahead from), so that frame takes no part in the overlap-add; the
-        # offline model never synthesises it either.
-        'lookahead_frames': 1,
-        'state_shapes': dict(_STATE_SHAPES_16K),
-        'initial': dict(_INITIAL_16K),
-        'network_states': _NETWORK_STATES_16K,
+        'warmup_frames': 2,
+        'startup_pad': 160,
+        # The graph answers about the frame two back, so its first two answers
+        # are about nothing and take no part in the overlap-add.  Measured
+        # against the offline model on speech: the only skew that matches.
+        'lookahead_frames': 2,
+        'latency_samples': 320,
+        'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2)),
+        'initial': dict(_INITIAL),
     },
     'deepfilternet': {
         'graph': 'deepfilternet_stream.onnx',
@@ -152,7 +121,6 @@ MODELS = {
             overlap=(1, 480),
         ),
         'initial': dict(_INITIAL),
-        'network_states': _NETWORK_STATES,
     },
 }
 
@@ -187,16 +155,13 @@ class GraphStream:
         self.dvector_size = self.spec.get('dvector', 256)
         self.warmup = self.spec['warmup_frames']
         self.scale = self.spec.get('spectrum_scale', 1.0)
-        self.network_states = self.spec.get('network_states', _NETWORK_STATES)
         self.lookahead = self.spec.get('lookahead_frames', 0)
 
         # A spectrum in and out, or a hop of samples in and out.
         self.spectral = 'real' in self.inputs
         self.window = self._window() if self.spectral else None
-        # torch.stft(center=True) puts this many samples in front of the
-        # signal: zeros, or ('reflect') the signal's own first samples mirrored.
+        # torch.stft(center=True) puts this many zeros in front of the signal.
         self.startup = self.spec.get('startup_pad', self.n_fft // 2)
-        self.reflect = self.spec.get('startup', 'zeros') == 'reflect'
         # Until n_fft samples have arrived no frame comes out at all.
         self._silent = max(0, -(-(self.n_fft - self.startup) // self.hop) - 1)
 
@@ -243,13 +208,9 @@ class GraphStream:
             self.state[name] = np.asarray(
                 value, dtype=np.float32).reshape(self.state[name].shape)
         self.index = 0
-        # The analysis buffer starts on `startup_pad` zeros, or stays empty
-        # until enough signal has arrived to mirror in front of it.  A frame
-        # is cut every time n_fft samples are available, then it advances by
-        # one hop.
-        self._buffer = np.zeros(0 if self.reflect else self.startup,
-                                dtype=np.float32)
-        self._primed = not self.reflect
+        # The analysis buffer starts on `startup_pad` zeros.  A frame is cut
+        # every time n_fft samples are available, then it advances by one hop.
+        self._buffer = np.zeros(self.startup, dtype=np.float32)
         # One accumulator the length of a frame, and the same for the squared
         # window: overlap-add only reconstructs when the squared windows sum to
         # one, so the emitted hop is divided by that sum.
@@ -270,7 +231,7 @@ class GraphStream:
             key = name[:-4]
             if key not in self.state:
                 continue
-            if self.index < self.warmup and key in self.network_states:
+            if self.index < self.warmup and key in _NETWORK_STATES:
                 continue
             self.state[key] = value
         self.index += 1
@@ -289,13 +250,6 @@ class GraphStream:
             return np.asarray(produced['out'], dtype=np.float32).reshape(-1)
 
         self._buffer = np.concatenate([self._buffer, hop])
-        if not self._primed:
-            # torch.stft's reflect padding: x[pad], ..., x[1] in front of x[0].
-            if len(self._buffer) <= self.startup:
-                return np.zeros(self.hop, dtype=np.float32)
-            mirrored = self._buffer[1:self.startup + 1][::-1]
-            self._buffer = np.concatenate([mirrored, self._buffer])
-            self._primed = True
         pieces = []
         while len(self._buffer) >= self.n_fft:
             frame = self._buffer[:self.n_fft].astype(np.float64) * self.window

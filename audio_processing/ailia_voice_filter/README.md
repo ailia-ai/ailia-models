@@ -9,7 +9,7 @@ DeepFilterNet3, which denoises but cannot be told a speaker, so background
 speech survives it.
 
 All are streaming exports. Every recurrent tensor is an explicit input and
-output, one hop of samples goes in and one comes out (480 at 48 kHz, 128 at
+output, one hop of samples goes in and one comes out (480 at 48 kHz, 160 at
 16 kHz), and nothing in the sample looks ahead beyond what the graph itself
 does.
 
@@ -80,20 +80,18 @@ spectrum by `1/960` going in and divides by it coming out.
 
 ### ailia Voice Filter v3 (`voicefilter_v3_stream.onnx`)
 
-- 16 kHz, `n_fft` 512, hop 128, periodic Hann window
-- Input: one frame of complex spectrum (`real`, `imaginary`, 257 bins each),
-  a 192-d `dvector`, and seven state tensors
-- Output: the enhanced spectrum and the seven states
-- Latency: 128 samples (8 ms), plus the 384 the analysis framing costs
+- 16 kHz, `n_fft` 320, hop 160, Vorbis window at half overlap
+- Input: one frame of complex spectrum (`real`, `imaginary`, 161 bins each),
+  a 192-d `dvector`, and nine state tensors
+- Output: the enhanced spectrum and the nine states
+- Latency: 320 samples (20 ms), plus the 160 the analysis framing costs
 
-The caller does the framing and the overlap-add, and multiplies the spectrum
-by `1/512` going in and divides by it coming out. The first 256 samples of
-the signal are mirrored in front of it (`startup: reflect`), and the first
-frame after a reset returns nothing (`lookahead_frames`).
-
-For the first frame after a reset, four of the states (`erb_cache`,
-`df_cache`, `enc_h`, `dec_h`) must be discarded and the initial values sent
-again.
+The same calling convention as the 48 kHz graph: the caller does the framing
+and the overlap-add, and multiplies the spectrum by `1/320` going in and
+divides by it coming out. The graph answers about the frame two back, so the
+first two answers after a reset are about nothing and are skipped
+(`lookahead_frames`). As at 48 kHz, six of the states are discarded for the
+first two frames after a reset.
 
 ### DeepFilterNet3 (`deepfilternet_stream.onnx`)
 

@@ -44,7 +44,7 @@ parser.add_argument(
     default='voicefilter', choices=tuple(MODELS),
     help='model to use: voicefilter (48 kHz; keeps the enrolled speaker and '
          'removes everything else), voicefilter_v3 (the same at 16 kHz, '
-         '8 ms hop) or deepfilternet (denoising only)'
+         '10 ms hop) or deepfilternet (denoising only)'
 )
 parser.add_argument(
     '-r', '--reference_file', metavar='REFERENCE',
