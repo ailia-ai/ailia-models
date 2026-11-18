@@ -1,0 +1,7 @@
+open3d==0.9.0
+trimesh[easy]
+torch==1.7.1+cpu
+torch-scatter
+torch-sparse
+torch-cluster
+torch-geometric
