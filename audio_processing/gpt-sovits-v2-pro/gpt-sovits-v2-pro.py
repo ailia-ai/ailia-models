@@ -92,6 +92,7 @@ parser.add_argument(
     help="use int4 or int8 quantized model.",
 )
 parser.add_argument("--distill", type=str, default=None, help="use distill model", choices=(None, "tiny", "base", "small"))
+parser.add_argument("--vocos", action="store_true", help="use Vocos")
 args = update_parser(parser, check_input_type=False)
 
 
@@ -126,6 +127,13 @@ if args.distill is not None:
     MODEL_PATH_T2S_ENCODER = None
     MODEL_PATH_T2S_FIRST_DECODER = None
     MODEL_PATH_T2S_STAGE_DECODER = None
+    MODEL_PATH_VITS = None
+
+REMOTE_PATH_VITS = REMOTE_PATH_T2S_VITS
+
+if args.vocos:
+    REMOTE_PATH_VITS = "https://storage.googleapis.com/ailia-models/gpt-sovits-v2-pro-distill/"
+    WEIGHT_PATH_VITS = "vits_vocos.onnx"
     MODEL_PATH_VITS = None
 
 # ======================
@@ -738,7 +746,7 @@ def main():
 
     # model files check and download
     check_and_download_models(WEIGHT_PATH_SSL, MODEL_PATH_SSL, REMOTE_PATH)
-    check_and_download_models(WEIGHT_PATH_VITS, MODEL_PATH_VITS, REMOTE_PATH_T2S_VITS)
+    check_and_download_models(WEIGHT_PATH_VITS, MODEL_PATH_VITS, REMOTE_PATH_VITS)
     check_and_download_models(WEIGHT_PATH_SV, MODEL_PATH_SV, REMOTE_PATH)
     check_and_download_models(
         WEIGHT_PATH_T2S_ENCODER, MODEL_PATH_T2S_ENCODER, REMOTE_PATH_T2S_VITS
