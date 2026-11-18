@@ -71,8 +71,12 @@ You can specify the directory of normal product files with the `--train_dir` opt
 $ python3 padim.py --train_dir train
 ```
 
-The feature vectors created from files in the train directory are saved to the pickle file.  
-From the second time, by specifying the pickle file by `--feat` option,
+The feature vectors created from files in the train directory can be saved to the pickle, numpy or pytorch file.  For that you have to specify desired format as `npy`, `pt` or `pkl`. Depending on --enable_optimization flag, files saved might be originally pytorch tensors (True) or numpy arrays (False). 
+```bash
+$ python3 padim.py --save_format pt
+```
+
+From the second time, by specifying the saved file by `--feat` option,
 it can omit the calculation of the feature vector of the normal product.  
 The name of the pickle file created is the same as the name of a normal product file directory.
 ```bash
@@ -104,6 +108,20 @@ By adding the `--aug` option, you can process with augmentation.
 $ python3 padim.py --aug
 ```
 
+By adding the `--enable_optimization` option, you can use optimized code, which significantly speeds up distance matrix calculation.  You have to have cuda compatible GPU and pytorch installed
+(default is processing without optimization)
+```bash
+$ python3 padim.py --enable_optimization True
+```
+
+By adding the `--compare_optimization` option, you can compare output of the optimized code with the output of the original code.  You have to have cuda compatible GPU and pytorch installed
+(default is processing without comparison)
+```bash
+$ python3 padim.py --compare_optimization True
+```
+
+
+
 ## PaDiM GUI
 
 You can also use the GUI to train and test.
@@ -115,6 +133,7 @@ Start the GUI with the following command.
 ```bash
 $ python3 padim_gui.py
 ```
+Specify the inference mode from the `Set optimization` button and choose the `Trained file format`.
 
 Specify the folder from the `Select train folder` button and press the `Train button`.
 
@@ -122,6 +141,8 @@ Specify the folder from the `Select test folder` button and press the `Test butt
 Inference results are listed in Result images.
 
 Change the Threshold and press the `Test button` again
+
+If you want to benchmark the inference, set  `Benchmark mode`
 
 ## Reference
 
