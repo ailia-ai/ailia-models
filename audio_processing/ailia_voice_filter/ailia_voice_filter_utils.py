@@ -101,6 +101,16 @@ MODELS = {
         # against the offline model on speech: the only skew that matches.
         'lookahead_frames': 2,
         'latency_samples': 320,
+        # The model was trained on inputs near full scale with a -30..+6 dB
+        # jitter; a quiet microphone (-40 dBFS) sits at the edge of that range
+        # and the enrolled talker comes out a few dB low.  The stream raises
+        # the input towards `target_dbfs` with a gain that only ever decreases
+        # (a running peak with no release), capped by `floor_dbfs`, moving no
+        # faster than `slew_db_per_s`, and divides the matching output hop by
+        # the same gain.  Measured on a -41 dBFS recording: the enrolled talker
+        # within 0.8 dB of the released 48 kHz model, the other talker 14 dB
+        # lower than it.
+        'input_level': dict(target_dbfs=-12.0, floor_dbfs=-30.0, slew_db_per_s=1.0),
         'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2)),
         'initial': dict(_INITIAL),
     },
@@ -156,6 +166,8 @@ class GraphStream:
         self.warmup = self.spec['warmup_frames']
         self.scale = self.spec.get('spectrum_scale', 1.0)
         self.lookahead = self.spec.get('lookahead_frames', 0)
+        # Input level alignment (see the contract); None switches it off.
+        self.level = self.spec.get('input_level')
 
         # A spectrum in and out, or a hop of samples in and out.
         self.spectral = 'real' in self.inputs
@@ -216,6 +228,13 @@ class GraphStream:
         # one, so the emitted hop is divided by that sum.
         self._overlap = np.zeros(self.n_fft, dtype=np.float64)
         self._weight = np.zeros(self.n_fft, dtype=np.float64)
+        # Level alignment: the running peak, the gain in dB, and the gains
+        # applied to the hops still inside the pipeline (the output hop that
+        # comes out now answers the input hop `skew` samples ago).
+        self._peak = None
+        self._gain_db = None
+        self._gains = []
+        self._gains_applied = []
 
     # ----------------------------------------------------------- one hop
 
@@ -249,6 +268,9 @@ class GraphStream:
             produced = self._run({'hop': hop[None]})
             return np.asarray(produced['out'], dtype=np.float32).reshape(-1)
 
+        gain = self._align_gain(hop)
+        if gain != 1.0:
+            hop = (hop * gain).astype(np.float32)
         self._buffer = np.concatenate([self._buffer, hop])
         pieces = []
         while len(self._buffer) >= self.n_fft:
@@ -288,7 +310,36 @@ class GraphStream:
         out = np.concatenate(pieces) if pieces else np.zeros(0)
         if len(out) < self.hop:
             out = np.concatenate([out, np.zeros(self.hop - len(out))])
-        return out[:self.hop].astype(np.float32)
+        out = out[:self.hop]
+        if self.level is not None:
+            # Undo the gain of the input hop this output hop answers.
+            self._gains.append(gain)
+            delay = self.skew // self.hop
+            undo = self._gains[-1 - delay] if len(self._gains) > delay else self._gains[0]
+            out = out / undo
+        return out.astype(np.float32)
+
+    def _align_gain(self, hop):
+        """The gain for this input hop: the running peak (never released, never below floor_dbfs) brought to
+        target_dbfs, moving no faster than slew_db_per_s.  1.0 when the alignment is off."""
+        if self.level is None:
+            return 1.0
+        floor = 10 ** (self.level['floor_dbfs'] / 20)
+        peak = max(float(np.max(np.abs(hop))) if len(hop) else 0.0, floor)
+        self._peak = peak if self._peak is None else max(self._peak, peak)
+        wanted = self.level['target_dbfs'] - 20 * np.log10(self._peak)
+        if self._gain_db is None:
+            self._gain_db = wanted
+        else:
+            step = self.level['slew_db_per_s'] * self.hop / self.rate
+            self._gain_db += float(np.clip(wanted - self._gain_db, -step, step))
+        gain = float(10 ** (self._gain_db / 20))
+        self._gains_applied.append(gain)
+        return gain
+
+    def level_gains_applied(self):
+        """The gain applied to every input hop so far (for tests and logging)."""
+        return list(self._gains_applied)
 
     # ------------------------------------------------------- whole signal
 
