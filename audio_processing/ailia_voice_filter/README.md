@@ -93,12 +93,10 @@ first two answers after a reset are about nothing and are skipped
 (`lookahead_frames`). As at 48 kHz, six of the states are discarded for the
 first two frames after a reset.
 
-The sample also aligns the input level for this model (`input_level`): a
-gain that brings the running peak of the input to -12 dBFS, at most +18 dB,
-moving no faster than 1 dB/s and never increasing once a louder passage has
-been heard, is applied to each hop and undone on the output hop it answers.
-A quiet microphone is thereby heard the way the model was trained; the
-output level is unchanged.
+The model keeps the enrolled talker's level on quiet microphones by itself, so the
+sample's optional input level alignment (`input_level` in the model table) is off
+for this model; switching it on raises quiet input with a gain that is undone on the
+output, so the output level is unchanged either way.
 
 ### DeepFilterNet3 (`deepfilternet_stream.onnx`)
 

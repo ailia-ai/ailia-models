@@ -101,16 +101,15 @@ MODELS = {
         # against the offline model on speech: the only skew that matches.
         'lookahead_frames': 2,
         'latency_samples': 320,
-        # The model was trained on inputs near full scale with a -30..+6 dB
-        # jitter; a quiet microphone (-40 dBFS) sits at the edge of that range
-        # and the enrolled talker comes out a few dB low.  The stream raises
-        # the input towards `target_dbfs` with a gain that only ever decreases
-        # (a running peak with no release), capped by `floor_dbfs`, moving no
-        # faster than `slew_db_per_s`, and divides the matching output hop by
-        # the same gain.  Measured on a -41 dBFS recording: the enrolled talker
-        # within 0.8 dB of the released 48 kHz model, the other talker 14 dB
-        # lower than it.
-        'input_level': dict(target_dbfs=-12.0, floor_dbfs=-30.0, slew_db_per_s=1.0),
+        # Input level alignment is off: the model is trained over a -45..+6 dB
+        # input level range and keeps the enrolled talker at a -41 dBFS
+        # microphone level without help.  Set to
+        # dict(target_dbfs=-12.0, floor_dbfs=-30.0, slew_db_per_s=1.0) to
+        # raise quiet input towards target_dbfs with a gain that only ever
+        # decreases (a running peak with no release), capped by floor_dbfs,
+        # moving no faster than slew_db_per_s, undone on the matching output
+        # hop; the output level is unchanged either way.
+        'input_level': None,
         'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2)),
         'initial': dict(_INITIAL),
     },
