@@ -14,7 +14,6 @@ from model_utils import check_and_download_file  # noqa: E402
 
 from ailia_voice_filter_utils import (  # noqa: E402
     MODELS,
-    SPEAKER_RATE,
     GraphStream,
     compute_dvector,
 )
@@ -26,7 +25,6 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
-WEIGHT_SPEAKER_PATH = 'speaker_encoder.onnx'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/ailia_voice_filter/'
 
 WAVE_PATH = 'mixed.wav'
@@ -44,14 +42,16 @@ parser = get_base_parser(
 parser.add_argument(
     '-m', '--model', metavar='MODEL',
     default='voicefilter', choices=tuple(MODELS),
-    help='model to use: voicefilter (keeps the enrolled speaker and removes '
-         'everything else) or deepfilternet (denoising only)'
+    help='model to use: voicefilter (48 kHz; keeps the enrolled speaker and '
+         'removes everything else), voicefilter_v3 (the same at 16 kHz, '
+         '10 ms hop) or deepfilternet (denoising only)'
 )
 parser.add_argument(
     '-r', '--reference_file', metavar='REFERENCE',
     default=None, type=str,
     help='clean audio of the speaker to keep (default: %s). Required by '
-         'voicefilter, refused by deepfilternet' % REFERENCE_PATH
+         'voicefilter and voicefilter_v3, refused by deepfilternet'
+         % REFERENCE_PATH
 )
 args = update_parser(parser)
 
@@ -62,12 +62,13 @@ args = update_parser(parser)
 
 def enrol(stream, reference_path, env_id):
     """Turn a sample of the speaker's voice into the d-vector."""
-    check_and_download_file(WEIGHT_SPEAKER_PATH, REMOTE_PATH)
-    encoder = ailia.Net(None, WEIGHT_SPEAKER_PATH, env_id=env_id)
+    speaker = stream.spec['speaker']
+    check_and_download_file(speaker['graph'], REMOTE_PATH)
+    encoder = ailia.Net(None, speaker['graph'], env_id=env_id)
 
     logger.info('reference : %s' % reference_path)
-    audio, _ = librosa.load(reference_path, sr=SPEAKER_RATE, mono=True)
-    dvector = compute_dvector(encoder, audio)
+    audio, _ = librosa.load(reference_path, sr=speaker['rate'], mono=True)
+    dvector = compute_dvector(encoder, audio, speaker['kind'])
     stream.enrol(dvector)
 
 

@@ -3,11 +3,11 @@
 Everything that is not inside the graph lives here: the analysis window, the
 STFT, the state bookkeeping and the speaker encoder's slicing.  The browser
 demo keeps the same numbers in a JSON contract next to each graph; they are
-inlined below so the sample needs nothing but the three ONNX files.
+inlined below so the sample needs nothing but the ONNX files.
 
 ``GraphStream.push`` takes exactly one hop of samples and returns exactly one
 hop, so the caller never has to know whether the transform is inside the graph
-(DeepFilterNet3) or its own job (the conditioned model).
+(DeepFilterNet3) or its own job (the conditioned models).
 """
 
 import numpy as np
@@ -44,12 +44,27 @@ _NETWORK_STATES = (
     'erb_cache', 'df_cache', 'convp_cache', 'enc_h', 'erb_h', 'df_h',
 )
 
+# Speaker encoders.  `kind` selects how compute_dvector prepares the audio.
+_SPEAKER_GE2E = {
+    'graph': 'speaker_encoder.onnx',
+    'kind': 'ge2e',
+    'rate': 16000,
+    'embedding': 256,
+}
+_SPEAKER_ECAPA = {
+    'graph': 'speaker_encoder_ecapa.onnx',
+    'kind': 'ecapa',
+    'rate': 16000,
+    'embedding': 192,
+}
+
 MODELS = {
     'voicefilter': {
         'graph': 'voicefilter_stream.onnx',
         'name': 'ailia Voice Filter (48 kHz, speaker conditioned)',
         'rate': 48000,
         'conditioned': True,
+        'speaker': _SPEAKER_GE2E,
         'n_fft': 960,
         'hop': 480,
         'win': 960,
@@ -65,6 +80,38 @@ MODELS = {
         # never realigns -- so the error never showed there.
         'latency_samples': 960,
         'state_shapes': dict(_STATE_SHAPES),
+        'initial': dict(_INITIAL),
+    },
+    'voicefilter_v3': {
+        'graph': 'voicefilter_v3_stream.onnx',
+        'name': 'ailia Voice Filter v3 (16 kHz, speaker conditioned)',
+        'rate': 16000,
+        'conditioned': True,
+        'speaker': _SPEAKER_ECAPA,
+        'n_fft': 320,
+        'hop': 160,
+        'win': 320,
+        'window': 'vorbis',
+        'spectrum_scale': 1.0 / 320.0,
+        'dvector': 192,
+        'warmup_frames': 2,
+        'startup_pad': 160,
+        # The graph answers about the frame two back, so its first two answers
+        # are about nothing and take no part in the overlap-add.  Measured
+        # against the offline model on speech: the only skew that matches.
+        'lookahead_frames': 2,
+        'latency_samples': 320,
+        # The model was trained on inputs near full scale with a -30..+6 dB
+        # jitter; a quiet microphone (-40 dBFS) sits at the edge of that range
+        # and the enrolled talker comes out a few dB low.  The stream raises
+        # the input towards `target_dbfs` with a gain that only ever decreases
+        # (a running peak with no release), capped by `floor_dbfs`, moving no
+        # faster than `slew_db_per_s`, and divides the matching output hop by
+        # the same gain.  Measured on a -41 dBFS recording: the enrolled talker
+        # within 0.8 dB of the released 48 kHz model, the other talker 14 dB
+        # lower than it.
+        'input_level': dict(target_dbfs=-12.0, floor_dbfs=-30.0, slew_db_per_s=1.0),
+        'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2)),
         'initial': dict(_INITIAL),
     },
     'deepfilternet': {
@@ -118,6 +165,9 @@ class GraphStream:
         self.dvector_size = self.spec.get('dvector', 256)
         self.warmup = self.spec['warmup_frames']
         self.scale = self.spec.get('spectrum_scale', 1.0)
+        self.lookahead = self.spec.get('lookahead_frames', 0)
+        # Input level alignment (see the contract); None switches it off.
+        self.level = self.spec.get('input_level')
 
         # A spectrum in and out, or a hop of samples in and out.
         self.spectral = 'real' in self.inputs
@@ -178,6 +228,13 @@ class GraphStream:
         # one, so the emitted hop is divided by that sum.
         self._overlap = np.zeros(self.n_fft, dtype=np.float64)
         self._weight = np.zeros(self.n_fft, dtype=np.float64)
+        # Level alignment: the running peak, the gain in dB, and the gains
+        # applied to the hops still inside the pipeline (the output hop that
+        # comes out now answers the input hop `skew` samples ago).
+        self._peak = None
+        self._gain_db = None
+        self._gains = []
+        self._gains_applied = []
 
     # ----------------------------------------------------------- one hop
 
@@ -211,6 +268,9 @@ class GraphStream:
             produced = self._run({'hop': hop[None]})
             return np.asarray(produced['out'], dtype=np.float32).reshape(-1)
 
+        gain = self._align_gain(hop)
+        if gain != 1.0:
+            hop = (hop * gain).astype(np.float32)
         self._buffer = np.concatenate([self._buffer, hop])
         pieces = []
         while len(self._buffer) >= self.n_fft:
@@ -223,7 +283,13 @@ class GraphStream:
             }
             if self.dvector is not None and 'dvector' in self.inputs:
                 feed['dvector'] = self.dvector
+            frame_index = self.index
             produced = self._run(feed)
+            if frame_index < self.lookahead:
+                # Nothing has been returned yet: a hop of silence, and the
+                # frame stays out of the overlap-add and its normalisation.
+                pieces.append(np.zeros(self.hop))
+                continue
             real = np.asarray(produced['out_real'], dtype=np.float64).reshape(-1)
             imaginary = np.asarray(
                 produced['out_imaginary'], dtype=np.float64).reshape(-1)
@@ -244,7 +310,36 @@ class GraphStream:
         out = np.concatenate(pieces) if pieces else np.zeros(0)
         if len(out) < self.hop:
             out = np.concatenate([out, np.zeros(self.hop - len(out))])
-        return out[:self.hop].astype(np.float32)
+        out = out[:self.hop]
+        if self.level is not None:
+            # Undo the gain of the input hop this output hop answers.
+            self._gains.append(gain)
+            delay = self.skew // self.hop
+            undo = self._gains[-1 - delay] if len(self._gains) > delay else self._gains[0]
+            out = out / undo
+        return out.astype(np.float32)
+
+    def _align_gain(self, hop):
+        """The gain for this input hop: the running peak (never released, never below floor_dbfs) brought to
+        target_dbfs, moving no faster than slew_db_per_s.  1.0 when the alignment is off."""
+        if self.level is None:
+            return 1.0
+        floor = 10 ** (self.level['floor_dbfs'] / 20)
+        peak = max(float(np.max(np.abs(hop))) if len(hop) else 0.0, floor)
+        self._peak = peak if self._peak is None else max(self._peak, peak)
+        wanted = self.level['target_dbfs'] - 20 * np.log10(self._peak)
+        if self._gain_db is None:
+            self._gain_db = wanted
+        else:
+            step = self.level['slew_db_per_s'] * self.hop / self.rate
+            self._gain_db += float(np.clip(wanted - self._gain_db, -step, step))
+        gain = float(10 ** (self._gain_db / 20))
+        self._gains_applied.append(gain)
+        return gain
+
+    def level_gains_applied(self):
+        """The gain applied to every input hop so far (for tests and logging)."""
+        return list(self._gains_applied)
 
     # ------------------------------------------------------- whole signal
 
@@ -279,16 +374,27 @@ class GraphStream:
 
 
 # ======================
-# Speaker encoder
+# Speaker encoders
 # ======================
 
 SPEAKER_RATE = 16000
 SPEAKER_PARTIAL = 25600      # 1.6 s
 SPEAKER_EMBEDDING = 256
 SPEAKER_TARGET_DBFS = -30.0
+# The ECAPA graph frames the audio at 512; shorter input is zero-extended.
+SPEAKER_MIN_SAMPLES = 512
 
 
-def compute_dvector(net, audio):
+def compute_dvector(net, audio, kind='ge2e'):
+    """The embedding the selected graph was trained with, for 16 kHz mono audio."""
+    if kind == 'ge2e':
+        return compute_dvector_ge2e(net, audio)
+    if kind == 'ecapa':
+        return compute_dvector_ecapa(net, audio)
+    raise ValueError('unknown speaker encoder %r' % kind)
+
+
+def compute_dvector_ge2e(net, audio):
     """A 256-d GE2E d-vector for 16 kHz mono audio.
 
     The STFT and the mel filterbank are inside the graph, so nothing here
@@ -314,3 +420,21 @@ def compute_dvector(net, audio):
 
     mean = np.mean(embeddings, axis=0)
     return (mean / max(float(np.linalg.norm(mean)), 1e-12)).astype(np.float32)
+
+
+def compute_dvector_ecapa(net, audio):
+    """A 192-d ECAPA-TDNN embedding for 16 kHz mono audio.
+
+    The whole utterance goes through the graph at once: pre-emphasis, the
+    Hamming power spectrogram, the mel filterbank, the log and the
+    per-utterance mean subtraction are all inside it.  The audio is peak
+    normalised, as the model's enrollment was in training, and the vector is
+    used raw -- no averaging over partials and no L2 normalisation.
+    """
+    wav = np.asarray(audio, dtype=np.float32).reshape(-1).copy()
+    wav /= max(float(np.max(np.abs(wav))) if wav.size else 0.0, 1e-8)
+    if len(wav) < SPEAKER_MIN_SAMPLES:
+        wav = np.concatenate([wav, np.zeros(SPEAKER_MIN_SAMPLES - len(wav), np.float32)])
+    # The graph's time axis is dynamic; tell ailia the length before running.
+    net.set_input_shape((1, len(wav)))
+    return np.asarray(net.run(wav[None])[0], dtype=np.float32).reshape(-1)
