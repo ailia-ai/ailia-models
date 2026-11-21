@@ -110,11 +110,9 @@ MODELS = {
         # moving no faster than slew_db_per_s, undone on the matching output
         # hop; the output level is unchanged either way.
         'input_level': None,
-        # An all-zero d-vector (no enrollment) switches the graph to a branch
-        # that keeps every talker and only removes noise; erb_null_h is that
-        # branch's state.  The states of the branch not taken pass through.
-        'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2), erb_null_h=(2, 1, 256)),
-        'network_states': _NETWORK_STATES + ('erb_null_h',),
+        # An all-zero d-vector (no enrollment) makes the graph keep every
+        # talker and only remove noise; the same nine states either way.
+        'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2)),
         'initial': dict(_INITIAL),
         'null_mode': 'all-zero dvector',
     },

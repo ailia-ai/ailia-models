@@ -84,8 +84,8 @@ spectrum by `1/960` going in and divides by it coming out.
 
 - 16 kHz, `n_fft` 320, hop 160, Vorbis window at half overlap
 - Input: one frame of complex spectrum (`real`, `imaginary`, 161 bins each),
-  a 192-d `dvector`, and ten state tensors
-- Output: the enhanced spectrum and the ten states
+  a 192-d `dvector`, and nine state tensors
+- Output: the enhanced spectrum and the nine states
 - Latency: 320 samples (20 ms), plus the 160 the analysis framing costs
 
 The same calling convention as the 48 kHz graph: the caller does the framing
@@ -95,10 +95,9 @@ first two answers after a reset are about nothing and are skipped
 (`lookahead_frames`). As at 48 kHz, six of the states are discarded for the
 first two frames after a reset.
 
-An all-zero `dvector` (no enrollment) switches the graph to a branch that keeps every
-talker and only removes noise; any other vector selects the enrolled talker. Only one
-branch runs per frame, and the states of the branch not taken pass through unchanged.
-`erb_null_h` is the state of the no-enrollment branch.
+An all-zero `dvector` (no enrollment) makes the graph keep every talker and only
+remove noise; any other vector selects the enrolled talker. The states and the calling
+convention are the same either way.
 
 The model keeps the enrolled talker's level on quiet microphones by itself, so the
 sample's optional input level alignment (`input_level` in the model table) is off
