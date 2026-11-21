@@ -53,6 +53,11 @@ parser.add_argument(
          'voicefilter and voicefilter_v3, refused by deepfilternet'
          % REFERENCE_PATH
 )
+parser.add_argument(
+    '--no_reference', action='store_true',
+    help='run voicefilter_v3 without an enrollment (null mode: plain '
+         'denoising, every talker kept)'
+)
 args = update_parser(parser)
 
 
@@ -107,7 +112,13 @@ def main():
     net = ailia.Net(None, spec['graph'], env_id=env_id)
     stream = GraphStream(net, args.model)
 
-    if stream.conditioned:
+    if stream.conditioned and args.no_reference:
+        if not stream.spec.get('null_mode'):
+            logger.error('%s needs --reference_file; it has no null mode' % spec['name'])
+            sys.exit(1)
+        logger.info('no reference: null mode (plain denoising)')
+        stream.enrol(None)
+    elif stream.conditioned:
         enrol(stream, args.reference_file or REFERENCE_PATH, env_id)
     elif args.reference_file is not None:
         logger.error('%s cannot be told a speaker; drop --reference_file'

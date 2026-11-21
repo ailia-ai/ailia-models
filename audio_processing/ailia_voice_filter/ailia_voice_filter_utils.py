@@ -110,8 +110,13 @@ MODELS = {
         # moving no faster than slew_db_per_s, undone on the matching output
         # hop; the output level is unchanged either way.
         'input_level': None,
-        'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2)),
+        # An all-zero d-vector (no enrollment) switches the graph to a branch
+        # that keeps every talker and only removes noise; erb_null_h is that
+        # branch's state.  The states of the branch not taken pass through.
+        'state_shapes': dict(_STATE_SHAPES, spec_queue=(1, 4, 161, 2), erb_null_h=(2, 1, 256)),
+        'network_states': _NETWORK_STATES + ('erb_null_h',),
         'initial': dict(_INITIAL),
+        'null_mode': 'all-zero dvector',
     },
     'deepfilternet': {
         'graph': 'deepfilternet_stream.onnx',
@@ -204,6 +209,12 @@ class GraphStream:
         return self.spec.get('delay_hops', 0) * self.hop
 
     def enrol(self, dvector):
+        """The speaker to keep; None selects the null mode (plain denoising) on graphs that declare one."""
+        if dvector is None:
+            if not self.spec.get('null_mode'):
+                raise ValueError('%s needs an enrollment; it has no null mode' % self.spec['name'])
+            self.dvector = np.zeros((1, self.dvector_size), dtype=np.float32)
+            return
         vector = np.asarray(dvector, dtype=np.float32).reshape(-1)
         if vector.shape[0] != self.dvector_size:
             raise ValueError(
@@ -249,7 +260,7 @@ class GraphStream:
             key = name[:-4]
             if key not in self.state:
                 continue
-            if self.index < self.warmup and key in _NETWORK_STATES:
+            if self.index < self.warmup and key in self.spec.get('network_states', _NETWORK_STATES):
                 continue
             self.state[key] = value
         self.index += 1
