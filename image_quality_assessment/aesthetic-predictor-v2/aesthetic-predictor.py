@@ -128,8 +128,8 @@ def recognize_from_image(filename, net_ava, net_vitl14):
         else:
             score = predict(image, net_ava, net_vitl14)
 
-    logger.info('### Score ###')
-    logger.info(score)
+        logger.info('### Score ###')
+        logger.info(score)
 
     logger.info('Script finished successfully.')
 
