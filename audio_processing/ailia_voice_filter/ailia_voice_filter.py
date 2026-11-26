@@ -37,7 +37,11 @@ SAVE_PATH = 'output.wav'
 # ======================
 
 parser = get_base_parser(
-    'ailia Voice Filter', WAVE_PATH, SAVE_PATH, input_ftype='audio'
+    'ailia Voice Filter', WAVE_PATH, SAVE_PATH, input_ftype='audio',
+    # FP16 environments are skipped by default: the 16 kHz graph's spectra are
+    # small (see spectrum_scale), and its output drifts by 15 to 30 dB in
+    # FP16; the 48 kHz graph drifts by about 1 dB.
+    fp16_support=False
 )
 parser.add_argument(
     '-m', '--model', metavar='MODEL',
