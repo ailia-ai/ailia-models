@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 import cv2
 from collections import OrderedDict
 import random
@@ -148,14 +149,14 @@ def postprocess(outputs):
     return embedding_vectors
 
 
-def capture_training_frames_from_video(train_dir):
+def capture_training_frames_from_video(train_dir, logger):
     if os.path.isfile(train_dir):
         capture = cv2.VideoCapture(train_dir)
     else:
         capture = cv2.VideoCapture(int(train_dir))
     if not capture:
         logger.error("file open failed")
-        sts.exit(-1)
+        sys.exit(-1)
     train_imgs = []
     while(True):
         ret, frame = capture.read()
@@ -185,7 +186,7 @@ def training(net, params, size, crop_size, keep_aspect, batch_size, train_dir, a
             sys.exit(-1)
     else:
         logger.info("capture 200 frames from video")
-        train_imgs = capture_training_frames_from_video(train_dir)
+        train_imgs = capture_training_frames_from_video(train_dir, logger)
 
     if not aug:
         logger.info('extract train set features without augmentation')
