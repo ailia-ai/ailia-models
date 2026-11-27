@@ -14,7 +14,6 @@ from model_utils import check_and_download_file  # noqa: E402
 
 from ailia_voice_filter_utils import (  # noqa: E402
     MODELS,
-    SPEAKER_RATE,
     GraphStream,
     compute_dvector,
 )
@@ -26,7 +25,6 @@ logger = getLogger(__name__)
 # Parameters
 # ======================
 
-WEIGHT_SPEAKER_PATH = 'speaker_encoder.onnx'
 REMOTE_PATH = 'https://storage.googleapis.com/ailia-models/ailia_voice_filter/'
 
 WAVE_PATH = 'mixed.wav'
@@ -39,19 +37,30 @@ SAVE_PATH = 'output.wav'
 # ======================
 
 parser = get_base_parser(
-    'ailia Voice Filter', WAVE_PATH, SAVE_PATH, input_ftype='audio'
+    'ailia Voice Filter', WAVE_PATH, SAVE_PATH, input_ftype='audio',
+    # FP16 environments are skipped by default: the 16 kHz graph's spectra are
+    # small (see spectrum_scale), and its output drifts by 15 to 30 dB in
+    # FP16; the 48 kHz graph drifts by about 1 dB.
+    fp16_support=False
 )
 parser.add_argument(
     '-m', '--model', metavar='MODEL',
     default='voicefilter', choices=tuple(MODELS),
-    help='model to use: voicefilter (keeps the enrolled speaker and removes '
-         'everything else) or deepfilternet (denoising only)'
+    help='model to use: voicefilter (48 kHz; keeps the enrolled speaker and '
+         'removes everything else), voicefilter_v3 (the same at 16 kHz, '
+         '10 ms hop) or deepfilternet (denoising only)'
 )
 parser.add_argument(
     '-r', '--reference_file', metavar='REFERENCE',
     default=None, type=str,
     help='clean audio of the speaker to keep (default: %s). Required by '
-         'voicefilter, refused by deepfilternet' % REFERENCE_PATH
+         'voicefilter and voicefilter_v3, refused by deepfilternet'
+         % REFERENCE_PATH
+)
+parser.add_argument(
+    '--no_reference', action='store_true',
+    help='run voicefilter_v3 without an enrollment (null mode: plain '
+         'denoising, every talker kept)'
 )
 args = update_parser(parser)
 
@@ -62,12 +71,13 @@ args = update_parser(parser)
 
 def enrol(stream, reference_path, env_id):
     """Turn a sample of the speaker's voice into the d-vector."""
-    check_and_download_file(WEIGHT_SPEAKER_PATH, REMOTE_PATH)
-    encoder = ailia.Net(None, WEIGHT_SPEAKER_PATH, env_id=env_id)
+    speaker = stream.spec['speaker']
+    check_and_download_file(speaker['graph'], REMOTE_PATH)
+    encoder = ailia.Net(None, speaker['graph'], env_id=env_id)
 
     logger.info('reference : %s' % reference_path)
-    audio, _ = librosa.load(reference_path, sr=SPEAKER_RATE, mono=True)
-    dvector = compute_dvector(encoder, audio)
+    audio, _ = librosa.load(reference_path, sr=speaker['rate'], mono=True)
+    dvector = compute_dvector(encoder, audio, speaker['kind'])
     stream.enrol(dvector)
 
 
@@ -106,7 +116,13 @@ def main():
     net = ailia.Net(None, spec['graph'], env_id=env_id)
     stream = GraphStream(net, args.model)
 
-    if stream.conditioned:
+    if stream.conditioned and args.no_reference:
+        if not stream.spec.get('null_mode'):
+            logger.error('%s needs --reference_file; it has no null mode' % spec['name'])
+            sys.exit(1)
+        logger.info('no reference: null mode (plain denoising)')
+        stream.enrol(None)
+    elif stream.conditioned:
         enrol(stream, args.reference_file or REFERENCE_PATH, env_id)
     elif args.reference_file is not None:
         logger.error('%s cannot be told a speaker; drop --reference_file'
